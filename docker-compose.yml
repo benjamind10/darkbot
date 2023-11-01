@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  python-app:
+    build: ./
+    volumes:
+      - ./app:/usr/local/share/app
+    working_dir: /usr/local/share/app
+    command: python app.py
+    networks:
+      - app-network
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: darkbot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - app-network
+    ports:
+      - "5432:5432"
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  pgdata:
