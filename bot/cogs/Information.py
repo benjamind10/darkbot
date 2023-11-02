@@ -13,7 +13,7 @@ class Information(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(aliases=["commands_list", "cmds"])
+    @commands.command(aliases=["commands", "cmds"])
     async def robot_commands(self, ctx):
         embed = discord.Embed(
             color=self.bot.embed_color,
@@ -32,7 +32,7 @@ class Information(commands.Cog):
         logger.info(f"Information | Sent Commands: {ctx.author}")
 
     @commands.command()
-    async def stats(self, ctx):
+    async def info(self, ctx):
         users = str(len(self.bot.users))
         guilds = str(len(self.bot.guilds))
         cpu = str(psutil.cpu_percent())

@@ -13,12 +13,13 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 OWNER_ID = os.getenv("OWNER_ID")
+print(OWNER_ID)
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-cogs = ["Information"]
+cogs = ["Information", "Owner"]
 
 
 class DarkBot(commands.AutoShardedBot):
@@ -26,7 +27,7 @@ class DarkBot(commands.AutoShardedBot):
         super().__init__(
             command_prefix="!",
             intents=intents,
-            owner_id=OWNER_ID,
+            owner_id=int(OWNER_ID),
             reconnect=True,
             case_insensitive=False,
         )
