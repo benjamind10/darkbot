@@ -2,14 +2,14 @@
 FROM python:3.10
 
 # Set the working directory inside the container
-WORKDIR /usr/local/share/app
+WORKDIR /usr/local/share/bot
 
 # Install PostgreSQL development libraries
 RUN apt-get update && apt-get install -y libpq-dev gcc && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN pip install psycopg2-binary
 
 # Copy the requirements.txt file into the container
-COPY ./app/requirements.txt .
+COPY ./bot/requirements.txt .
 
 # Install the Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
