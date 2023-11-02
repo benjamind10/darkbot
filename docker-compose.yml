@@ -4,9 +4,9 @@ services:
   python-app:
     build: ./
     volumes:
-      - ./app:/usr/local/share/app
-    working_dir: /usr/local/share/app
-    command: python app.py
+      - ./bot:/usr/local/share/bot
+    working_dir: /usr/local/share/bot
+    command: python bot.py
     networks:
       - app-network
     depends_on:
