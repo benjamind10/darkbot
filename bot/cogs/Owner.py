@@ -35,6 +35,46 @@ class Owner(commands.Cog):
             print(f'There was an error: {e}')
 
 
+    @commands.is_owner()
+    @commands.command()
+    async def check_roles(self, ctx, user: discord.Member):
+        """List all roles of a user."""
+        # We exclude the default @everyone role that everyone has
+        role_mentions = [role.mention for role in user.roles if role != ctx.guild.default_role]
+        role_names = [role.name for role in user.roles if role != ctx.guild.default_role]
+        roles_text = ' '.join(role_mentions) if role_mentions else 'This user has no roles.'
+
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title=f"Roles for {user.display_name}",
+            description=roles_text
+        )
+        await ctx.send(embed=embed)
+        logger.info(f"Owner | Checked Roles for User: {user} - {ctx.author}")
+
+    @commands.is_owner()
+    @commands.command()
+    async def check_permissions(self, ctx, user: discord.Member):
+        """List all permissions of a user."""
+        # Get the permissions for the user
+        permissions = user.guild_permissions
+
+        # Create a list of permission names that are set to True
+        true_permissions = [perm[0] for perm in permissions if perm[1]]
+
+        # Format the permissions into a string list
+        formatted_permissions = ", ".join(true_permissions).replace("_", " ").title()
+
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title=f"Permissions for {user.display_name}",
+            description=formatted_permissions
+        )
+
+        await ctx.send(embed=embed)
+        logger.info(f"Owner | Checked Permissions for User: {user} - {ctx.author}")
+
+
 async def setup(client):
     await client.add_cog(Owner(client))
     print("Owner cog loaded")

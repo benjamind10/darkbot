@@ -1,11 +1,13 @@
 import re
-
+import os
 import discord
 import lavalink
 from discord.ext import commands
 from lavalink.filters import LowPass
 
 url_rx = re.compile(r'https?://(?:www\.)?.+')
+LAVALINK_PASS = os.getenv("LAVALINK_PASS")
+LAVALINK_SERVER = os.getenv("LAVALINK_SERVER")
 
 
 class LavalinkVoiceClient(discord.VoiceClient):
@@ -25,9 +27,9 @@ class LavalinkVoiceClient(discord.VoiceClient):
         else:
             self.client.lavalink = lavalink.Client(client.user.id)
             self.client.lavalink.add_node(
-                'lavalink-app',
+                str(LAVALINK_SERVER),
                 2333,
-                'Musicboy12?',
+                str(LAVALINK_PASS),
                 'us',
                 'default-node'
             )
