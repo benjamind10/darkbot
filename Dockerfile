@@ -5,8 +5,8 @@ FROM python:3.10
 WORKDIR /usr/local/share/bot
 
 # Install PostgreSQL development libraries
-RUN apt-get update && apt-get install -y libpq-dev gcc && apt-get clean && rm -rf /var/lib/apt/lists/*
-RUN pip install psycopg2-binary
+RUN apt-get update && apt-get install -y libpq-dev gcc && apt-get clean && rm -rf /var/lib/apt/lists/* \
+RUN pip install psycopg2-binary && pip install lavalink
 
 # Copy the requirements.txt file into the container
 COPY ./bot/requirements.txt .
