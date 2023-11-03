@@ -13,13 +13,12 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 OWNER_ID = os.getenv("OWNER_ID")
-print(OWNER_ID)
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-cogs = ["Information", "Owner", "Music"]
+cogs = ["Information", "Owner", "Music", "Moderation"]
 
 
 class DarkBot(commands.AutoShardedBot):
@@ -77,21 +76,3 @@ class DarkBot(commands.AutoShardedBot):
 
 DarkBot().run(TOKEN)
 
-#   f"\n{self.console_info_format} Connected to {(len(self.guilds))} Guilds."
-
-# class MyClient(discord.Client):
-#     async def on_ready(self):
-#         print(f"Logged on as {self.user}!")
-
-#     async def on_message(self, message):
-#         print(f"Message from {message.author}: {message.content}")
-
-
-# intents = discord.Intents.default()
-# intents.message_content = True
-
-# client = MyClient(intents=intents)
-
-
-# def run_bot():
-#     client.run(TOKEN)
