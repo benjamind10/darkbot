@@ -47,7 +47,7 @@ class Information(commands.Cog):
             disk_round = disk[:4]
             boot_time = str(psutil.boot_time() / 100000000)
             boot_time_round = boot_time[:4]
-            # linux_distro = distro.os_release_info()
+            linux_distro = distro.os_release_info()
             # get_news = self.bot.cursor.execute("SELECT rowid, * FROM bot_information")
             # news = get_news.fetchall()[0][3]
 
@@ -59,7 +59,7 @@ class Information(commands.Cog):
                             + "\n—"
             )
             embed.set_thumbnail(url="https://bit.ly/2JGhA94")
-            # embed.add_field(name=f"• OPERATING System:", inline=True, value=f":computer: — {linux_distro['pretty_name']}")
+            embed.add_field(name=f"• OPERATING System:", inline=True, value=f":computer: — {linux_distro['pretty_name']}")
             embed.add_field(name=f"• CPU Usage:", inline=True, value=f":heavy_plus_sign: — {cpu} Percent used")
             embed.add_field(name=f"• RAM Usage:", inline=True,
                             value=f":closed_book:  —  {ram_round}  / 4  Gigabytes used")
@@ -116,16 +116,26 @@ class Information(commands.Cog):
 
     @commands.command()
     async def uptime(self, ctx):
-        """Command to check the bot's uptime."""
+        """Command to check the bot's and system's uptime."""
         try:
+            # Bot Uptime
             current_time = time.time()
-            difference = int(round(current_time - self.bot_start_time))
-            uptime_duration = str(timedelta(seconds=difference))  # Correct usage of timedelta
+            bot_difference = int(round(current_time - self.bot_start_time))
+            bot_uptime_duration = str(timedelta(seconds=bot_difference))
+
+            # System Uptime
+            boot_time_timestamp = psutil.boot_time()
+            boot_time = datetime.fromtimestamp(boot_time_timestamp)
+            system_uptime_duration = str(timedelta(seconds=int(round(current_time - boot_time_timestamp))))
+
             embed = discord.Embed(
                 color=self.bot.embed_color,
-                title="→ Bot Uptime",
-                description=f"→ I have been running for: {uptime_duration}"
+                title="→ Uptime",
             )
+            embed.add_field(name="Bot Uptime", value=f"→ I have been running for: {bot_uptime_duration}", inline=False)
+            embed.add_field(name="System Uptime", value=f"→ System has been running for: {system_uptime_duration}",
+                            inline=False)
+
             await ctx.send(embed=embed)
 
             logger.info(f"Information | Uptime checked: {ctx.author}")
@@ -201,6 +211,71 @@ class Information(commands.Cog):
             )
             await ctx.send(embed=embed)
 
+    @commands.command()
+    async def status(self, ctx, online_status):
+        if str(online_status).lower() == "dnd":
+            await self.bot.change_presence(status=discord.Status.dnd)
+        elif str(online_status).lower() == "idle":
+            await self.bot.change_presence(status=discord.Status.idle)
+        elif str(online_status).lower() == "offline":
+            await self.bot.change_presence(status=discord.Status.offline)
+        else:
+            await self.bot.change_presence(status=discord.Status.online)
+
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title="→ Online Status Changed!",
+            description=f"• My status has been updated to: `{online_status.lower()}`"
+        )
+
+        await ctx.send(embed=embed)
+
+        logger.info(f"Owner | Sent Status: {ctx.author} | Online Status: {online_status}")
+
+    @status.error
+    async def change_status_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Invalid Argument!",
+                description="• Please put a valid option! Example: `l!status <online status>`"
+            )
+            await ctx.send(embed=embed)
+
+    @commands.is_owner()
+    @commands.command()
+    async def name(self, ctx, name):
+        await self.bot.user.edit(username=name)
+
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title="→ Bot Name Changed!",
+            description=f"• My name has been updated to: `{name}`"
+        )
+
+        await ctx.send(embed=embed)
+
+        logger.info(f"Owner | Sent Name: {ctx.author} | Name: {name}")
+
+    @name.error
+    async def name_error(self, ctx, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Invalid Argument!",
+                description="• Please put a valid option! Example: `l!name <name>`"
+            )
+            await ctx.send(embed=embed)
+        elif isinstance(error, commands.CommandError):
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Unknown Error Has Occurred ",
+                description=f"```python"
+                            f"{error}"
+                            f"```"
+            )
+            await ctx.send(embed=embed)
+
+
 async def setup(bot):
     await bot.add_cog(Information(bot))
-    print("Information cog loaded")

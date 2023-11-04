@@ -19,7 +19,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-cogs = ["Information", "Owner", "Music", "Moderation"]
+cogs = ["Information", "Owner", "Music", "Moderation", "Utility"]
 
 
 class DarkBot(commands.AutoShardedBot):
@@ -60,6 +60,7 @@ class DarkBot(commands.AutoShardedBot):
 
         try:
             for cog in cogs:
+                print(f"Cog loaded: {cog}")
                 await self.load_extension(f"cogs.{cog}")
         except Exception as e:
             print(f"Could not load extension {e}")
