@@ -2,6 +2,7 @@ import discord
 import os
 import sys
 
+from discord import client
 from discord.ext import commands
 from dotenv import load_dotenv
 from colorama import Style, Fore
@@ -53,6 +54,8 @@ class DarkBot(commands.AutoShardedBot):
 
     async def on_ready(self):
         await self.wait_until_ready()
+        activity = discord.Game(name="Music, !play to use")
+        await self.change_presence(activity=activity)
         os.system("clear")
 
         try:
