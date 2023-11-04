@@ -74,7 +74,6 @@ class Owner(commands.Cog):
         await ctx.send(embed=embed)
         logger.info(f"Owner | Checked Permissions for User: {user} - {ctx.author}")
 
+
 async def setup(client):
     await client.add_cog(Owner(client))
-    print("Owner cog loaded")
-    
