@@ -2,6 +2,7 @@ import discord
 import os
 import sys
 
+from discord import client
 from discord.ext import commands
 from dotenv import load_dotenv
 from colorama import Style, Fore
@@ -18,7 +19,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-cogs = ["Information"]
+cogs = ["Information", "Owner", "Music", "Moderation"]
 
 
 class DarkBot(commands.AutoShardedBot):
@@ -26,7 +27,7 @@ class DarkBot(commands.AutoShardedBot):
         super().__init__(
             command_prefix="!",
             intents=intents,
-            owner_id=OWNER_ID,
+            owner_id=int(OWNER_ID),
             reconnect=True,
             case_insensitive=False,
         )
@@ -53,6 +54,8 @@ class DarkBot(commands.AutoShardedBot):
 
     async def on_ready(self):
         await self.wait_until_ready()
+        activity = discord.Game(name="Music, !play to use")
+        await self.change_presence(activity=activity)
         os.system("clear")
 
         try:
@@ -76,21 +79,3 @@ class DarkBot(commands.AutoShardedBot):
 
 DarkBot().run(TOKEN)
 
-#   f"\n{self.console_info_format} Connected to {(len(self.guilds))} Guilds."
-
-# class MyClient(discord.Client):
-#     async def on_ready(self):
-#         print(f"Logged on as {self.user}!")
-
-#     async def on_message(self, message):
-#         print(f"Message from {message.author}: {message.content}")
-
-
-# intents = discord.Intents.default()
-# intents.message_content = True
-
-# client = MyClient(intents=intents)
-
-
-# def run_bot():
-#     client.run(TOKEN)
