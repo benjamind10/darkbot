@@ -26,7 +26,7 @@ from utils.decimal_formatting import truncate
 load_dotenv()
 
 COINCAP_TOKEN = os.getenv("API_COINCAP")
-KSOFT_APT = os.getenv("KSOFT_APT")
+KSOFT_API = os.getenv("KSOFT_APT")
 IP_INFO = os.getenv("IP_INFO")
 
 
@@ -518,7 +518,7 @@ class Utility(commands.Cog):
     @commands.command()
     async def weather(self, ctx, *, location: str):
         try:
-            OPENWEATHER_API_KEY = KSOFT_APT
+            OPENWEATHER_API_KEY = KSOFT_API
             # Assume location is a city name for simplicity; you might want to handle other types of location input
             async with aiohttp.ClientSession() as cs:
                 async with cs.get(

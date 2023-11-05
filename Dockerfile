@@ -13,6 +13,7 @@ COPY ./bot/requirements.txt .
 
 # Install the Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install aiogoogletrans asyncurban ipinfo strgen forex-python bitlyshortener
 
 # At runtime, this will be the default command, but it's overridden by the docker-compose.yml command
 CMD ["python", "bot.py"]
