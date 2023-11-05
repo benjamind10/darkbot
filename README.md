@@ -33,6 +33,14 @@ These instructions will help you get a copy of DarkBot up and running on your ma
      ```bash
      docker-compose up -d
      ```
+4. **Logging Setup:**
+    - DarkBot utilizes logging to help keep track of events and potentially troubleshoot issues. To set up logging:
+    - Create a `logs` folder in the project root directory:
+   ```bash
+     mkdir logs
+     cd logs
+     touch information.log owner.log music.log moderation.log
+    ```
 
 Now, DarkBot should be up and running on your machine, ready to be invited to your server!
 
