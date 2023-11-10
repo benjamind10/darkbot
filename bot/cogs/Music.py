@@ -282,5 +282,132 @@ class Music(commands.Cog):
         await player.set_volume(volume)  # Set the volume
         await ctx.send(f'🔊 | Volume set to: **{volume}%**')
 
+    @commands.command(aliases=['s'])
+    async def skip(self, ctx):
+        """ Skips the current track. """
+        player = self.bot.lavalink.player_manager.get(ctx.guild.id)
+
+        await player.skip()
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title="→ Skipped",
+            description="• The current song you have requested has been **skipped!**"
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command()
+    async def stop(self, ctx):
+        """ Stops the player and clears its queue. """
+        player = self.bot.lavalink.player_manager.get(ctx.guild.id)
+
+        if not player.is_playing:
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ No Songs!",
+                description="• Nothing is playing at the moment!"
+            )
+            return await ctx.send(embed=embed)
+
+        player.queue.clear()
+        await player.stop()
+
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title="→ Stopped!",
+            description="• The music has been stopped!"
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=['np', 'n', 'playing'])
+    async def now(self, ctx):
+        """ Shows some stats about the currently playing song. """
+        player = self.bot.lavalink.player_manager.get(ctx.guild.id)
+
+        if not player.current:
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ No Songs!",
+                description="• Nothing is playing at the moment!"
+            )
+            return await ctx.send(embed=embed)
+
+        position = lavalink.utils.format_time(player.position)
+        if player.current.stream:
+            duration = '🔴 Live Video'
+        else:
+            duration = lavalink.utils.format_time(player.current.duration)
+        song = f'**• [{player.current.title}]({player.current.uri})**'
+
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title='→ Currently Playing:',
+            description=f"{song}"
+                        f"\n**•** Current time: **({position}/{duration})**"
+        )
+        embed.set_thumbnail(url=f'https://img.youtube.com/vi/{player.current.identifier}/default.jpg')
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=['q'])
+    async def queue(self, ctx, page: int = 1):
+        """ Shows the player's queue. """
+        player = self.bot.lavalink.player_manager.get(ctx.guild.id)
+
+        if not player.queue:
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ No Queue!",
+                description="• No songs are in the queue at the moment!"
+            )
+            return await ctx.send(embed=embed)
+
+        items_per_page = 10
+        pages = math.ceil(len(player.queue) / items_per_page)
+
+        start = (page - 1) * items_per_page
+        end = start + items_per_page
+
+        queue_list = ''
+        for index, track in enumerate(player.queue[start:end], start=start):
+            queue_list += f'`{index + 1}.` [**{track.title}**]({track.uri})\n'
+
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title="→ List Of Songs:",
+            description=f"\n{queue_list}"
+        )
+        # embed.set_author(name=f'→ List of songs: {len(player.queue)} \n\n{queue_list}')
+        embed.set_footer(text=f'• On page: {page}/{pages}')
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=['resume'])
+    async def pause(self, ctx):
+        """ Pauses/Resumes the current track. """
+        player = self.bot.lavalink.player_manager.get(ctx.guild.id)
+
+        if not player.is_playing:
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Not Playing!",
+                description="• No song is playing is currently playing!"
+            )
+            return await ctx.send(embed=embed)
+
+        if player.paused:
+            await player.set_pause(False)
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Resumed!",
+                description="• The current song has been **resumed successfully!**"
+            )
+            await ctx.send(embed=embed)
+        else:
+            await player.set_pause(True)
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Paused!",
+                description="• The current song has been **paused successfully!**"
+            )
+            await ctx.send(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(Music(bot))
