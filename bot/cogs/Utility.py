@@ -511,7 +511,7 @@ class Utility(commands.Cog):
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!translate <language> <message>`"
-                            "\n• Real world example: `!translate english Hola`"
+                            "\n• Real world example: `translate english Hola`"
             )
             await ctx.send(embed=embed)
 
