@@ -1,6 +1,7 @@
 import re
 import os
 import discord
+import math
 import lavalink
 from discord.ext import commands
 from lavalink.filters import LowPass
