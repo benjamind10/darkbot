@@ -28,7 +28,8 @@ class Information(commands.Cog):
             information = "!commands"
 
             embed.add_field(name="• Information Commands!", inline=False, value=information)
-
+            print(ctx.author.guild_permissions)
+            print(ctx.channel.permissions_for(ctx.author))
             await ctx.send(embed=embed)
 
             logger.info(f"Information | Sent Commands: {ctx.author}")
@@ -161,7 +162,7 @@ class Information(commands.Cog):
         }
 
         roles = [role for role in member.roles]
-        roles = f" ".join([f"`@{role}`, " for role in roles])
+        roles = " ".join([f"`{role.name}`" for role in roles])
 
         embed.set_thumbnail(url=member.avatar_url_as(size=1024, format=None, static_format="png"))
         embed.add_field(name="• Account name: ", value=str(member))
@@ -187,7 +188,7 @@ class Information(commands.Cog):
             embed.add_field(name="• On mobile? ", value=":no_mobile_phones:")
 
         embed.add_field(name="• Status: ", value=status[member.status.name])
-        embed.add_field(name="• Top role: ", value=f"`@{member.top_role}`")
+        embed.add_field(name="• Top role: ", value=f"`{member.top_role.name}`")
         embed.add_field(name="• Roles: ", inline=False, value=roles)
 
         await ctx.send(embed=embed)

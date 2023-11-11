@@ -456,14 +456,14 @@ class Moderation(commands.Cog):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Member!",
-                description="• Please mention a valid member! Example: `l!warn @user [reason]`"
+                description="• Please mention a valid member! Example: `!warn @user [reason]`"
             )
             await ctx.send(embed=embed)
         if isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `l!warn @user [reason]`"
+                description="• Please put a valid option! Example: `!warn @user [reason]`"
             )
             await ctx.send(embed=embed)
         elif isinstance(error, commands.MissingPermissions):
@@ -480,6 +480,23 @@ class Moderation(commands.Cog):
                 description="• Please give me permissions to use this command!"
             )
             await ctx.send(embed=embed)
+
+    @commands.command()
+    @commands.has_permissions(move_members=True)  # Ensure user has the right permissions
+    async def dc_voice(self, ctx, member: discord.Member):
+        """Disconnects a user from a voice channel."""
+        print(ctx.author.guild_permissions)
+        print(ctx.channel.permissions_for(ctx.author))
+
+        if member.voice is None or member.voice.channel is None:
+            await ctx.send(f"{member.mention} is not in a voice channel!")
+            return
+
+        await member.move_to(None)
+        await ctx.send(f"Disconnected {member.mention} from their voice channel.")
+
+        logger.info(f"Moderation | Disconnected: {member} | By: {ctx.author}")
+
 
 
 async def setup(bot):
