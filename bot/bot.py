@@ -19,7 +19,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-cogs = ["Information", "Owner", "Music", "Moderation", "Utility"]
+cogs = ["Information", "Owner", "Music", "Moderation", "Utility", "Events"]
 
 
 class DarkBot(commands.AutoShardedBot):
