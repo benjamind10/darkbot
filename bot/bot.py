@@ -45,7 +45,7 @@ class DarkBot(commands.AutoShardedBot):
         # self.cursor.execute("SELECT version();")
         # record = self.cursor.fetchone()
         # print(f"Connected to - {record}")
-        print(f"DarkBot is starting up...")
+        print("DarkBot is starting up...")
 
     # async def on_message(self, message):
     #     self.cursor.execute("SELECT version();")
@@ -79,4 +79,3 @@ class DarkBot(commands.AutoShardedBot):
 
 
 DarkBot().run(TOKEN)
-
