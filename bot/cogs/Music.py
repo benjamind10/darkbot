@@ -206,7 +206,7 @@ class Music(commands.Cog):
             embed.description = f'[{track.title}]({track.uri})'
 
             player.add(requester=ctx.author.id, track=track)
-             
+
 
 
         await ctx.send(embed=embed)
