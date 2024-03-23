@@ -36,8 +36,8 @@ class DarkBot(commands.AutoShardedBot):
         self.console_info_format = f"{Fore.BLUE}{datetime.now().strftime('%H:%M:%S')}{Fore.RESET} {Style.BRIGHT}[{Fore.BLUE}INFO{Fore.RESET}]{Style.RESET_ALL}"
 
         # DB STUFF
-        # self.conn = get_connection()
-        # self.cursor = self.conn.cursor()
+        self.conn = get_connection()
+        self.cursor = self.conn.cursor()
 
     async def on_connect(self):
         os.system("clear")
@@ -77,6 +77,4 @@ class DarkBot(commands.AutoShardedBot):
             f"\n{self.console_info_format} --------------------------------------------"
         )
 
-
 DarkBot().run(TOKEN)
-
