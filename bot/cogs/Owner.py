@@ -74,6 +74,29 @@ class Owner(commands.Cog):
         await ctx.send(embed=embed)
         logger.info(f"Owner | Checked Permissions for User: {user} - {ctx.author}")
 
+    @commands.is_owner()
+    @commands.command()
+    async def dbcheck(self, ctx):
+        """Check the database version."""
+        try:
+            # Ensure the bot has an active database connection
+            if not hasattr(self.bot, 'conn'):
+                await ctx.send("Database connection not established.")
+                return
+
+            # Execute a query to get the database version
+            with self.bot.conn.cursor() as cursor:
+                cursor.execute("SELECT version();")
+                record = cursor.fetchone()
+
+            # Send the database version to the context channel
+            if record:
+                await ctx.send(f"Database version: {record[0]}")
+            else:
+                await ctx.send("Unable to fetch database version.")
+
+        except Exception as e:
+            await ctx.send(f"Error checking database version: {e}")
 
 async def setup(client):
     await client.add_cog(Owner(client))
