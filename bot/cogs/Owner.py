@@ -98,5 +98,6 @@ class Owner(commands.Cog):
         except Exception as e:
             await ctx.send(f"Error checking database version: {e}")
 
+
 async def setup(client):
     await client.add_cog(Owner(client))

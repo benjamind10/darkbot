@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from colorama import Style, Fore
 from datetime import datetime
 from db import get_connection
+from logging_files.bot_logging import logger
 
 
 load_dotenv()
@@ -19,7 +20,15 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-cogs = ["Information", "Owner", "Music", "Moderation", "Utility", "Events"]
+cogs = [
+    "Information",
+    "Owner",
+    "Music",
+    "Moderation",
+    "Utility",
+    "Events",
+    "BoardGames",
+]
 
 
 class DarkBot(commands.AutoShardedBot):
@@ -44,8 +53,8 @@ class DarkBot(commands.AutoShardedBot):
         # DB STUFF
         # self.cursor.execute("SELECT version();")
         # record = self.cursor.fetchone()
-        # print(f"Connected to - {record}")
-        print(f"DarkBot is starting up...")
+        # logger.info(f"Connected to - {record}"
+        logger.info(f"DarkBot is starting up...")
 
     # async def on_message(self, message):
     #     self.cursor.execute("SELECT version();")
@@ -60,21 +69,22 @@ class DarkBot(commands.AutoShardedBot):
 
         try:
             for cog in cogs:
-                print(f"Cog loaded: {cog}")
+                logger.info(f"Cog loaded: {cog}")
                 await self.load_extension(f"cogs.{cog}")
         except Exception as e:
-            print(f"Could not load extension {e}")
+            logger.info(f"Could not load extension {e}")
 
-        print("Loaded commands:")
+        logger.info("Loaded commands:")
         for command in self.commands:
-            print(command)
+            logger.info(command)
 
-        print(
+        logger.info(
             f"{self.console_info_format} ---------------DarkBot---------------------"
             f"\n{self.console_info_format} Bot is online and connected to {self.user}"
             f"\n{self.console_info_format} Created by Shiva187"
             f"\n{self.console_info_format} Detected Operating System: {sys.platform.title()}"
             f"\n{self.console_info_format} --------------------------------------------"
         )
+
 
 DarkBot().run(TOKEN)
