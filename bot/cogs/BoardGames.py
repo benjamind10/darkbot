@@ -31,10 +31,12 @@ class BoardGames(commands.Cog):
 
             if record:
                 await ctx.send(f"There are: {record[0]} Board Games in the Database.")
-                logger.info(f"Successfully retrieved boardgame count: {record[0]}")
+                logger.info(
+                    f"Successfully retrieved boardgame count: {record[0]}")
             else:
                 await ctx.send("Unable to fetch database record.")
-                logger.error("Failed to fetch boardgame count from the database.")
+                logger.error(
+                    "Failed to fetch boardgame count from the database.")
         except Exception as e:
             await ctx.send(f"Error checking the database: {e}")
             logger.error(f"Error checking the database: {e}")
@@ -109,7 +111,8 @@ class BoardGames(commands.Cog):
                         for name in game.findall("name"):
                             if name.get("primary") == "true":
                                 game_name = name.text
-                                logger.info(f"Game found: {game_name} (ID: {game_id})")
+                                logger.info(
+                                    f"Game found: {game_name} (ID: {game_id})")
                                 break
 
                         age = (
@@ -145,7 +148,8 @@ class BoardGames(commands.Cog):
                             else "N/A"
                         )
                         if average_rating != "N/A":
-                            average_rating = "{:.2f}".format(float(average_rating))
+                            average_rating = "{:.2f}".format(
+                                float(average_rating))
 
                         embed = discord.Embed(
                             color=self.bot.embed_color,
