@@ -23,7 +23,7 @@ intents.members = True
 cogs = [
     "Information",
     "Owner",
-    "Music",
+    # "Music",
     "Moderation",
     "Utility",
     "Events",

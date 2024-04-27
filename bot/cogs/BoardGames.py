@@ -31,17 +31,19 @@ class BoardGames(commands.Cog):
 
             if record:
                 await ctx.send(f"There are: {record[0]} Board Games in the Database.")
-                logger.info(
-                    f"Successfully retrieved boardgame count: {record[0]}")
+                logger.info(f"Successfully retrieved boardgame count: {record[0]}")
             else:
                 await ctx.send("Unable to fetch database record.")
-                logger.error(
-                    "Failed to fetch boardgame count from the database.")
+                logger.error("Failed to fetch boardgame count from the database.")
         except Exception as e:
             await ctx.send(f"Error checking the database: {e}")
             logger.error(f"Error checking the database: {e}")
 
-    @commands.command(aliases=["bgsearch"])
+    @commands.command(
+        name="bgsearch",
+        help="Searches for board games on BoardGameGeek. Example: `!bgsearch Catan`",
+        brief="Search for board games by name.",
+    )
     async def search_boardgame(self, ctx, *, search_query: str):
         """Search for a board game on BoardGameGeek. Returns the top 5 results with names and object IDs."""
         search_url = f"{self.BASE_URL}search?search={search_query}"
@@ -93,7 +95,11 @@ class BoardGames(commands.Cog):
                         f"Failed to retrieve search results from the API with status code {response.status}."
                     )
 
-    @commands.command(aliases=["bginfo"])
+    @commands.command(
+        name="bginfo",
+        help="Fetches detailed information about a board game from BoardGameGeek by its ID. Example: `!bginfo 12345`",
+        brief="Get detailed info about a board game.",
+    )
     async def boardgame_info(self, ctx, game_id: str):
         """Fetch information for a board game by its BoardGameGeek ID, including ratings and recommended player count."""
         logger.info(f"Fetching info for game ID: {game_id}")
@@ -111,8 +117,7 @@ class BoardGames(commands.Cog):
                         for name in game.findall("name"):
                             if name.get("primary") == "true":
                                 game_name = name.text
-                                logger.info(
-                                    f"Game found: {game_name} (ID: {game_id})")
+                                logger.info(f"Game found: {game_name} (ID: {game_id})")
                                 break
 
                         age = (
@@ -148,8 +153,7 @@ class BoardGames(commands.Cog):
                             else "N/A"
                         )
                         if average_rating != "N/A":
-                            average_rating = "{:.2f}".format(
-                                float(average_rating))
+                            average_rating = "{:.2f}".format(float(average_rating))
 
                         embed = discord.Embed(
                             color=self.bot.embed_color,
