@@ -28,6 +28,7 @@ cogs = [
     "Utility",
     "Events",
     "BoardGames",
+    "Database",
 ]
 
 
@@ -51,9 +52,9 @@ class DarkBot(commands.AutoShardedBot):
     async def on_connect(self):
         os.system("clear")
         # DB STUFF
-        # self.cursor.execute("SELECT version();")
-        # record = self.cursor.fetchone()
-        # logger.info(f"Connected to - {record}"
+        self.cursor.execute("SELECT version();")
+        record = self.cursor.fetchone()
+        logger.info(f"Connected to - {record}")
         logger.info(f"DarkBot is starting up...")
 
     # async def on_message(self, message):
