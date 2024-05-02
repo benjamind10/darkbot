@@ -11,7 +11,7 @@ services:
       - app-network
     depends_on:
       - db
-      - lavalink-app
+      # - lavalink-app
 
   db:
     image: postgres:16
@@ -26,20 +26,20 @@ services:
     ports:
       - "5432:5432"
 
-  lavalink-app:
-    image: openjdk:22-slim
-    volumes:
-      - ./bot/music:/usr/local/share/lavalink
-    working_dir: /usr/local/share/lavalink
-    command: java -jar Lavalink.jar
-    networks:
-      - app-network
-    ports:
-      - "2333:2333"
-    environment:
-      SPRING_CONFIG_LOCATION: file:./application.yml
-    depends_on:
-      - db
+  # lavalink-app:
+  #   image: openjdk:22-slim
+  #   volumes:
+  #     - ./bot/music:/usr/local/share/lavalink
+  #   working_dir: /usr/local/share/lavalink
+  #   command: java -jar Lavalink.jar
+  #   networks:
+  #     - app-network
+  #   ports:
+  #     - "2333:2333"
+  #   environment:
+  #     SPRING_CONFIG_LOCATION: file:./application.yml
+  #   depends_on:
+  #     - db
 
 
 networks:

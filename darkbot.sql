@@ -59,8 +59,7 @@ BEGIN
         Name = EXCLUDED.Name,
         DiscordUser = EXCLUDED.DiscordUser,
         BGGUser = EXCLUDED.BGGUser,
-        IsEnabled = EXCLUDED.IsEnabled,
-        DateModified = CURRENT_TIMESTAMP
+        IsEnabled = EXCLUDED.IsEnabled
     RETURNING ID INTO result_id;
 
     RETURN 'User ID: ' || result_id::TEXT; -- Convert result_id to text and return it
