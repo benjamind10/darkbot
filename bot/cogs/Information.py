@@ -189,74 +189,67 @@ class Information(commands.Cog):
 
     @commands.command(aliases=["userinfo"])
     async def whois(self, ctx, member: discord.Member):
-        try:
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title=f"→ Userinfo For {member}",
-                description="— "
-                "\n➤ Shows all information about a user. "
-                "\n➤ The information will be listed below!"
-                "\n—",
-            )
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title=f"→ Userinfo For {member}",
+            description="— "
+            "\n➤ Shows all information about a user. "
+            "\n➤ The information will be listed below!"
+            "\n —",
+        )
 
-            status = {
-                "online": "<:online:648195346186502145>",
-                "idle": "<:idle:648195345800757260>",
-                "offline": "<:offline:648195346127912970>",
-                "dnd": "<:dnd:648195345985175554>",
-            }
+        status = {
+            "online": "<:online:648195346186502145>",
+            "idle": "<:idle:648195345800757260>",
+            "offline": "<:offline:648195346127912970>",
+            "dnd": "<:dnd:648195345985175554>",
+        }
 
-            roles = " ".join(
-                [f"`{role.name}`" for role in member.roles[1:]]
-            )  # Skip @everyone role
+        roles = [role for role in member.roles]
+        roles = " ".join([f"`{role.name}`" for role in roles])
 
-            embed.set_thumbnail(
-                url=member.avatar_url_as(format=None, static_format="png", size=1024)
-            )
+        embed.set_thumbnail(
+            url=member.avatar_url_as(size=1024, format=None, static_format="png")
+        )
+        embed.add_field(name="• Account name: ", value=str(member))
+        embed.add_field(name="• Discord ID: ", value=str(member.id))
+        embed.add_field(name="• Nickname: ", value=member.nick or "No nickname!")
+        embed.add_field(
+            name="• Account created at: ",
+            value=member.created_at.strftime("%A %d, %B %Y."),
+        )
+        embed.add_field(
+            name="• Account joined at: ",
+            value=member.joined_at.strftime("%A %d, %B %Y"),
+        )
 
-            embed.add_field(name="• Account name: ", value=str(member))
-            embed.add_field(name="• Discord ID: ", value=str(member.id))
-            embed.add_field(name="• Nickname: ", value=member.nick or "No nickname!")
-            embed.add_field(
-                name="• Account created at: ",
-                value=member.created_at.strftime("%A %d, %B %Y."),
-            )
-            embed.add_field(
-                name="• Account joined at: ",
-                value=member.joined_at.strftime("%A %d, %B %Y"),
-            )
-
-            activity = (
-                "No activity!" if member.activity is None else member.activity.name
-            )
-            embed.add_field(name="• Activity: ", value=activity)
-
-            bot_status = (
-                "<:tick_yes:648198008076238862>"
-                if member.bot
-                else "<:tick_no:648198035435945985>"
-            )
+        # - TODO: See why this is returning "None" even though there is an if statement to check this
+        if member.activity is None:
+            embed.add_field(name="• Activity: ", value="No activity!")
+        else:
+            embed.add_field(name="• Activity: ", value=member.activity.name)
+        if member.bot is True:
             embed.add_field(
                 name="• Discord bot? ",
-                value=f"<:bot_tag:648198074094583831> = {bot_status}",
+                value="<:bot_tag:648198074094583831> = <:tick_yes:648198008076238862>",
             )
-
-            mobile_status = (
-                ":iphone:" if member.is_on_mobile() else ":no_mobile_phones:"
+        else:
+            embed.add_field(
+                name="• Discord bot?",
+                value="<:bot_tag:648198074094583831> = <:tick_no:648198035435945985>",
             )
-            embed.add_field(name="• On mobile? ", value=mobile_status)
+        if member.is_on_mobile() is True:
+            embed.add_field(name="• On mobile? ", value=":iphone:")
+        else:
+            embed.add_field(name="• On mobile? ", value=":no_mobile_phones:")
 
-            embed.add_field(name="• Status: ", value=status[member.status.name])
-            embed.add_field(name="• Top role: ", value=f"`{member.top_role.name}`")
-            embed.add_field(name="• Roles: ", inline=False, value=roles)
+        embed.add_field(name="• Status: ", value=status[member.status.name])
+        embed.add_field(name="• Top role: ", value=f"`{member.top_role.name}`")
+        embed.add_field(name="• Roles: ", inline=False, value=roles)
 
-            await ctx.send(embed=embed)
-            logger.info(f"Information | Sent Whois: {ctx.author} for {member}")
-        except Exception as e:
-            logger.error(f"Error in whois command for {ctx.author}: {str(e)}")
-            await ctx.send(
-                "Failed to retrieve information for the mentioned user. Please make sure the user exists and the command is formatted correctly."
-            )
+        await ctx.send(embed=embed)
+
+        logger.info(f"Information | Sent Whois: {ctx.author}")
 
     @whois.error
     async def whois_error(self, ctx, error):
