@@ -62,7 +62,7 @@ BEGIN
         IsEnabled = EXCLUDED.IsEnabled
     RETURNING ID INTO result_id;
 
-    RETURN 'User ID: ' || result_id::TEXT; -- Convert result_id to text and return it
+    RETURN 'User ID: ' || result_id::TEXT;
 EXCEPTION WHEN OTHERS THEN
     RETURN 'Error: ' || SQLERRM;
 END;
