@@ -177,6 +177,51 @@ class BoardGames(commands.Cog):
                         f"Failed to retrieve game information for ID {game_id} with status code {response.status}."
                     )
 
+    @commands.command(
+        name="bggcollection",
+        help="Displays a BoardGameGeek user's collection by username. Example: `!bggcollection username`",
+        brief="Get BGG user's collection.",
+    )
+    async def bgg_collection(self, ctx, username: str):
+        """Fetches and displays a user's board game collection from BoardGameGeek."""
+        collection_url = f"{self.BASE_URL}collection/{username}?own=1"
+        logger.info(f"Fetching BGG collection for username: {username}")
+        logger.info(collection_url)
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(collection_url) as response:
+                if response.status == 200:
+                    xml_data = await response.text()
+                    root = ET.fromstring(xml_data)
+
+                    games = [
+                        item.find("name").text
+                        for item in root.findall("item")
+                        if item.find("name") is not None
+                    ]
+
+                    if games:
+                        games_list = "\n".join(
+                            games
+                        )  # List games separated by new lines
+                        embed = discord.Embed(
+                            color=self.bot.embed_color,
+                            title=f"{username}'s Board Game Collection",
+                            description=games_list,
+                        )
+                        await ctx.send(embed=embed)
+                        logger.info(f"Displayed collection for {username}.")
+                    else:
+                        await ctx.send(f"No board games found for user {username}.")
+                        logger.info(
+                            f"No board games found in collection for {username}."
+                        )
+                else:
+                    await ctx.send("Failed to retrieve collection.")
+                    logger.error(
+                        f"Failed to retrieve collection for username {username} with status code {response.status}."
+                    )
+
 
 async def setup(client):
     await client.add_cog(BoardGames(client))
