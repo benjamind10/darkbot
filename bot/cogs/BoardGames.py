@@ -3,9 +3,43 @@ import os
 import discord
 from discord.ext import commands
 import aiohttp
+import asyncio
 import xml.etree.ElementTree as ET  # For XML parsing
 
 from logging_files.boardgames_logging import logger
+
+
+async def send_paginated_embeds(ctx, games, title, color):
+    EMBED_MAX_DESC_LENGTH = 2048
+    EMBED_MAX_FIELDS = 25
+
+    pages = []
+    current_page = []
+    current_length = 0
+
+    for game in games:
+        if (
+            current_length + len(game) > EMBED_MAX_DESC_LENGTH
+            or len(current_page) >= EMBED_MAX_FIELDS
+        ):
+            pages.append(current_page)
+            current_page = []
+            current_length = 0
+        current_page.append(game)
+        current_length += len(game)
+
+    if current_page:
+        pages.append(current_page)
+
+    for i, page in enumerate(pages):
+        description = "\n".join(page)
+        embed = discord.Embed(
+            title=f"{title} (Page {i+1} of {len(pages)})",
+            description=description,
+            color=color,
+        )
+        await ctx.send(embed=embed)
+        logger.info(f"Sent page {i+1} of {len(pages)} for {title}")
 
 
 class BoardGames(commands.Cog):
@@ -183,44 +217,66 @@ class BoardGames(commands.Cog):
         brief="Get BGG user's collection.",
     )
     async def bgg_collection(self, ctx, username: str):
-        """Fetches and displays a user's board game collection from BoardGameGeek."""
-        collection_url = f"{self.BASE_URL}collection/{username}?own=1"
-        logger.info(f"Fetching BGG collection for username: {username}")
-        logger.info(collection_url)
+        """Fetches and displays a user's board game collection from BoardGameGeek including additional game statistics."""
+        collection_url = f"{self.BASE_URL}collection/{username}?own=1&stats=1"
+        logger.info(f"Starting collection fetch for BGG username: {username}")
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(collection_url) as response:
+            try:
+                response = await session.get(collection_url)
                 if response.status == 200:
                     xml_data = await response.text()
                     root = ET.fromstring(xml_data)
 
-                    games = [
-                        item.find("name").text
-                        for item in root.findall("item")
-                        if item.find("name") is not None
-                    ]
+                    games = []
+                    for item in root.findall("item"):
+                        game_name = (
+                            item.find("name").text
+                            if item.find("name") is not None
+                            else "Unknown"
+                        )
+                        bggid = item.attrib.get("objectid", "N/A")
+                        avg_rating_element = item.find(".//average")
+                        avg_rating = (
+                            avg_rating_element.attrib.get("value", "N/A")
+                            if avg_rating_element is not None
+                            else "N/A"
+                        )
 
-                    if games:
-                        games_list = "\n".join(
-                            games
-                        )  # List games separated by new lines
-                        embed = discord.Embed(
-                            color=self.bot.embed_color,
-                            title=f"{username}'s Board Game Collection",
-                            description=games_list,
+                        # Extract additional stats
+                        stats = item.find("stats")
+                        min_players = stats.attrib.get("minplayers", "N/A")
+                        max_players = stats.attrib.get("maxplayers", "N/A")
+                        max_playtime = stats.attrib.get("maxplaytime", "N/A")
+
+                        games.append(
+                            f"{game_name} (ID: {bggid}, Avg Rating: {avg_rating}, Min Players: {min_players}, Max Players: {max_players}, Max Playtime: {max_playtime} mins)"
                         )
-                        await ctx.send(embed=embed)
-                        logger.info(f"Displayed collection for {username}.")
-                    else:
-                        await ctx.send(f"No board games found for user {username}.")
-                        logger.info(
-                            f"No board games found in collection for {username}."
-                        )
-                else:
-                    await ctx.send("Failed to retrieve collection.")
-                    logger.error(
-                        f"Failed to retrieve collection for username {username} with status code {response.status}."
+
+                    await send_paginated_embeds(
+                        ctx,
+                        games,
+                        f"{username}'s Board Game Collection",
+                        self.bot.embed_color,
                     )
+                    logger.info(f"Successfully displayed collection for {username}")
+                elif response.status == 202:
+                    await ctx.send(
+                        f"Collection data for {username} is being prepared, please wait a few moments."
+                    )
+                    logger.warning(
+                        f"Data preparation in progress for {username}, response status 202"
+                    )
+                else:
+                    logger.error(
+                        f"Failed to retrieve collection with status code {response.status} for {username}"
+                    )
+                    await ctx.send("Failed to retrieve collection.")
+            except Exception as e:
+                logger.exception(
+                    f"An error occurred while fetching collection for {username}: {str(e)}"
+                )
+                await ctx.send("An error occurred while processing your request.")
 
 
 async def setup(client):
