@@ -37,25 +37,26 @@ async def upsert_boardgame(conn, game_data):
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-    SELECT upsert_boardgame(
-        CAST(%s AS INTEGER),
-        CAST(%s AS VARCHAR),
-        CAST(%s AS INTEGER),
-        CAST(%s AS DOUBLE PRECISION),
-        CAST(%s AS BOOLEAN),
-        CAST(%s AS BOOLEAN),
-        CAST(%s AS BOOLEAN),
-        CAST(%s AS BOOLEAN),
-        CAST(%s AS BOOLEAN),
-        CAST(%s AS BOOLEAN),
-        CAST(%s AS BOOLEAN),
-        CAST(%s AS BOOLEAN),
-        CAST(%s AS INTEGER),
-        CAST(%s AS INTEGER),
-        CAST(%s AS INTEGER),
-        CAST(%s AS INTEGER)
-    );
-""",
+            SELECT upsert_boardgame(
+                CAST(%s AS INTEGER),
+                CAST(%s AS VARCHAR),
+                CAST(%s AS INTEGER),
+                CAST(%s AS DOUBLE PRECISION),
+                CAST(%s AS BOOLEAN),
+                CAST(%s AS BOOLEAN),
+                CAST(%s AS BOOLEAN),
+                CAST(%s AS BOOLEAN),
+                CAST(%s AS BOOLEAN),
+                CAST(%s AS BOOLEAN),
+                CAST(%s AS BOOLEAN),
+                CAST(%s AS BOOLEAN),
+                CAST(%s AS INTEGER),
+                CAST(%s AS INTEGER),
+                CAST(%s AS INTEGER),
+                CAST(%s AS INTEGER),
+                CAST(%s AS INTEGER)
+            );
+            """,
                 (
                     game_data["userid"],
                     game_data["name"],
@@ -73,9 +74,9 @@ async def upsert_boardgame(conn, game_data):
                     game_data["maxplayers"],
                     game_data["minplaytime"],
                     game_data["maxplaytime"],
+                    game_data["numplays"],
                 ),
             )
-
             conn.commit()
             logger.info(
                 f"Upsert successful for game {game_data['name']} (BGG ID: {game_data['bggid']})"
