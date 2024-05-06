@@ -33,7 +33,7 @@ class Database(commands.Cog):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="List of All Users",
-                description="Here are all the users in the database:"
+                description="Here are all the users in the database:",
             )
             for user in users:
                 embed.add_field(
@@ -48,9 +48,6 @@ class Database(commands.Cog):
             logger.error(f"Failed to fetch users: {e}")
         finally:
             await self.close_db(conn, cursor)
-
-
-
 
     @commands.command(
         name="adduser",
@@ -143,6 +140,107 @@ class Database(commands.Cog):
             await ctx.send(f"Failed to enable user: {e}")
         finally:
             await self.close_db(conn, cursor)
+
+    def chunk_games(self, games, size=25):
+        """Yield successive chunks from games."""
+        for i in range(0, len(games), size):
+            yield games[i : i + size]
+
+    @commands.command(
+        name="listboardgames",
+        help="Lists all board games starting with a specified letter.",
+    )
+    async def list_board_games(self, ctx, letter: str):
+        if len(letter) != 1 or not letter.isalpha():
+            await ctx.send("Please provide a single alphabetical letter.")
+            logger.warning(f"Invalid input for list_board_games command: '{letter}'")
+            return
+
+        conn = None
+        cursor = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            logger.debug(
+                f"Executing database query for games starting with '{letter}'."
+            )
+            cursor.execute("SELECT * FROM get_boardgames_starting_with(%s)", (letter,))
+            games = cursor.fetchall()
+            logger.info(f"Number of games fetched: {len(games)}")
+
+            if not games:
+                await ctx.send(f"No board games found starting with '{letter}'.")
+                logger.info(f"No board games found for letter: {letter}")
+                return
+
+            game_chunks = list(self.chunk_games(games))
+            logger.debug(f"Number of chunks created: {len(game_chunks)}")
+
+            for chunk in game_chunks:
+                embed = discord.Embed(
+                    color=self.bot.embed_color,
+                    title=f"Board Games Starting with '{letter.upper()}'",
+                    description="Here are the games:",
+                )
+                for game in chunk:
+                    embed.add_field(
+                        name=f"{game[3]} Owned by: {game[2]} (ID: {game[4]})",  # game name, username, game ID
+                        value=f"Rating: {game[5]}, Players: {game[15]}-{game[16]}, Playtime: {game[17]} mins, Total Plays: {game[18]}",
+                        inline=False,
+                    )
+                await ctx.send(embed=embed)
+                logger.info(
+                    f"Embed sent for a chunk of games starting with '{letter}'."
+                )
+        except Exception as e:
+            await ctx.send(f"Failed to fetch board games: {e}")
+            logger.error(
+                f"Exception occurred while fetching games starting with '{letter}': {e}"
+            )
+        finally:
+            if cursor:
+                cursor.close()
+                logger.debug("Database cursor closed.")
+            if conn:
+                conn.close()
+                logger.debug("Database connection closed.")
+
+    @commands.command(
+        name="executesql", help="Executes a custom SQL query. Owner only."
+    )
+    @commands.is_owner()  # This decorator ensures that only the bot owner can run this command
+    async def execute_sql(self, ctx, *, query: str):
+        """Executes a raw SQL query directly on the database."""
+        if "DROP" in query.upper() or "DELETE" in query.upper():
+            await ctx.send("This command does not support destructive operations.")
+            return
+
+        conn = None
+        cursor = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(query)
+            if cursor.description:  # If there is something to fetch
+                results = cursor.fetchall()
+                message = "\n".join([str(result) for result in results])
+                if (
+                    len(message) > 1900
+                ):  # Discord has a limit on message length (2000 characters)
+                    message = message[:1900] + "..."
+                await ctx.send(f"Query executed successfully:\n{message}")
+            else:
+                conn.commit()
+                await ctx.send("Query executed successfully with no return.")
+            logger.info(f"SQL executed by owner: {query}")
+        except Exception as e:
+            await ctx.send(f"Failed to execute query: {e}")
+            logger.error(f"Exception occurred during SQL execution: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
 
 async def setup(client):

@@ -43,6 +43,21 @@ create table boardgames
 alter table boardgames
     owner to postgres;
 
+create view boardgames_stats (boardgamename, username, avgrating, minplayers, maxplayers, minplaytime, numplays) as
+SELECT DISTINCT ON (bg.name) bg.name AS boardgamename,
+                             u.name  AS username,
+                             bg.avgrating,
+                             bg.minplayers,
+                             bg.maxplayers,
+                             bg.minplaytime,
+                             bg.numplays
+FROM boardgames bg
+         JOIN users u ON bg.userid = u.id
+ORDER BY bg.name, bg.avgrating DESC;
+
+alter table boardgames_stats
+    owner to postgres;
+
 create function update_modified_column() returns trigger
     language plpgsql
 as
@@ -212,8 +227,9 @@ SELECT DISTINCT bg.id,
                 bg.numplays
 FROM BoardGames bg
          JOIN Users u ON bg.userid = u.id
-WHERE bg.Name LIKE letter || '%'
-  AND bg.own = TRUE;
+WHERE bg.Name ILIKE letter || '%'
+  AND bg.own = TRUE
+  AND bg.avgrating > 7.5;
 $$;
 
 alter function get_boardgames_starting_with(char) owner to postgres;

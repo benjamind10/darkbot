@@ -137,8 +137,6 @@ async def process_bgg_users():
                         "numplays": safe_convert(item.find("numplays").text, 0),
                     }
 
-                    # Ensure this conversion is applied before using these values in any SQL operation:
-                    logger.info(game_data)
                     await upsert_boardgame(conn, game_data)
 
             else:
