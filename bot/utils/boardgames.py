@@ -135,6 +135,27 @@ async def process_bgg_users():
                             else "0"
                         ),
                     }
+
+                    game_data = {
+                        "userid": int(game_data["userid"]),
+                        "name": game_data["name"],
+                        "bggid": int(game_data["bggid"]),
+                        "avgrating": float(game_data["avgrating"]),
+                        "own": game_data["own"],
+                        "prevowned": game_data["prevowned"],
+                        "fortrade": game_data["fortrade"],
+                        "want": game_data["want"],
+                        "wanttoplay": game_data["wanttoplay"],
+                        "wanttobuy": game_data["wanttobuy"],
+                        "wishlist": game_data["wishlist"],
+                        "preordered": game_data["preordered"],
+                        "minplayers": int(game_data["minplayers"]),
+                        "maxplayers": int(game_data["maxplayers"]),
+                        "minplaytime": int(game_data["minplaytime"]),
+                        "maxplaytime": int(game_data["maxplaytime"]),
+                        "numplays": int(game_data["numplays"]),
+                    }
+
                     logger.info(game_data)
                     await upsert_boardgame(conn, game_data)
             else:
