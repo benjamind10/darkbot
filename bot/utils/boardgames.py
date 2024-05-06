@@ -6,6 +6,8 @@ import xml.etree.ElementTree as ET
 from db import get_connection
 from logging_files.boardgames_util_logging import logger
 
+BASE_URL = "https://api.geekdo.com/xmlapi/"
+
 
 async def fetch_bgg_collection(username):
     url = f"{BASE_URL}collection?username={username}&own=1"
