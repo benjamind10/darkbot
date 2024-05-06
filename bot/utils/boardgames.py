@@ -73,7 +73,7 @@ async def upsert_boardgame(conn, game_data):
                     game_data["minplayers"],
                     game_data["maxplayers"],
                     game_data["minplaytime"],
-                    game_data["maxplaytime"],
+                    game_data["playingtime"],
                     game_data["numplays"],
                 ),
             )
@@ -143,8 +143,8 @@ async def process_bgg_users():
                             if item.find("stats") is not None
                             else "N/A"
                         ),
-                        "maxplaytime": (
-                            item.find("stats").get("maxplaytime", "N/A")
+                        "playingtime": (
+                            item.find("stats").get("playingtime", "N/A")
                             if item.find("stats") is not None
                             else "N/A"
                         ),
@@ -171,7 +171,7 @@ async def process_bgg_users():
                         "minplayers": int(game_data["minplayers"]),
                         "maxplayers": int(game_data["maxplayers"]),
                         "minplaytime": int(game_data["minplaytime"]),
-                        "maxplaytime": int(game_data["maxplaytime"]),
+                        "playingtime": int(game_data["playingtime"]),
                         "numplays": int(game_data["numplays"]),
                     }
 
@@ -184,8 +184,8 @@ async def process_bgg_users():
                     game_data["minplaytime"] = safe_convert(
                         game_data.get("minplaytime", "0")
                     )
-                    game_data["maxplaytime"] = safe_convert(
-                        game_data.get("maxplaytime", "0")
+                    game_data["playingtime"] = safe_convert(
+                        game_data.get("playingtime", "0")
                     )
                     game_data["avgrating"] = safe_convert(
                         game_data.get("avgrating", "0"), data_type=float
