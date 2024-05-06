@@ -36,8 +36,9 @@ create table boardgames
     minplayers   integer,
     maxplayers   integer,
     minplaytime  integer,
-    playingtime  integer,
-    numplays     integer
+    numplays     integer,
+    constraint unique_userid_bggid
+        unique (userid, bggid)
 );
 
 alter table boardgames
@@ -138,7 +139,7 @@ $$;
 
 alter function get_all_bggusers() owner to postgres;
 
-create function upsert_boardgame(p_userid integer, p_name character varying, p_bggid integer, p_avgrating double precision, p_own boolean, p_prevowned boolean, p_fortrade boolean, p_want boolean, p_wanttoplay boolean, p_wanttobuy boolean, p_wishlist boolean, p_preordered boolean, p_minplayers integer, p_maxplayers integer, p_minplaytime integer, p_playingime integer, p_numplays integer) returns text
+create function upsert_boardgame(p_userid integer, p_name character varying, p_bggid integer, p_avgrating double precision, p_own boolean, p_prevowned boolean, p_fortrade boolean, p_want boolean, p_wanttoplay boolean, p_wanttobuy boolean, p_wishlist boolean, p_preordered boolean, p_minplayers integer, p_maxplayers integer, p_minplaytime integer, p_numplays integer) returns text
     language plpgsql
 as
 $$
@@ -146,10 +147,10 @@ DECLARE
     result_id INTEGER;
 BEGIN
     INSERT INTO boardgames (userid, name, bggid, avgrating, own, prevowned, fortrade, want, wanttoplay, wanttobuy,
-                            wishlist, preordered, minplayers, maxplayers, minplaytime, playingtime, numplays)
+                            wishlist, preordered, minplayers, maxplayers, minplaytime, numplays)
     VALUES (p_userid, p_name, p_bggid, p_avgrating, p_own, p_prevowned, p_fortrade, p_want, p_wanttoplay, p_wanttobuy,
-            p_wishlist, p_preordered, p_minplayers, p_maxplayers, p_minplaytime, p_playingime, p_numplays)
-    ON CONFLICT (bggid) DO UPDATE SET userid      = EXCLUDED.userid,
+            p_wishlist, p_preordered, p_minplayers, p_maxplayers, p_minplaytime, p_numplays)
+    ON CONFLICT (userid, bggid) DO UPDATE SET
                                       name        = EXCLUDED.name,
                                       avgrating   = EXCLUDED.avgrating,
                                       own         = EXCLUDED.own,
@@ -163,16 +164,15 @@ BEGIN
                                       minplayers  = EXCLUDED.minplayers,
                                       maxplayers  = EXCLUDED.maxplayers,
                                       minplaytime = EXCLUDED.minplaytime,
-                                      playingtime = EXCLUDED.playingtime,
                                       numplays    = EXCLUDED.numplays
     RETURNING id INTO result_id;
 
     RETURN 'Boardgame ID: ' || result_id::TEXT;
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN 'Error: ' || SQLERRM;
+        RAISE;
 END;
 $$;
 
-alter function upsert_boardgame(integer, varchar, integer, double precision, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, integer, integer, integer, integer, integer) owner to postgres;
+alter function upsert_boardgame(integer, varchar, integer, double precision, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, integer, integer, integer, integer) owner to postgres;
 

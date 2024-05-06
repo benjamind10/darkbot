@@ -10,7 +10,7 @@ BASE_URL = "https://api.geekdo.com/xmlapi/"
 
 
 async def fetch_bgg_collection(username):
-    url = f"{BASE_URL}collection/{username}?own=1&stats=1"
+    url = f"{BASE_URL}collection/{username}?stats=1"
     logger.info(f"Attempting to fetch BGG collection for user: {username}")
     async with aiohttp.ClientSession() as session:
         for attempt in range(3):

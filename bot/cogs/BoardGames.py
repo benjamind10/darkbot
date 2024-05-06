@@ -3,8 +3,8 @@ import os
 import discord
 from discord.ext import commands
 import aiohttp
-import asyncio
-import xml.etree.ElementTree as ET  # For XML parsing
+import asyncio #testing
+import xml.etree.ElementTree as ET
 
 from utils import boardgames as bg_utils
 from logging_files.boardgames_logging import logger
