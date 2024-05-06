@@ -8,6 +8,13 @@ class Database(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def close_db(self, conn, cursor):
+        """Utility function to close database connection and cursor."""
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
     @commands.command(name="listusers", help="Lists all users from the database.")
     async def list_users(self, ctx):
         conn = None
@@ -35,10 +42,7 @@ class Database(commands.Cog):
             await ctx.send("Failed to fetch users.")
             logger.error(f"Failed to fetch users: {e}")
         finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+            await self.close_db(conn, cursor)
 
     @commands.command(
         name="adduser",
@@ -80,10 +84,7 @@ class Database(commands.Cog):
             await ctx.send(f"An error occurred: {e}")
             logger.error(f"An error occurred during user upsert: {e}")
         finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+            await self.close_db(conn, cursor)
 
     @commands.command(
         name="disableuser",
@@ -109,10 +110,7 @@ class Database(commands.Cog):
             await ctx.send(f"Failed to disable user: {e}")
             logger.error(f"Failed to disable user: {e}")
         finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+            await self.close_db(conn, cursor)
 
     @commands.command(
         name="enableuser",
@@ -137,10 +135,7 @@ class Database(commands.Cog):
         except Exception as e:
             await ctx.send(f"Failed to enable user: {e}")
         finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+            await self.close_db(conn, cursor)
 
 
 async def setup(client):

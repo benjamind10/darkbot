@@ -64,7 +64,7 @@ class DarkBot(commands.AutoShardedBot):
 
     async def on_ready(self):
         await self.wait_until_ready()
-        activity = discord.Game(name="Music, !play to use")
+        activity = discord.Game(name="Type !help for a list of commands.")
         await self.change_presence(activity=activity)
         os.system("clear")
 
