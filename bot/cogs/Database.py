@@ -22,7 +22,7 @@ class Database(commands.Cog):
         try:
             conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, name, discorduser, bgguser, isenabled FROM Users WHERE IsEnabled = true")
+            cursor.execute("SELECT * FROM get_enabled_users();")
             users = cursor.fetchall()
 
             if not users:
@@ -54,7 +54,7 @@ class Database(commands.Cog):
 
     @commands.command(
         name="adduser",
-        help="Adds a new user or updates an existing one. Usage: !adduser <name> <email> <discord_user_id> <bgg_user> <is_enabled>",
+        help="Adds a new user or updates an existing one. Usage: !adduser <name> <discord_user_id> <bgg_user> <is_enabled>",
     )
     async def add_user(
         self,

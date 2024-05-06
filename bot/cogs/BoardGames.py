@@ -61,11 +61,11 @@ class BoardGames(commands.Cog):
                 return
 
             with self.bot.conn.cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) FROM BoardGames;")
+                cursor.execute("SELECT COUNT(DISTINCT Name) FROM BoardGames;")
                 record = cursor.fetchone()
 
             if record:
-                await ctx.send(f"There are: {record[0]} Board Games in the Database.")
+                await ctx.send(f"There are: {record[0]} unique Board Games in the Database.")
                 logger.info(f"Successfully retrieved boardgame count: {record[0]}")
             else:
                 await ctx.send("Unable to fetch database record.")

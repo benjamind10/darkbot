@@ -3,10 +3,9 @@ create table users
     id           serial
         primary key,
     name         varchar,
-    email        varchar
-        constraint email_unique
+    discorduser  bigint
+        constraint unique_discorduser
             unique,
-    discorduser  bigint,
     bgguser      varchar,
     isenabled    boolean   default true,
     datemodified timestamp default CURRENT_TIMESTAMP
@@ -102,30 +101,6 @@ $$;
 
 alter function enable_user(integer) owner to postgres;
 
-create function upsert_user(_name text, _email text, _discorduser bigint, _bgguser text, _isenabled boolean) returns text
-    language plpgsql
-as
-$$
-DECLARE
-    result_id INT;
-BEGIN
-    INSERT INTO Users (Name, email, DiscordUser, BGGUser, IsEnabled)
-    VALUES (_name, _email, _discorduser, _bgguser, _isenabled)
-    ON CONFLICT (email) DO UPDATE SET Name        = EXCLUDED.Name,
-                                      DiscordUser = EXCLUDED.DiscordUser,
-                                      BGGUser     = EXCLUDED.BGGUser,
-                                      IsEnabled   = EXCLUDED.IsEnabled
-    RETURNING ID INTO result_id;
-
-    RETURN 'User ID: ' || result_id::TEXT;
-EXCEPTION
-    WHEN OTHERS THEN
-        RETURN 'Error: ' || SQLERRM;
-END;
-$$;
-
-alter function upsert_user(text, text, bigint, text, boolean) owner to postgres;
-
 create function get_all_bggusers()
     returns TABLE(id integer, bgguser character varying)
     language plpgsql
@@ -175,4 +150,71 @@ END;
 $$;
 
 alter function upsert_boardgame(integer, varchar, integer, double precision, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, integer, integer, integer, integer) owner to postgres;
+
+create function upsert_user(_name text, _discorduser bigint, _bgguser text, _isenabled boolean) returns text
+    language plpgsql
+as
+$$
+DECLARE
+    result_id INT;
+BEGIN
+    INSERT INTO Users (Name, DiscordUser, BGGUser, IsEnabled)
+    VALUES (_name, _discorduser, _bgguser, _isenabled)
+    ON CONFLICT (DiscordUser) DO UPDATE SET Name        = EXCLUDED.Name,
+                                      BGGUser     = EXCLUDED.BGGUser,
+                                      IsEnabled   = EXCLUDED.IsEnabled
+    RETURNING ID INTO result_id;
+
+    RETURN 'User ID: ' || result_id::TEXT;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN 'Error: ' || SQLERRM;
+END;
+$$;
+
+alter function upsert_user(text, bigint, text, boolean) owner to postgres;
+
+create function get_enabled_users()
+    returns TABLE(id integer, name text, discorduser bigint, bgguser text, isenabled boolean)
+    language sql
+as
+$$
+    SELECT id, name, discorduser, bgguser, isenabled
+    FROM Users
+    WHERE isenabled = TRUE;
+$$;
+
+alter function get_enabled_users() owner to postgres;
+
+create function get_boardgames_starting_with(letter character)
+    returns TABLE(id integer, userid integer, username text, name text, bggid integer, avgrating double precision, own boolean, prevowned boolean, fortrade boolean, want boolean, wanttoplay boolean, wanttobuy boolean, wishlist boolean, preordered boolean, datemodified timestamp without time zone, minplayers integer, maxplayers integer, minplaytime integer, numplays integer)
+    language sql
+as
+$$
+SELECT DISTINCT bg.id,
+                bg.userid,
+                u.name AS username,
+                bg.name,
+                bg.bggid,
+                bg.avgrating,
+                bg.own,
+                bg.prevowned,
+                bg.fortrade,
+                bg.want,
+                bg.wanttoplay,
+                bg.wanttobuy,
+                bg.wishlist,
+                bg.preordered,
+                bg.datemodified,
+                bg.minplayers,
+                bg.maxplayers,
+                bg.minplaytime,
+                bg.numplays
+FROM BoardGames bg
+         JOIN Users u ON bg.userid = u.id
+WHERE bg.Name LIKE letter || '%'
+  AND bg.own = TRUE;
+$$;
+
+alter function get_boardgames_starting_with(char) owner to postgres;
 
