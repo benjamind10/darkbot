@@ -4,7 +4,7 @@ import psycopg2
 import xml.etree.ElementTree as ET
 
 from db import get_connection
-from logging_files.database_logging import logger
+from logging_files.boardgames_util_logging import logger
 
 
 async def fetch_bgg_collection(username):
@@ -69,6 +69,7 @@ async def upsert_boardgame(conn, game_data):
 
 async def process_bgg_users():
     conn = get_connection()
+    logger.info(conn)
     try:
         with conn.cursor() as cursor:
             logger.debug("Fetching users.")

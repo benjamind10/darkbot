@@ -288,7 +288,7 @@ class BoardGames(commands.Cog):
         """This command starts the manual update process for BGG collections."""
         await ctx.send("Starting manual update of BGG collections. Please wait...")
         try:
-            await bg_utils.process_bgg_users()
+            res = await bg_utils.process_bgg_users()
             await ctx.send("BGG collections updated successfully.")
         except Exception as e:
             await ctx.send(f"Failed to update BGG collections: {str(e)}")
