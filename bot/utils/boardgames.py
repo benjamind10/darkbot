@@ -135,7 +135,7 @@ async def process_bgg_users():
                             else "0"
                         ),
                     }
-
+                    logger.info(game_data)
                     await upsert_boardgame(conn, game_data)
             else:
                 logger.warning(f"No data to process for user {bgguser}")
