@@ -175,6 +175,23 @@ async def process_bgg_users():
                         "numplays": int(game_data["numplays"]),
                     }
 
+                    game_data["minplayers"] = safe_convert(
+                        game_data.get("minplayers", "0")
+                    )
+                    game_data["maxplayers"] = safe_convert(
+                        game_data.get("maxplayers", "0")
+                    )
+                    game_data["minplaytime"] = safe_convert(
+                        game_data.get("minplaytime", "0")
+                    )
+                    game_data["maxplaytime"] = safe_convert(
+                        game_data.get("maxplaytime", "0")
+                    )
+                    game_data["avgrating"] = safe_convert(
+                        game_data.get("avgrating", "0"), data_type=float
+                    )
+                    game_data["numplays"] = safe_convert(game_data.get("numplays", "0"))
+
                     logger.info(game_data)
                     await upsert_boardgame(conn, game_data)
             else:
@@ -184,6 +201,13 @@ async def process_bgg_users():
     finally:
         conn.close()
         logger.info("Database connection closed.")
+
+
+def safe_convert(value, default=0, data_type=int):
+    try:
+        return data_type(value)
+    except (ValueError, TypeError):
+        return default
 
 
 __all__ = ["process_bgg_users"]
