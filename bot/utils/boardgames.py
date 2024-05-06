@@ -71,8 +71,10 @@ async def process_bgg_users():
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
+            logger.debug("Fetching users.")
             cursor.execute("SELECT id, bgguser FROM users WHERE bgguser IS NOT NULL;")
             users = cursor.fetchall()
+            logger.debug(f"Fetched {len(users)} users.")
 
         logger.info(f"Processing {len(users)} users' BGG collections.")
         for user_id, bgguser in users:
