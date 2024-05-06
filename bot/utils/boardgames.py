@@ -138,7 +138,7 @@ async def process_bgg_users():
 
                     game_data = {
                         "userid": int(game_data["userid"]),
-                        "name": game_data["name"],
+                        "name": str(game_data["name"]),
                         "bggid": int(game_data["bggid"]),
                         "avgrating": float(game_data["avgrating"]),
                         "own": game_data["own"],
