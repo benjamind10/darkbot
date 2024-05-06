@@ -53,7 +53,6 @@ async def upsert_boardgame(conn, game_data):
                 CAST(%s AS INTEGER),
                 CAST(%s AS INTEGER),
                 CAST(%s AS INTEGER),
-                CAST(%s AS INTEGER),
                 CAST(%s AS INTEGER)
             );
             """,
@@ -73,7 +72,7 @@ async def upsert_boardgame(conn, game_data):
                     game_data["minplayers"],
                     game_data["maxplayers"],
                     game_data["minplaytime"],
-                    game_data["playingtime"],
+                    # game_data["playingtime"],
                     game_data["numplays"],
                 ),
             )
@@ -105,6 +104,7 @@ async def process_bgg_users():
                 root = ET.fromstring(xml_data)
                 for item in root.findall("item"):
                     status = item.find("status")
+                    # Inside the loop where you process each game:
                     game_data = {
                         "userid": user_id,
                         "name": (
@@ -112,13 +112,9 @@ async def process_bgg_users():
                             if item.find("name") is not None
                             else "Unknown"
                         ),
-                        "bggid": item.get(
-                            "objectid", "Unknown"
-                        ),  # Use get with default on attributes directly from item
-                        "avgrating": (
-                            item.find("stats/rating/average").get("value", "N/A")
-                            if item.find("stats/rating/average") is not None
-                            else "N/A"
+                        "bggid": safe_convert(item.get("objectid"), 0),
+                        "avgrating": safe_convert(
+                            item.find("stats/rating/average").get("value"), 0.0, float
                         ),
                         "own": item.find("status").get("own", "0") == "1",
                         "prevowned": item.find("status").get("prevowned", "0") == "1",
@@ -128,72 +124,23 @@ async def process_bgg_users():
                         "wanttobuy": item.find("status").get("wanttobuy", "0") == "1",
                         "wishlist": item.find("status").get("wishlist", "0") == "1",
                         "preordered": item.find("status").get("preordered", "0") == "1",
-                        "minplayers": (
-                            item.find("stats").get("minplayers", "N/A")
-                            if item.find("stats") is not None
-                            else "N/A"
+                        "minplayers": safe_convert(
+                            item.find("stats").get("minplayers"), 0
                         ),
-                        "maxplayers": (
-                            item.find("stats").get("maxplayers", "N/A")
-                            if item.find("stats") is not None
-                            else "N/A"
+                        "maxplayers": safe_convert(
+                            item.find("stats").get("maxplayers"), 0
                         ),
-                        "minplaytime": (
-                            item.find("stats").get("minplaytime", "N/A")
-                            if item.find("stats") is not None
-                            else "N/A"
+                        "minplaytime": safe_convert(
+                            item.find("stats").get("minplaytime"), 0
                         ),
-                        "playingtime": (
-                            item.find("stats").get("playingtime", "N/A")
-                            if item.find("stats") is not None
-                            else "N/A"
-                        ),
-                        "numplays": (
-                            item.find("numplays").text
-                            if item.find("numplays") is not None
-                            else "0"
-                        ),
+                        # "playtime": safe_convert(item.find("stats").get("playtime"), 0),
+                        "numplays": safe_convert(item.find("numplays").text, 0),
                     }
 
-                    game_data = {
-                        "userid": int(game_data["userid"]),
-                        "name": str(game_data["name"]),
-                        "bggid": int(game_data["bggid"]),
-                        "avgrating": float(game_data["avgrating"]),
-                        "own": bool(game_data["own"]),
-                        "prevowned": bool(game_data["prevowned"]),
-                        "fortrade": bool(game_data["fortrade"]),
-                        "want": bool(game_data["want"]),
-                        "wanttoplay": bool(game_data["wanttoplay"]),
-                        "wanttobuy": bool(game_data["wanttobuy"]),
-                        "wishlist": bool(game_data["wishlist"]),
-                        "preordered": bool(game_data["preordered"]),
-                        "minplayers": int(game_data["minplayers"]),
-                        "maxplayers": int(game_data["maxplayers"]),
-                        "minplaytime": int(game_data["minplaytime"]),
-                        "playingtime": int(game_data["playingtime"]),
-                        "numplays": int(game_data["numplays"]),
-                    }
-
-                    game_data["minplayers"] = safe_convert(
-                        game_data.get("minplayers", "0")
-                    )
-                    game_data["maxplayers"] = safe_convert(
-                        game_data.get("maxplayers", "0")
-                    )
-                    game_data["minplaytime"] = safe_convert(
-                        game_data.get("minplaytime", "0")
-                    )
-                    game_data["playingtime"] = safe_convert(
-                        game_data.get("playingtime", "0")
-                    )
-                    game_data["avgrating"] = safe_convert(
-                        game_data.get("avgrating", "0"), data_type=float
-                    )
-                    game_data["numplays"] = safe_convert(game_data.get("numplays", "0"))
-
+                    # Ensure this conversion is applied before using these values in any SQL operation:
                     logger.info(game_data)
                     await upsert_boardgame(conn, game_data)
+
             else:
                 logger.warning(f"No data to process for user {bgguser}")
     except Exception as e:
