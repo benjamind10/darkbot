@@ -37,8 +37,25 @@ async def upsert_boardgame(conn, game_data):
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-            SELECT upsert_boardgame(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-        """,
+    SELECT upsert_boardgame(
+        CAST(%s AS INTEGER),
+        CAST(%s AS VARCHAR),
+        CAST(%s AS INTEGER),
+        CAST(%s AS DOUBLE PRECISION),
+        CAST(%s AS BOOLEAN),
+        CAST(%s AS BOOLEAN),
+        CAST(%s AS BOOLEAN),
+        CAST(%s AS BOOLEAN),
+        CAST(%s AS BOOLEAN),
+        CAST(%s AS BOOLEAN),
+        CAST(%s AS BOOLEAN),
+        CAST(%s AS BOOLEAN),
+        CAST(%s AS INTEGER),
+        CAST(%s AS INTEGER),
+        CAST(%s AS INTEGER),
+        CAST(%s AS INTEGER)
+    );
+""",
                 (
                     game_data["userid"],
                     game_data["name"],
@@ -58,6 +75,7 @@ async def upsert_boardgame(conn, game_data):
                     game_data["maxplaytime"],
                 ),
             )
+
             conn.commit()
             logger.info(
                 f"Upsert successful for game {game_data['name']} (BGG ID: {game_data['bggid']})"
@@ -141,14 +159,14 @@ async def process_bgg_users():
                         "name": str(game_data["name"]),
                         "bggid": int(game_data["bggid"]),
                         "avgrating": float(game_data["avgrating"]),
-                        "own": game_data["own"],
-                        "prevowned": game_data["prevowned"],
-                        "fortrade": game_data["fortrade"],
-                        "want": game_data["want"],
-                        "wanttoplay": game_data["wanttoplay"],
-                        "wanttobuy": game_data["wanttobuy"],
-                        "wishlist": game_data["wishlist"],
-                        "preordered": game_data["preordered"],
+                        "own": bool(game_data["own"]),
+                        "prevowned": bool(game_data["prevowned"]),
+                        "fortrade": bool(game_data["fortrade"]),
+                        "want": bool(game_data["want"]),
+                        "wanttoplay": bool(game_data["wanttoplay"]),
+                        "wanttobuy": bool(game_data["wanttobuy"]),
+                        "wishlist": bool(game_data["wishlist"]),
+                        "preordered": bool(game_data["preordered"]),
                         "minplayers": int(game_data["minplayers"]),
                         "maxplayers": int(game_data["maxplayers"]),
                         "minplaytime": int(game_data["minplaytime"]),
