@@ -6,6 +6,7 @@ import aiohttp
 import asyncio
 import xml.etree.ElementTree as ET  # For XML parsing
 
+from utils import boardgames as bg_utils
 from logging_files.boardgames_logging import logger
 
 
@@ -265,7 +266,7 @@ class BoardGames(commands.Cog):
                         f"Collection data for {username} is being prepared, please wait a few moments."
                     )
                     logger.warning(
-                        f"Data preparation in progress for {username}, response status 202"
+                        f"Data preparation in progress for {username}, response stats 202"
                     )
                 else:
                     logger.error(
@@ -277,6 +278,21 @@ class BoardGames(commands.Cog):
                     f"An error occurred while fetching collection for {username}: {str(e)}"
                 )
                 await ctx.send("An error occurred while processing your request.")
+
+    @commands.command(
+        name="manualbggupdate",
+        help="Manually triggers an update of board game data from BoardGameGeek for all users.",
+        brief="Trigger manual BGG data update.",
+    )
+    async def manual_bgg_update(self, ctx):
+        """This command starts the manual update process for BGG collections."""
+        await ctx.send("Starting manual update of BGG collections. Please wait...")
+        try:
+            await bg_utils.process_bgg_users()
+            await ctx.send("BGG collections updated successfully.")
+        except Exception as e:
+            await ctx.send(f"Failed to update BGG collections: {str(e)}")
+            logger.error(f"Failed to update BGG collections: {str(e)}")
 
 
 async def setup(client):
