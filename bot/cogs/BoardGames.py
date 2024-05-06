@@ -3,8 +3,8 @@ import os
 import discord
 from discord.ext import commands
 import aiohttp
-import asyncio
-import xml.etree.ElementTree as ET  # For XML parsing
+import asyncio #testing
+import xml.etree.ElementTree as ET
 
 from utils import boardgames as bg_utils
 from logging_files.boardgames_logging import logger
@@ -61,11 +61,11 @@ class BoardGames(commands.Cog):
                 return
 
             with self.bot.conn.cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) FROM BoardGames;")
+                cursor.execute("SELECT COUNT(DISTINCT Name) FROM BoardGames;")
                 record = cursor.fetchone()
 
             if record:
-                await ctx.send(f"There are: {record[0]} Board Games in the Database.")
+                await ctx.send(f"There are: {record[0]} unique Board Games in the Database.")
                 logger.info(f"Successfully retrieved boardgame count: {record[0]}")
             else:
                 await ctx.send("Unable to fetch database record.")

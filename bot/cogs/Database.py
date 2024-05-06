@@ -22,18 +22,23 @@ class Database(commands.Cog):
         try:
             conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM Users WHERE IsEnabled = true")
+            cursor.execute("SELECT * FROM get_enabled_users();")
             users = cursor.fetchall()
+
+            if not users:
+                await ctx.send("No users found.")
+                logger.info("No users found in the database.")
+                return
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="List of All Users",
-                description="Here are all the users in the database:",
+                description="Here are all the users in the database:"
             )
             for user in users:
                 embed.add_field(
                     name=f"User ID: {user[0]}",
-                    value=f"Name: {user[1]}, Email: {user[2]}, Discord: {user[3]}, BGG: {user[4]}, Enabled: {user[5]}, Modified: {user[6]}",
+                    value=f"Name: {user[1]}, Discord: {user[2]}, BGG: {user[3]}, Enabled: {user[4]}",
                     inline=False,
                 )
             await ctx.send(embed=embed)
@@ -44,16 +49,18 @@ class Database(commands.Cog):
         finally:
             await self.close_db(conn, cursor)
 
+
+
+
     @commands.command(
         name="adduser",
-        help="Adds a new user or updates an existing one. Usage: !adduser <name> <email> <discord_user_id> <bgg_user> <is_enabled>",
+        help="Adds a new user or updates an existing one. Usage: !adduser <name> <discord_user_id> <bgg_user> <is_enabled>",
     )
     async def add_user(
         self,
         ctx,
         name: str,
-        email: str,
-        discord_user: str,
+        discord_user: int,
         bgg_user: str,
         is_enabled: bool = True,
     ):
@@ -64,8 +71,8 @@ class Database(commands.Cog):
             conn = get_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT upsert_user(%s, %s, %s, %s, %s)",
-                (name, email, discord_user_int, bgg_user, is_enabled),
+                "SELECT upsert_user(%s, %s, %s, %s)",
+                (name, discord_user_int, bgg_user, is_enabled),
             )
             result = cursor.fetchone()
             conn.commit()
