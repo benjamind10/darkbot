@@ -88,28 +88,46 @@ async def process_bgg_users():
                     status = item.find("status")
                     game_data = {
                         "userid": user_id,
-                        "name": item.find("name").text,
-                        "bggid": item.attrib["objectid"],
-                        "avgrating": item.find(".//average").attrib.get("value", None),
-                        "own": status.attrib.get("own", "0") == "1",
-                        "prevowned": status.attrib.get("prevowned", "0") == "1",
-                        "fortrade": status.attrib.get("fortrade", "0") == "1",
-                        "want": status.attrib.get("want", "0") == "1",
-                        "wanttoplay": status.attrib.get("wanttoplay", "0") == "1",
-                        "wanttobuy": status.attrib.get("wanttobuy", "0") == "1",
-                        "wishlist": status.attrib.get("wishlist", "0") == "1",
-                        "preordered": status.attrib.get("preordered", "0") == "1",
-                        "minplayers": item.find(".//minplayers").attrib.get(
-                            "value", None
+                        "name": (
+                            item.find("name").text
+                            if item.find("name") is not None
+                            else "Unknown"
                         ),
-                        "maxplayers": item.find(".//maxplayers").attrib.get(
-                            "value", None
+                        "bggid": item.get(
+                            "objectid", "Unknown"
+                        ),  # Use get with default on attributes directly from item
+                        "avgrating": (
+                            item.find("stats/rating/average").get("value", "N/A")
+                            if item.find("stats/rating/average") is not None
+                            else "N/A"
                         ),
-                        "minplaytime": item.find(".//minplaytime").attrib.get(
-                            "value", None
+                        "own": item.find("status").get("own", "0") == "1",
+                        "prevowned": item.find("status").get("prevowned", "0") == "1",
+                        "fortrade": item.find("status").get("fortrade", "0") == "1",
+                        "want": item.find("status").get("want", "0") == "1",
+                        "wanttoplay": item.find("status").get("wanttoplay", "0") == "1",
+                        "wanttobuy": item.find("status").get("wanttobuy", "0") == "1",
+                        "wishlist": item.find("status").get("wishlist", "0") == "1",
+                        "preordered": item.find("status").get("preordered", "0") == "1",
+                        "minplayers": (
+                            item.find("stats").get("minplayers", "N/A")
+                            if item.find("stats") is not None
+                            else "N/A"
                         ),
-                        "maxplaytime": item.find(".//maxplaytime").attrib.get(
-                            "value", None
+                        "maxplayers": (
+                            item.find("stats").get("maxplayers", "N/A")
+                            if item.find("stats") is not None
+                            else "N/A"
+                        ),
+                        "minplaytime": (
+                            item.find("stats").get("minplaytime", "N/A")
+                            if item.find("stats") is not None
+                            else "N/A"
+                        ),
+                        "maxplaytime": (
+                            item.find("stats").get("maxplaytime", "N/A")
+                            if item.find("stats") is not None
+                            else "N/A"
                         ),
                         "numplays": (
                             item.find("numplays").text
@@ -117,6 +135,7 @@ async def process_bgg_users():
                             else "0"
                         ),
                     }
+
                     await upsert_boardgame(conn, game_data)
             else:
                 logger.warning(f"No data to process for user {bgguser}")
