@@ -206,30 +206,36 @@ create function get_boardgames_starting_with(letter character)
     language sql
 as
 $$
-SELECT DISTINCT bg.id,
-                bg.userid,
-                u.name AS username,
-                bg.name,
-                bg.bggid,
-                bg.avgrating,
-                bg.own,
-                bg.prevowned,
-                bg.fortrade,
-                bg.want,
-                bg.wanttoplay,
-                bg.wanttobuy,
-                bg.wishlist,
-                bg.preordered,
-                bg.datemodified,
-                bg.minplayers,
-                bg.maxplayers,
-                bg.minplaytime,
-                bg.numplays
-FROM BoardGames bg
-         JOIN Users u ON bg.userid = u.id
-WHERE bg.Name ILIKE letter || '%'
-  AND bg.own = TRUE
-  AND bg.avgrating > 7.5;
+WITH DistinctGames AS (
+    SELECT DISTINCT ON (bg.name)
+        bg.id,
+        bg.userid,
+        u.name AS username,
+        bg.name,
+        bg.bggid,
+        bg.avgrating,
+        bg.own,
+        bg.prevowned,
+        bg.fortrade,
+        bg.want,
+        bg.wanttoplay,
+        bg.wanttobuy,
+        bg.wishlist,
+        bg.preordered,
+        bg.datemodified,
+        bg.minplayers,
+        bg.maxplayers,
+        bg.minplaytime,
+        bg.numplays
+    FROM BoardGames bg
+    JOIN Users u ON bg.userid = u.id
+    WHERE bg.Name ILIKE letter || '%' AND bg.own = TRUE
+    ORDER BY bg.name
+)
+SELECT *
+FROM DistinctGames
+WHERE avgrating > 7.5
+ORDER BY avgrating DESC;
 $$;
 
 alter function get_boardgames_starting_with(char) owner to postgres;
