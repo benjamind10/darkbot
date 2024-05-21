@@ -133,7 +133,7 @@ class Database(commands.Cog):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="User Enable Status",
-                description=result,
+                description=f"The user with ID {user_id} has been disabled.",
             )
             await ctx.send(embed=embed)
         except Exception as e:
@@ -161,7 +161,9 @@ class Database(commands.Cog):
         try:
             conn = get_connection()
             cursor = conn.cursor()
-            logger.debug(f"Executing database query for games starting with '{letter}'.")
+            logger.debug(
+                f"Executing database query for games starting with '{letter}'."
+            )
             cursor.execute("SELECT * FROM get_boardgames_starting_with(%s)", (letter,))
             games = cursor.fetchall()
             total_games = len(games)
@@ -180,7 +182,7 @@ class Database(commands.Cog):
                 embed = discord.Embed(
                     color=self.bot.embed_color,
                     title=f"Board Games Starting with '{letter.upper()}'",
-                    description=f"Displaying games {game_count+1} to {game_count+len(chunk)} out of {total_games}:"
+                    description=f"Displaying games {game_count+1} to {game_count+len(chunk)} out of {total_games}:",
                 )
                 for game in chunk:
                     embed.add_field(
@@ -190,10 +192,14 @@ class Database(commands.Cog):
                     )
                     game_count += 1  # Increment the counter for each game listed
                 await ctx.send(embed=embed)
-                logger.info(f"Embed sent for a chunk of games starting with '{letter}'. {game_count} games listed so far.")
+                logger.info(
+                    f"Embed sent for a chunk of games starting with '{letter}'. {game_count} games listed so far."
+                )
         except Exception as e:
             await ctx.send(f"Failed to fetch board games: {e}")
-            logger.error(f"Exception occurred while fetching games starting with '{letter}': {e}")
+            logger.error(
+                f"Exception occurred while fetching games starting with '{letter}': {e}"
+            )
         finally:
             if cursor:
                 cursor.close()
@@ -201,7 +207,6 @@ class Database(commands.Cog):
             if conn:
                 conn.close()
                 logger.debug("Database connection closed.")
-
 
     @commands.command(
         name="executesql", help="Executes a custom SQL query. Owner only."
@@ -239,6 +244,65 @@ class Database(commands.Cog):
                 cursor.close()
             if conn:
                 conn.close()
+
+    async def send_paginated_embeds(self, ctx, games):
+        per_page = 5
+        pages = [games[i : i + per_page] for i in range(0, len(games), per_page)]
+        page_number = 1
+
+        for page in pages:
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="Board Games Available for Trade (Page {})".format(page_number),
+                description="Here are the games listed for trade:",
+            )
+            for game in page:
+                embed.add_field(
+                    name=f"{game[2]} (Rating: {game[3]})",
+                    value=f"Own: {game[4]}, BGGeek Username: {game[1]}",
+                    inline=False,
+                )
+            await ctx.send(embed=embed)
+            page_number += 1
+
+    @commands.command(
+        name="listfortradegames", help="Lists all board games available for trade."
+    )
+    async def list_for_trade_games(self, ctx):
+        conn = None
+        cursor = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            logger.debug("Executing query to fetch games available for trade.")
+            cursor.execute(
+                """
+                SELECT username, bgguser, name, avgrating, own
+                FROM for_trade
+                ORDER BY avgrating DESC;
+            """
+            )
+            games = cursor.fetchall()
+
+            if not games:
+                await ctx.send("No board games available for trade.")
+                logger.info("No board games available for trade found in the database.")
+                return
+
+            await self.send_paginated_embeds(ctx, games)
+            logger.info("Successfully listed all board games available for trade.")
+        except Exception as e:
+            await ctx.send(f"Failed to fetch board games available for trade: {e}")
+            logger.error(
+                f"Exception occurred while fetching games available for trade: {e}"
+            )
+        finally:
+            if cursor:
+                cursor.close()
+                logger.debug("Database cursor closed.")
+            if conn:
+                conn.close()
+                logger.debug("Database connection closed.")
 
 
 async def setup(client):
