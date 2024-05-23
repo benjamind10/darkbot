@@ -43,6 +43,21 @@ create table boardgames
 alter table boardgames
     owner to postgres;
 
+create view boardgames_stats (boardgamename, username, avgrating, minplayers, maxplayers, minplaytime, numplays) as
+SELECT DISTINCT ON (bg.name) bg.name AS boardgamename,
+                             u.name  AS username,
+                             bg.avgrating,
+                             bg.minplayers,
+                             bg.maxplayers,
+                             bg.minplaytime,
+                             bg.numplays
+FROM boardgames bg
+         JOIN users u ON bg.userid = u.id
+ORDER BY bg.name, bg.avgrating DESC;
+
+alter table boardgames_stats
+    owner to postgres;
+
 create function update_modified_column() returns trigger
     language plpgsql
 as
@@ -191,29 +206,36 @@ create function get_boardgames_starting_with(letter character)
     language sql
 as
 $$
-SELECT DISTINCT bg.id,
-                bg.userid,
-                u.name AS username,
-                bg.name,
-                bg.bggid,
-                bg.avgrating,
-                bg.own,
-                bg.prevowned,
-                bg.fortrade,
-                bg.want,
-                bg.wanttoplay,
-                bg.wanttobuy,
-                bg.wishlist,
-                bg.preordered,
-                bg.datemodified,
-                bg.minplayers,
-                bg.maxplayers,
-                bg.minplaytime,
-                bg.numplays
-FROM BoardGames bg
-         JOIN Users u ON bg.userid = u.id
-WHERE bg.Name LIKE letter || '%'
-  AND bg.own = TRUE;
+WITH DistinctGames AS (
+    SELECT DISTINCT ON (bg.name)
+        bg.id,
+        bg.userid,
+        u.name AS username,
+        bg.name,
+        bg.bggid,
+        bg.avgrating,
+        bg.own,
+        bg.prevowned,
+        bg.fortrade,
+        bg.want,
+        bg.wanttoplay,
+        bg.wanttobuy,
+        bg.wishlist,
+        bg.preordered,
+        bg.datemodified,
+        bg.minplayers,
+        bg.maxplayers,
+        bg.minplaytime,
+        bg.numplays
+    FROM BoardGames bg
+    JOIN Users u ON bg.userid = u.id
+    WHERE bg.Name ILIKE letter || '%' AND bg.own = TRUE
+    ORDER BY bg.name
+)
+SELECT *
+FROM DistinctGames
+WHERE avgrating > 7.5
+ORDER BY avgrating DESC;
 $$;
 
 alter function get_boardgames_starting_with(char) owner to postgres;

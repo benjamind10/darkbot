@@ -9,6 +9,9 @@ services:
     command: python bot.py
     networks:
       - app-network
+    logging:
+      options:
+        max-size: 10m
     depends_on:
       - db
       # - lavalink-app
@@ -25,6 +28,9 @@ services:
       - app-network
     ports:
       - "5432:5432"
+    logging:
+      options:
+        max-size: 10m
 
 networks:
   app-network:
