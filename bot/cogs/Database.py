@@ -148,9 +148,9 @@ class Database(commands.Cog):
 
     @commands.command(
         name="listboardgames",
-        help="Lists all board games starting with a specified letter.",
+        help="Lists all board games starting with a specified letter. Optionally filter by username.",
     )
-    async def list_board_games(self, ctx, letter: str):
+    async def list_board_games(self, ctx, letter: str, username: str = None):
         if len(letter) != 1 or not letter.isalpha():
             await ctx.send("Please provide a single alphabetical letter.")
             logger.warning(f"Invalid input for list_board_games command: '{letter}'")
@@ -161,10 +161,23 @@ class Database(commands.Cog):
         try:
             conn = get_connection()
             cursor = conn.cursor()
-            logger.debug(
-                f"Executing database query for games starting with '{letter}'."
-            )
-            cursor.execute("SELECT * FROM get_boardgames_starting_with(%s)", (letter,))
+
+            if username:
+                logger.debug(
+                    f"Executing database query for games starting with '{letter}' owned by '{username}'."
+                )
+                cursor.execute(
+                    "SELECT * FROM get_boardgames_starting_with_and_owned_by(%s, %s)",
+                    (letter, username),
+                )
+            else:
+                logger.debug(
+                    f"Executing database query for games starting with '{letter}'."
+                )
+                cursor.execute(
+                    "SELECT * FROM get_boardgames_starting_with(%s)", (letter,)
+                )
+
             games = cursor.fetchall()
             total_games = len(games)
             logger.info(f"Number of games fetched: {total_games}")
@@ -264,45 +277,6 @@ class Database(commands.Cog):
                 )
             await ctx.send(embed=embed)
             page_number += 1
-
-    @commands.command(
-        name="listfortradegames", help="Lists all board games available for trade."
-    )
-    async def list_for_trade_games(self, ctx):
-        conn = None
-        cursor = None
-        try:
-            conn = get_connection()
-            cursor = conn.cursor()
-            logger.debug("Executing query to fetch games available for trade.")
-            cursor.execute(
-                """
-                SELECT username, bgguser, name, avgrating, own
-                FROM for_trade
-                ORDER BY avgrating DESC;
-            """
-            )
-            games = cursor.fetchall()
-
-            if not games:
-                await ctx.send("No board games available for trade.")
-                logger.info("No board games available for trade found in the database.")
-                return
-
-            await self.send_paginated_embeds(ctx, games)
-            logger.info("Successfully listed all board games available for trade.")
-        except Exception as e:
-            await ctx.send(f"Failed to fetch board games available for trade: {e}")
-            logger.error(
-                f"Exception occurred while fetching games available for trade: {e}"
-            )
-        finally:
-            if cursor:
-                cursor.close()
-                logger.debug("Database cursor closed.")
-            if conn:
-                conn.close()
-                logger.debug("Database connection closed.")
 
 
 async def setup(client):
