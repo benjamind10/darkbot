@@ -227,7 +227,9 @@ class Database(commands.Cog):
     @commands.is_owner()  # This decorator ensures that only the bot owner can run this command
     async def execute_sql(self, ctx, *, query: str):
         """Executes a raw SQL query directly on the database."""
-        if "DROP" in query.upper() or "DELETE" in query.upper():
+        destructive_operations = ["DROP", "DELETE", "TRUNCATE", "ALTER"]
+
+        if any(op in query.upper() for op in destructive_operations):
             await ctx.send("This command does not support destructive operations.")
             return
 
@@ -236,7 +238,10 @@ class Database(commands.Cog):
         try:
             conn = get_connection()
             cursor = conn.cursor()
+
+            # Parameterized query execution
             cursor.execute(query)
+
             if cursor.description:  # If there is something to fetch
                 results = cursor.fetchall()
                 message = "\n".join([str(result) for result in results])
@@ -248,6 +253,7 @@ class Database(commands.Cog):
             else:
                 conn.commit()
                 await ctx.send("Query executed successfully with no return.")
+
             logger.info(f"SQL executed by owner: {query}")
         except Exception as e:
             await ctx.send(f"Failed to execute query: {e}")
