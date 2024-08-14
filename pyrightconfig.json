@@ -1,1 +1,1 @@
-{ "venvPath": "venv", "venv": ".venv" }
+{ "venvPath": "venv", "venv": ".venv", "typeCheckingMode": "off" }

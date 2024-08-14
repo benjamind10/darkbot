@@ -58,6 +58,19 @@ ORDER BY bg.name, bg.avgrating DESC;
 alter table boardgames_stats
     owner to postgres;
 
+create view for_trade(username, bgguser, name, avgrating, own) as
+SELECT u.name AS username,
+       u.bgguser,
+       bg.name,
+       bg.avgrating,
+       bg.own
+FROM boardgames bg
+         LEFT JOIN users u ON u.id = bg.userid
+WHERE bg.fortrade = true;
+
+alter table for_trade
+    owner to postgres;
+
 create function update_modified_column() returns trigger
     language plpgsql
 as
@@ -81,19 +94,6 @@ create trigger trigger_update_modified
     on boardgames
     for each row
 execute procedure update_modified_column();
-
-create function disable_user(user_id integer) returns void
-    language plpgsql
-as
-$$
-BEGIN
-    UPDATE Users
-    SET IsEnabled = false
-    WHERE ID = user_id;
-END;
-$$;
-
-alter function disable_user(integer) owner to postgres;
 
 create function enable_user(user_id integer) returns text
     language plpgsql
@@ -201,41 +201,145 @@ $$;
 
 alter function get_enabled_users() owner to postgres;
 
-create function get_boardgames_starting_with(letter character)
-    returns TABLE(id integer, userid integer, username text, name text, bggid integer, avgrating double precision, own boolean, prevowned boolean, fortrade boolean, want boolean, wanttoplay boolean, wanttobuy boolean, wishlist boolean, preordered boolean, datemodified timestamp without time zone, minplayers integer, maxplayers integer, minplaytime integer, numplays integer)
-    language sql
+create function disable_user(user_id integer) returns text
+    language plpgsql
 as
 $$
-WITH DistinctGames AS (
-    SELECT DISTINCT ON (bg.name)
-        bg.id,
-        bg.userid,
-        u.name AS username,
-        bg.name,
-        bg.bggid,
-        bg.avgrating,
-        bg.own,
-        bg.prevowned,
-        bg.fortrade,
-        bg.want,
-        bg.wanttoplay,
-        bg.wanttobuy,
-        bg.wishlist,
-        bg.preordered,
-        bg.datemodified,
-        bg.minplayers,
-        bg.maxplayers,
-        bg.minplaytime,
-        bg.numplays
-    FROM BoardGames bg
-    JOIN Users u ON bg.userid = u.id
-    WHERE bg.Name ILIKE letter || '%' AND bg.own = TRUE
-    ORDER BY bg.name
-)
-SELECT *
-FROM DistinctGames
-WHERE avgrating > 7.5
-ORDER BY avgrating DESC;
+BEGIN
+    UPDATE Users
+    SET IsEnabled = false
+    WHERE ID = user_id;
+
+    IF FOUND THEN
+        RETURN 'User successfully disabled.';
+    ELSE
+        RETURN 'No user found with the given ID.';
+    END IF;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN 'Error disabling user: ' || SQLERRM;
+END;
+$$;
+
+alter function disable_user(integer) owner to postgres;
+
+create function get_boardgames_starting_with_and_owned_by(letter character, username_param character varying)
+    returns TABLE(id integer, userid integer, username character varying, name character varying, bggid integer, avgrating double precision, own boolean, prevowned boolean, fortrade boolean, want boolean, wanttoplay boolean, wanttobuy boolean, wishlist boolean, preordered boolean, datemodified timestamp without time zone, minplayers integer, maxplayers integer, minplaytime integer, numplays integer)
+    language plpgsql
+as
+$$
+BEGIN
+    RETURN QUERY
+    WITH DistinctGames AS (
+        SELECT DISTINCT ON (bg.name)
+            bg.id,
+            bg.userid,
+            u.name AS username,
+            bg.name,
+            bg.bggid,
+            bg.avgrating,
+            bg.own,
+            bg.prevowned,
+            bg.fortrade,
+            bg.want,
+            bg.wanttoplay,
+            bg.wanttobuy,
+            bg.wishlist,
+            bg.preordered,
+            bg.datemodified,
+            bg.minplayers,
+            bg.maxplayers,
+            bg.minplaytime,
+            bg.numplays
+        FROM BoardGames bg
+        JOIN Users u ON bg.userid = u.id
+        WHERE LOWER(bg.name) LIKE LOWER(letter) || '%'
+        AND (username_param IS NULL OR LOWER(u.name) = LOWER(username_param))
+        AND bg.own = TRUE
+        ORDER BY bg.name
+    )
+    SELECT *
+    FROM DistinctGames dg
+    WHERE dg.avgrating > 7.5
+    ORDER BY dg.avgrating DESC;
+END;
+$$;
+
+alter function get_boardgames_starting_with_and_owned_by(char, varchar) owner to postgres;
+
+create function remove_prefix(name text) returns text
+    language plpgsql
+as
+$$
+DECLARE
+    result text;
+BEGIN
+    result := CASE
+        WHEN name ~* '^(A |An |The )' THEN regexp_replace(name, '^(A |An |The )', '', 'i')
+        ELSE name
+    END;
+    RETURN result;
+END;
+$$;
+
+alter function remove_prefix(text) owner to postgres;
+
+create function get_boardgames_starting_with(letter character)
+    returns TABLE(id integer, userid integer, username text, name text, bggid integer, avgrating double precision, own boolean, prevowned boolean, fortrade boolean, want boolean, wanttoplay boolean, wanttobuy boolean, wishlist boolean, preordered boolean, datemodified timestamp without time zone, minplayers integer, maxplayers integer, minplaytime integer, numplays integer)
+    language plpgsql
+as
+$$
+BEGIN
+    RETURN QUERY WITH DistinctGames AS (
+        SELECT DISTINCT ON (remove_prefix(bg.name))
+            bg.id,
+            bg.userid,
+            u.name::text AS username,
+            bg.name::text AS name,
+            bg.bggid,
+            bg.avgrating,
+            bg.own,
+            bg.prevowned,
+            bg.fortrade,
+            bg.want,
+            bg.wanttoplay,
+            bg.wanttobuy,
+            bg.wishlist,
+            bg.preordered,
+            bg.datemodified,
+            bg.minplayers,
+            bg.maxplayers,
+            bg.minplaytime,
+            bg.numplays
+        FROM BoardGames bg
+        JOIN Users u ON bg.userid = u.id
+        WHERE remove_prefix(bg.name) ILIKE letter || '%' AND bg.own = TRUE
+        ORDER BY remove_prefix(bg.name), bg.avgrating DESC
+    )
+    SELECT 
+        dg.id,
+        dg.userid,
+        dg.username,
+        dg.name,
+        dg.bggid,
+        dg.avgrating,
+        dg.own,
+        dg.prevowned,
+        dg.fortrade,
+        dg.want,
+        dg.wanttoplay,
+        dg.wanttobuy,
+        dg.wishlist,
+        dg.preordered,
+        dg.datemodified,
+        dg.minplayers,
+        dg.maxplayers,
+        dg.minplaytime,
+        dg.numplays
+    FROM DistinctGames dg
+    WHERE dg.avgrating > 7.5
+    ORDER BY dg.avgrating DESC;
+END;
 $$;
 
 alter function get_boardgames_starting_with(char) owner to postgres;
