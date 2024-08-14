@@ -29,6 +29,7 @@ cogs = [
     "Events",
     "BoardGames",
     "Database",
+    "Mtg",
 ]
 
 
@@ -55,7 +56,7 @@ class DarkBot(commands.AutoShardedBot):
         self.cursor.execute("SELECT version();")
         record = self.cursor.fetchone()
         logger.info(f"Connected to - {record}")
-        logger.info(f"DarkBot is starting up...")
+        logger.info("DarkBot is starting up...")
 
     # async def on_message(self, message):
     #     self.cursor.execute("SELECT version();")
