@@ -1,7 +1,6 @@
 import requests
 import discord
 from discord.ext import commands
-from db import get_connection
 from logging_files.mtg_logging import logger
 
 
