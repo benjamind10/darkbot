@@ -1,14 +1,57 @@
 import random
-
 import discord
-import requests
+import aiohttp
+import asyncio
 from discord.ext import commands
-
 from logging_files.owner_logging import logger
+
 
 class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.keywords = [
+            "World Stone",
+            "Plains of Despair",
+            "Forgotten Tower",
+        ]  # Add more keywords as needed
+        self.scraping_task = bot.loop.create_task(self.scrape_tz_site())
+
+    def cog_unload(self):
+        self.scraping_task.cancel()
+
+    async def scrape_tz_site(self):
+        await self.bot.wait_until_ready()
+        last_seen = ""
+
+        while not self.bot.is_closed():
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get("https://d2emu.com/tz") as response:
+                        if response.status == 200:
+                            content = await response.text()
+                            logger.info("Scraper | Successfully fetched d2emu.com/tz")
+
+                            if (
+                                any(keyword in content for keyword in self.keywords)
+                                and content != last_seen
+                            ):
+                                last_seen = content
+                                channel = self.bot.get_channel("1120385235813675103")
+                                if channel:
+                                    await channel.send(
+                                        "🔍 Keyword match found on [https://d2emu.com/tz](https://d2emu.com/tz)!"
+                                    )
+                                    logger.info(
+                                        "Scraper | Keyword match found and notification sent."
+                                    )
+                        else:
+                            logger.warning(
+                                f"Scraper | Failed to fetch site. Status code: {response.status}"
+                            )
+            except Exception as e:
+                logger.error(f"Scraper | Error occurred during scraping: {e}")
+
+            await asyncio.sleep(60)
 
     @commands.is_owner()
     @commands.command()
@@ -25,29 +68,28 @@ class Owner(commands.Cog):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title=f"→ Invite From Guild",
-                description=f"• Invite: {await channel.create_invite(max_uses=1)}"
+                description=f"• Invite: {await channel.create_invite(max_uses=1)}",
             )
 
             await ctx.author.send(embed=embed)
-
             logger.info(f"Owner | Sent Get Invite: {ctx.author}")
         except Exception as e:
-            print(f'There was an error: {e}')
-
+            print(f"There was an error: {e}")
 
     @commands.is_owner()
     @commands.command()
     async def check_roles(self, ctx, user: discord.Member):
-        """List all roles of a user."""
-        # We exclude the default @everyone role that everyone has
-        role_mentions = [role.mention for role in user.roles if role != ctx.guild.default_role]
-        role_names = [role.name for role in user.roles if role != ctx.guild.default_role]
-        roles_text = ' '.join(role_mentions) if role_mentions else 'This user has no roles.'
+        role_mentions = [
+            role.mention for role in user.roles if role != ctx.guild.default_role
+        ]
+        roles_text = (
+            " ".join(role_mentions) if role_mentions else "This user has no roles."
+        )
 
         embed = discord.Embed(
             color=self.bot.embed_color,
             title=f"Roles for {user.display_name}",
-            description=roles_text
+            description=roles_text,
         )
         await ctx.send(embed=embed)
         logger.info(f"Owner | Checked Roles for User: {user} - {ctx.author}")
@@ -55,46 +97,34 @@ class Owner(commands.Cog):
     @commands.is_owner()
     @commands.command()
     async def check_permissions(self, ctx, user: discord.Member):
-        """List all permissions of a user."""
-        # Get the permissions for the user
         permissions = user.guild_permissions
-
-        # Create a list of permission names that are set to True
         true_permissions = [perm[0] for perm in permissions if perm[1]]
-
-        # Format the permissions into a string list
         formatted_permissions = ", ".join(true_permissions).replace("_", " ").title()
 
         embed = discord.Embed(
             color=self.bot.embed_color,
             title=f"Permissions for {user.display_name}",
-            description=formatted_permissions
+            description=formatted_permissions,
         )
-
         await ctx.send(embed=embed)
         logger.info(f"Owner | Checked Permissions for User: {user} - {ctx.author}")
 
     @commands.is_owner()
     @commands.command()
     async def dbcheck(self, ctx):
-        """Check the database version."""
         try:
-            # Ensure the bot has an active database connection
-            if not hasattr(self.bot, 'conn'):
+            if not hasattr(self.bot, "conn"):
                 await ctx.send("Database connection not established.")
                 return
 
-            # Execute a query to get the database version
             with self.bot.conn.cursor() as cursor:
                 cursor.execute("SELECT version();")
                 record = cursor.fetchone()
 
-            # Send the database version to the context channel
             if record:
                 await ctx.send(f"Database version: {record[0]}")
             else:
                 await ctx.send("Unable to fetch database version.")
-
         except Exception as e:
             await ctx.send(f"Error checking database version: {e}")
 
