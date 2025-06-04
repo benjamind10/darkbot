@@ -18,7 +18,7 @@ class Information(commands.Cog):
 
         self.keywords = ["Worldstone", "Chaos Sanctuary"]
         self.last_announced = None
-        self.channel_id = 1120385235813675103
+        self.channel_id = 1379906383255834786
         self.api_headers = {
             "D2R-Contact": "benjamind10@pm.me",
             "D2R-Platform": "Discord",
@@ -34,7 +34,7 @@ class Information(commands.Cog):
             self.hourly_task.cancel()
 
     def matches_keyword(self, zone_name: str) -> bool:
-        normalized = re.sub(r"\W+", "", zone_name.lower())  # strips non-alphanumerics
+        normalized = re.sub(r"\W+", "", zone_name.lower())
         return any(
             re.sub(r"\W+", "", keyword.lower()) in normalized
             for keyword in self.keywords
@@ -82,9 +82,11 @@ class Information(commands.Cog):
             await asyncio.sleep(300)
 
     async def world_stone_reminders(self, next_zone):
-        logger.info("Reminder | Tracked zone is coming up, scheduling reminders...")
-        for _ in range(5):
-            await asyncio.sleep(600)
+        logger.info(f"Reminder | {next_zone} is coming up, waiting before reminders...")
+
+        await asyncio.sleep(30)  # Short delay to avoid false early detection
+
+        for i in range(5):
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
@@ -96,22 +98,32 @@ class Information(commands.Cog):
                             current_zone = (
                                 data.get("currentTerrorZone", {})
                                 .get("zone", "")
-                                .lower()
-                                .replace(" ", "")
+                                .strip()
                             )
-                            if self.matches_keyword(current_zone):
+
+                            logger.info(f"[REMINDER] Loop {i+1} check: {current_zone}")
+
+                            if (
+                                current_zone.lower() == next_zone.lower()
+                                or self.matches_keyword(current_zone)
+                            ):
                                 logger.info(
                                     "Reminder | Tracked zone is now active. Stopping reminders."
                                 )
                                 return
+
                             channel = self.bot.get_channel(self.channel_id)
                             if channel:
                                 await channel.send(
                                     f"⚠️ Reminder: **{next_zone}** is coming up soon. Be ready!"
                                 )
-                                logger.info("Reminder | Sent tracked zone reminder.")
+                                logger.info(
+                                    f"Reminder | Sent reminder {i+1} for: {next_zone}"
+                                )
             except Exception as e:
-                logger.error(f"Reminder | Exception: {e}")
+                logger.error(f"Reminder | Exception in reminder loop: {e}")
+
+            await asyncio.sleep(600)  # Wait 10 mins before next reminder
 
     async def start_hourly_tz_updates(self):
         await self.bot.wait_until_ready()
@@ -122,7 +134,7 @@ class Information(commands.Cog):
             )
             wait_seconds = (next_hour - now).total_seconds()
             logger.info(f"[TZUPDATES] Sleeping {wait_seconds:.0f}s until top of hour.")
-            await asyncio.sleep(wait_seconds)
+            await asyncio.sleep(wait_seconds + 30)  # Add 30 sec buffer
 
             try:
                 async with aiohttp.ClientSession() as session:
@@ -165,17 +177,19 @@ class Information(commands.Cog):
                             )
 
                             if self.matches_keyword(current):
-                                await channel.send(f"🚨 **{current}** is NOW ACTIVE!")
+                                await channel.send(
+                                    f"🔥 **{current}** is now the active Terror Zone!"
+                                )
                                 logger.info(
                                     f"[TZUPDATES] Alert: {current} is active now."
                                 )
 
                             if self.matches_keyword(next_zone):
-                                self.bot.loop.create_task(
-                                    self.world_stone_reminders(next_zone)
-                                )
                                 logger.info(
                                     f"[TZUPDATES] {next_zone} is coming next. Starting reminders."
+                                )
+                                self.bot.loop.create_task(
+                                    self.world_stone_reminders(next_zone)
                                 )
                         else:
                             logger.warning(f"[TZUPDATES] API error: {response.status}")
