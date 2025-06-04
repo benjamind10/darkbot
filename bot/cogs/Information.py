@@ -15,11 +15,11 @@ class Information(commands.Cog):
         self.bot = bot
         self.bot_start_time = time.time()
 
-        self.keywords = ["Worldstone"]
+        self.keywords = ["Worldstone", "Chaos Sanctuary"]
         self.last_announced = None
-        self.channel_id = 1120385235813675103  # Replace with your notification channel
+        self.channel_id = 1120385235813675103
         self.api_headers = {
-            "D2R-Contact": "your_email@example.com",  # Replace this
+            "D2R-Contact": "your_email@example.com",
             "D2R-Platform": "Discord",
             "D2R-Repo": "https://github.com/benjamind10/darkbot.git",
         }
@@ -31,6 +31,12 @@ class Information(commands.Cog):
         self.scraping_task.cancel()
         if self.hourly_task:
             self.hourly_task.cancel()
+
+    def matches_keyword(self, zone_name: str) -> bool:
+        normalized = zone_name.lower().replace(" ", "")
+        return any(
+            keyword.lower().replace(" ", "") in normalized for keyword in self.keywords
+        )
 
     async def poll_terror_zone_api(self):
         await self.bot.wait_until_ready()
@@ -52,33 +58,31 @@ class Information(commands.Cog):
                             logger.info(
                                 f"Scraper | Fetched current zone: {current_zone}"
                             )
-                            for keyword in self.keywords:
-                                if (
-                                    keyword.lower() in current_zone.lower()
-                                    and keyword != self.last_announced
-                                ):
-                                    self.last_announced = keyword
-                                    channel = self.bot.get_channel(self.channel_id)
-                                    if channel:
-                                        await channel.send(
-                                            f"🔥 **{keyword}** is now the active Terror Zone!"
-                                        )
-                                        logger.info(
-                                            f"Scraper | Notification sent for: {keyword}"
-                                        )
-                                    break
+                            if (
+                                self.matches_keyword(current_zone)
+                                and current_zone != self.last_announced
+                            ):
+                                self.last_announced = current_zone
+                                channel = self.bot.get_channel(self.channel_id)
+                                if channel:
+                                    await channel.send(
+                                        f"🔥 **{current_zone}** is now the active Terror Zone!"
+                                    )
+                                    logger.info(
+                                        f"Scraper | Notification sent for: {current_zone}"
+                                    )
                         else:
                             logger.warning(
                                 f"Scraper | API returned status {response.status}"
                             )
             except Exception as e:
                 logger.error(f"Scraper | Exception during API poll: {e}")
-            await asyncio.sleep(300)  # Check every 5 minutes
+            await asyncio.sleep(300)
 
     async def world_stone_reminders(self, next_zone):
-        logger.info("Reminder | World Stone is coming up, scheduling reminders...")
-        for _ in range(5):  # up to 50 minutes of reminders
-            await asyncio.sleep(600)  # 10 minutes
+        logger.info("Reminder | Tracked zone is coming up, scheduling reminders...")
+        for _ in range(5):
+            await asyncio.sleep(600)
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
@@ -91,10 +95,11 @@ class Information(commands.Cog):
                                 data.get("currentTerrorZone", {})
                                 .get("zone", "")
                                 .lower()
+                                .replace(" ", "")
                             )
-                            if "world stone" in current_zone:
+                            if self.matches_keyword(current_zone):
                                 logger.info(
-                                    "Reminder | World Stone is now active. Stopping reminders."
+                                    "Reminder | Tracked zone is now active. Stopping reminders."
                                 )
                                 return
                             channel = self.bot.get_channel(self.channel_id)
@@ -102,7 +107,7 @@ class Information(commands.Cog):
                                 await channel.send(
                                     f"⚠️ Reminder: **{next_zone}** is coming up soon. Be ready!"
                                 )
-                                logger.info("Reminder | Sent World Stone reminder.")
+                                logger.info("Reminder | Sent tracked zone reminder.")
             except Exception as e:
                 logger.error(f"Reminder | Exception: {e}")
 
@@ -157,20 +162,18 @@ class Information(commands.Cog):
                                 f"[TZUPDATES] Sent hourly update: {current} -> {next_zone}"
                             )
 
-                            # 🔥 Extra alert if World Stone is active now
-                            if "world stone" in current.lower():
-                                await channel.send("🚨 **World Stone** is NOW ACTIVE!")
+                            if self.matches_keyword(current):
+                                await channel.send(f"🚨 **{current}** is NOW ACTIVE!")
                                 logger.info(
-                                    "[TZUPDATES] Alert: World Stone is active now."
+                                    f"[TZUPDATES] Alert: {current} is active now."
                                 )
 
-                            # 🔔 Start reminders if World Stone is coming next
-                            if "world stone" in next_zone.lower():
+                            if self.matches_keyword(next_zone):
                                 self.bot.loop.create_task(
                                     self.world_stone_reminders(next_zone)
                                 )
                                 logger.info(
-                                    "[TZUPDATES] World Stone is coming next. Starting reminders."
+                                    f"[TZUPDATES] {next_zone} is coming next. Starting reminders."
                                 )
                         else:
                             logger.warning(f"[TZUPDATES] API error: {response.status}")
