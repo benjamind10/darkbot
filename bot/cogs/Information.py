@@ -17,7 +17,7 @@ class Information(commands.Cog):
 
         self.keywords = ["World Stone"]
         self.last_announced = None
-        self.channel_id = 1120385235813675103
+        self.channel_id = 1379906383255834786
         self.api_headers = {
             "D2R-Contact": "benjamind10@pm.me",  # ← change this
             "D2R-Platform": "Discord",
