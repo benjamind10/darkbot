@@ -85,6 +85,7 @@ class Owner(commands.Cog):
                         return
 
                     data = await response.json()
+                    logger.info(f"RAW API DATA: {data}")
                     current = data.get("current", {}).get("name", "Unknown")
                     next_zone = data.get("next", {}).get("name", "Unknown")
                     next_eta = data.get("next", {}).get("eta", "Unknown")
