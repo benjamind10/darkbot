@@ -1,10 +1,10 @@
 import asyncio
 import time
-import aiohttp
 import discord
 import platform
 import distro
 import psutil
+import aiohttp
 from discord.ext import commands
 from datetime import datetime, timedelta
 from logging_files.information_logging import logger
@@ -15,18 +15,22 @@ class Information(commands.Cog):
         self.bot = bot
         self.bot_start_time = time.time()
 
+        # Terror Zone monitoring setup
         self.keywords = ["World Stone"]
         self.last_announced = None
-        self.channel_id = 1379906383255834786
+        self.channel_id = 1120385235813675103  # Set to your notification channel ID
         self.api_headers = {
-            "D2R-Contact": "benjamind10@pm.me",  # ← change this
+            "D2R-Contact": "your_email@example.com",  # Replace with your contact
             "D2R-Platform": "Discord",
             "D2R-Repo": "https://github.com/benjamind10/darkbot.git",
         }
         self.scraping_task = bot.loop.create_task(self.poll_terror_zone_api())
+        self.hourly_task = None
 
     def cog_unload(self):
         self.scraping_task.cancel()
+        if self.hourly_task:
+            self.hourly_task.cancel()
 
     async def poll_terror_zone_api(self):
         await self.bot.wait_until_ready()
@@ -74,9 +78,71 @@ class Information(commands.Cog):
 
             await asyncio.sleep(60)
 
+    async def start_hourly_tz_updates(self):
+        await self.bot.wait_until_ready()
+
+        while not self.bot.is_closed():
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        "https://d2runewizard.com/api/terror-zone",
+                        headers=self.api_headers,
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            current = data.get("currentTerrorZone", {}).get(
+                                "zone", "Unknown"
+                            )
+                            current_act = data.get("currentTerrorZone", {}).get(
+                                "act", "Unknown"
+                            )
+                            next_zone = data.get("nextTerrorZone", {}).get(
+                                "zone", "Unknown"
+                            )
+                            next_act = data.get("nextTerrorZone", {}).get(
+                                "act", "Unknown"
+                            )
+
+                            embed = discord.Embed(
+                                color=self.bot.embed_color,
+                                title="⏰ Hourly Terror Zone Update",
+                                description=(
+                                    f"**Current TZ:** {current} ({current_act})\n"
+                                    f"**Next TZ:** {next_zone} ({next_act})"
+                                ),
+                            )
+
+                            channel = self.bot.get_channel(self.channel_id)
+                            if channel:
+                                await channel.send(embed=embed)
+                                logger.info(
+                                    f"Hourly Update | Posted: {current} -> {next_zone}"
+                                )
+                        else:
+                            logger.warning(
+                                f"Hourly Update | API error: {response.status}"
+                            )
+            except Exception as e:
+                logger.error(f"Hourly Update | Exception: {e}")
+
+            await asyncio.sleep(3600)  # 1 hour
+
+    @commands.command(
+        name="tzupdates", help="Start hourly TZ update messages in notifier channel."
+    )
+    @commands.is_owner()
+    async def tzupdates(self, ctx):
+        if self.hourly_task and not self.hourly_task.done():
+            self.hourly_task.cancel()
+            await ctx.send("⏹️ Hourly Terror Zone updates stopped.")
+            logger.info("Hourly Update | Task stopped.")
+        else:
+            self.hourly_task = self.bot.loop.create_task(self.start_hourly_tz_updates())
+            await ctx.send("✅ Hourly Terror Zone updates started.")
+            logger.info("Hourly Update | Task started.")
+
     @commands.command(name="currenttz", help="Check the current and next Terror Zone")
     async def current_tz(self, ctx):
-        """Fetch and display the current and next terror zones."""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
