@@ -1,25 +1,23 @@
 import random
+import time
 import discord
-import aiohttp
-import asyncio
 from discord.ext import commands
+import aiohttp
 from logging_files.owner_logging import logger
 
 
 class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.keywords = [
-            "World Stone",
-            "Plains of Despair",
-            "Forgotten Tower",
-        ]
+        self.bot_start_time = time.time()
+
+        self.keywords = ["World Stone"]
         self.last_announced = None
-        self.channel_id = 1120385235813675103  # Replace if needed
+        self.channel_id = 1120385235813675103
         self.api_headers = {
-            "D2R-Contact": "your_email@example.com",  # <-- Replace with your contact email
+            "D2R-Contact": "benjamind10@pm.me",  # ← change this
             "D2R-Platform": "Discord",
-            "D2R-Repo": "https://github.com/benjamind10/darkbot.git",  # Optional but helpful
+            "D2R-Repo": "https://github.com/benjamind10/darkbot.git",
         }
         self.scraping_task = bot.loop.create_task(self.poll_terror_zone_api())
 
@@ -72,7 +70,6 @@ class Owner(commands.Cog):
 
             await asyncio.sleep(60)
 
-    @commands.is_owner()
     @commands.command(name="currenttz", help="Check the current and next Terror Zone")
     async def current_tz(self, ctx):
         """Fetch and display the current and next terror zones."""
