@@ -39,7 +39,9 @@ class Owner(commands.Cog):
                         if response.status == 200:
                             data = await response.json()
                             current_zone = (
-                                data.get("current", {}).get("name", "").strip()
+                                data.get("currentTerrorZone", {})
+                                .get("zone", "")
+                                .strip()
                             )
 
                             logger.info(
@@ -68,7 +70,7 @@ class Owner(commands.Cog):
             except Exception as e:
                 logger.error(f"Scraper | Exception during API poll: {e}")
 
-            await asyncio.sleep(60)  # Check every minute
+            await asyncio.sleep(60)
 
     @commands.is_owner()
     @commands.command(name="currenttz", help="Check the current and next Terror Zone")
@@ -86,22 +88,25 @@ class Owner(commands.Cog):
 
                     data = await response.json()
                     logger.info(f"RAW API DATA: {data}")
-                    current = data.get("current", {}).get("name", "Unknown")
-                    next_zone = data.get("next", {}).get("name", "Unknown")
-                    next_eta = data.get("next", {}).get("eta", "Unknown")
+
+                    current = data.get("currentTerrorZone", {}).get("zone", "Unknown")
+                    current_act = data.get("currentTerrorZone", {}).get(
+                        "act", "Unknown"
+                    )
+                    next_zone = data.get("nextTerrorZone", {}).get("zone", "Unknown")
+                    next_act = data.get("nextTerrorZone", {}).get("act", "Unknown")
 
                     embed = discord.Embed(
                         color=self.bot.embed_color,
                         title="🔥 Terror Zone Info",
                         description=(
-                            f"**Current TZ:** {current}\n"
-                            f"**Next TZ:** {next_zone}\n"
-                            f"**Next ETA:** {next_eta}"
+                            f"**Current TZ:** {current} ({current_act})\n"
+                            f"**Next TZ:** {next_zone} ({next_act})"
                         ),
                     )
                     await ctx.send(embed=embed)
                     logger.info(
-                        f"currenttz | Current: {current} | Next: {next_zone} at {next_eta}"
+                        f"currenttz | Current: {current} | Next: {next_zone} ({next_act})"
                     )
 
         except Exception as e:
