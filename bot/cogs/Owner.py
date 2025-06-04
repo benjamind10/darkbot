@@ -1,7 +1,5 @@
 import random
 import discord
-import aiohttp
-import asyncio
 from discord.ext import commands
 from logging_files.owner_logging import logger
 
@@ -9,105 +7,6 @@ from logging_files.owner_logging import logger
 class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.keywords = ["World Stone"]
-        self.last_announced = None
-        self.channel_id = 1120385235813675103  # Replace if needed
-        self.api_headers = {
-            "D2R-Contact": "your_email@example.com",  # <-- Replace with your contact email
-            "D2R-Platform": "Discord",
-            "D2R-Repo": "https://github.com/benjamind10/darkbot.git",  # Optional but helpful
-        }
-        self.scraping_task = bot.loop.create_task(self.poll_terror_zone_api())
-
-    def cog_unload(self):
-        self.scraping_task.cancel()
-
-    async def poll_terror_zone_api(self):
-        await self.bot.wait_until_ready()
-
-        while not self.bot.is_closed():
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        "https://d2runewizard.com/api/terror-zone",
-                        headers=self.api_headers,
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            current_zone = (
-                                data.get("currentTerrorZone", {})
-                                .get("zone", "")
-                                .strip()
-                            )
-
-                            logger.info(
-                                f"Scraper | Fetched current zone: {current_zone}"
-                            )
-
-                            for keyword in self.keywords:
-                                if (
-                                    keyword.lower() in current_zone.lower()
-                                    and keyword != self.last_announced
-                                ):
-                                    self.last_announced = keyword
-                                    channel = self.bot.get_channel(self.channel_id)
-                                    if channel:
-                                        await channel.send(
-                                            f"🔥 **{keyword}** is now the active Terror Zone!"
-                                        )
-                                        logger.info(
-                                            f"Scraper | Notification sent for: {keyword}"
-                                        )
-                                    break
-                        else:
-                            logger.warning(
-                                f"Scraper | API returned status {response.status}"
-                            )
-            except Exception as e:
-                logger.error(f"Scraper | Exception during API poll: {e}")
-
-            await asyncio.sleep(60)
-
-    @commands.is_owner()
-    @commands.command(name="currenttz", help="Check the current and next Terror Zone")
-    async def current_tz(self, ctx):
-        """Fetch and display the current and next terror zones."""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://d2runewizard.com/api/terror-zone", headers=self.api_headers
-                ) as response:
-                    if response.status != 200:
-                        await ctx.send("⚠️ Failed to fetch terror zone data.")
-                        logger.warning(f"currenttz | API returned {response.status}")
-                        return
-
-                    data = await response.json()
-                    logger.info(f"RAW API DATA: {data}")
-
-                    current = data.get("currentTerrorZone", {}).get("zone", "Unknown")
-                    current_act = data.get("currentTerrorZone", {}).get(
-                        "act", "Unknown"
-                    )
-                    next_zone = data.get("nextTerrorZone", {}).get("zone", "Unknown")
-                    next_act = data.get("nextTerrorZone", {}).get("act", "Unknown")
-
-                    embed = discord.Embed(
-                        color=self.bot.embed_color,
-                        title="🔥 Terror Zone Info",
-                        description=(
-                            f"**Current TZ:** {current} ({current_act})\n"
-                            f"**Next TZ:** {next_zone} ({next_act})"
-                        ),
-                    )
-                    await ctx.send(embed=embed)
-                    logger.info(
-                        f"currenttz | Current: {current} | Next: {next_zone} ({next_act})"
-                    )
-
-        except Exception as e:
-            logger.error(f"currenttz | Error: {e}")
-            await ctx.send("❌ An error occurred while fetching TZ info.")
 
     @commands.is_owner()
     @commands.command()

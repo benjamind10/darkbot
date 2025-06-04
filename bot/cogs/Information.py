@@ -19,7 +19,7 @@ class Information(commands.Cog):
         self.last_announced = None
         self.channel_id = 1120385235813675103
         self.api_headers = {
-            "D2R-Contact": "your_email@example.com",  # ← change this
+            "D2R-Contact": "benjamind10@pm.me",  # ← change this
             "D2R-Platform": "Discord",
             "D2R-Repo": "https://github.com/benjamind10/darkbot.git",
         }
