@@ -114,9 +114,7 @@ class Information(commands.Cog):
                 minute=0, second=0, microsecond=0
             )
             wait_seconds = (next_hour - now).total_seconds()
-            logger.info(
-                f"Hourly Update | Sleeping until top of hour: {wait_seconds:.0f} seconds"
-            )
+            logger.info(f"[TZUPDATES] Sleeping {wait_seconds:.0f}s until top of hour.")
             await asyncio.sleep(wait_seconds)
 
             try:
@@ -127,6 +125,7 @@ class Information(commands.Cog):
                     ) as response:
                         if response.status == 200:
                             data = await response.json()
+
                             current = data.get("currentTerrorZone", {}).get(
                                 "zone", "Unknown"
                             )
@@ -140,6 +139,11 @@ class Information(commands.Cog):
                                 "act", "Unknown"
                             )
 
+                            channel = self.bot.get_channel(self.channel_id)
+                            if not channel:
+                                logger.warning("TZUPDATES | Channel not found.")
+                                continue
+
                             embed = discord.Embed(
                                 color=self.bot.embed_color,
                                 title="⏰ Hourly Terror Zone Update",
@@ -148,20 +152,30 @@ class Information(commands.Cog):
                                     f"**Next TZ:** {next_zone} ({next_act})"
                                 ),
                             )
+                            await channel.send(embed=embed)
+                            logger.info(
+                                f"[TZUPDATES] Sent hourly update: {current} -> {next_zone}"
+                            )
 
-                            channel = self.bot.get_channel(self.channel_id)
-                            if channel:
-                                await channel.send(embed=embed)
+                            # 🔥 Extra alert if World Stone is active now
+                            if "world stone" in current.lower():
+                                await channel.send("🚨 **World Stone** is NOW ACTIVE!")
                                 logger.info(
-                                    f"Hourly Update | Posted: {current} -> {next_zone}"
+                                    "[TZUPDATES] Alert: World Stone is active now."
                                 )
 
+                            # 🔔 Start reminders if World Stone is coming next
                             if "world stone" in next_zone.lower():
                                 self.bot.loop.create_task(
                                     self.world_stone_reminders(next_zone)
                                 )
+                                logger.info(
+                                    "[TZUPDATES] World Stone is coming next. Starting reminders."
+                                )
+                        else:
+                            logger.warning(f"[TZUPDATES] API error: {response.status}")
             except Exception as e:
-                logger.error(f"Hourly Update | Exception: {e}")
+                logger.error(f"[TZUPDATES] Exception during hourly update: {e}")
 
     @commands.command(
         name="tzupdates", help="Start hourly TZ update messages in notifier channel."
