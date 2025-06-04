@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 import discord
 import platform
@@ -19,7 +20,7 @@ class Information(commands.Cog):
         self.last_announced = None
         self.channel_id = 1120385235813675103
         self.api_headers = {
-            "D2R-Contact": "your_email@example.com",
+            "D2R-Contact": "benjamind10@pm.me",
             "D2R-Platform": "Discord",
             "D2R-Repo": "https://github.com/benjamind10/darkbot.git",
         }
@@ -33,9 +34,10 @@ class Information(commands.Cog):
             self.hourly_task.cancel()
 
     def matches_keyword(self, zone_name: str) -> bool:
-        normalized = zone_name.lower().replace(" ", "")
+        normalized = re.sub(r"\W+", "", zone_name.lower())  # strips non-alphanumerics
         return any(
-            keyword.lower().replace(" ", "") in normalized for keyword in self.keywords
+            re.sub(r"\W+", "", keyword.lower()) in normalized
+            for keyword in self.keywords
         )
 
     async def poll_terror_zone_api(self):
@@ -193,6 +195,11 @@ class Information(commands.Cog):
             self.hourly_task = self.bot.loop.create_task(self.start_hourly_tz_updates())
             await ctx.send("✅ Hourly Terror Zone updates started.")
             logger.info("Hourly Update | Task started.")
+
+    @commands.command()
+    @commands.is_owner()
+    async def testreminder(self, ctx):
+        await self.world_stone_reminders("Test Zone")
 
     @commands.command(name="currenttz", help="Check the current and next Terror Zone")
     async def current_tz(self, ctx):
