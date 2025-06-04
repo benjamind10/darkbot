@@ -13,57 +13,106 @@ class Owner(commands.Cog):
             "World Stone",
             "Plains of Despair",
             "Forgotten Tower",
-        ]  # Add more keywords as needed
-        self.scraping_task = bot.loop.create_task(self.scrape_tz_site())
+        ]
+        self.last_announced = None
+        self.channel_id = 1120385235813675103  # Replace if needed
+        self.api_headers = {
+            "D2R-Contact": "your_email@example.com",  # <-- Replace with your contact email
+            "D2R-Platform": "Discord",
+            "D2R-Repo": "https://github.com/benjamind10/darkbot.git",  # Optional but helpful
+        }
+        self.scraping_task = bot.loop.create_task(self.poll_terror_zone_api())
 
     def cog_unload(self):
         self.scraping_task.cancel()
 
-    async def scrape_tz_site(self):
+    async def poll_terror_zone_api(self):
         await self.bot.wait_until_ready()
-        matched_keywords = set()
 
         while not self.bot.is_closed():
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get("https://d2emu.com/tz") as response:
+                    async with session.get(
+                        "https://d2runewizard.com/api/terror-zone",
+                        headers=self.api_headers,
+                    ) as response:
                         if response.status == 200:
-                            content = await response.text()
-                            logger.info("Scraper | Successfully fetched d2emu.com/tz")
+                            data = await response.json()
+                            current_zone = (
+                                data.get("current", {}).get("name", "").strip()
+                            )
 
-                            content_lower = content.lower()
+                            logger.info(
+                                f"Scraper | Fetched current zone: {current_zone}"
+                            )
+
                             for keyword in self.keywords:
                                 if (
-                                    keyword.lower() in content_lower
-                                    and keyword not in matched_keywords
+                                    keyword.lower() in current_zone.lower()
+                                    and keyword != self.last_announced
                                 ):
-                                    matched_keywords.add(keyword)
-                                    channel = self.bot.get_channel(1120385235813675103)
+                                    self.last_announced = keyword
+                                    channel = self.bot.get_channel(self.channel_id)
                                     if channel:
                                         await channel.send(
-                                            f"🔍 **{keyword}** found on [https://d2emu.com/tz](https://d2emu.com/tz)!"
+                                            f"🔥 **{keyword}** is now the active Terror Zone!"
                                         )
                                         logger.info(
-                                            f"Scraper | '{keyword}' match found and notification sent."
+                                            f"Scraper | Notification sent for: {keyword}"
                                         )
+                                    break
                         else:
                             logger.warning(
-                                f"Scraper | Failed to fetch site. Status code: {response.status}"
+                                f"Scraper | API returned status {response.status}"
                             )
             except Exception as e:
-                logger.error(f"Scraper | Error occurred during scraping: {e}")
+                logger.error(f"Scraper | Exception during API poll: {e}")
 
-            await asyncio.sleep(60)
+            await asyncio.sleep(60)  # Check every minute
+
+    @commands.is_owner()
+    @commands.command(name="currenttz", help="Check the current and next Terror Zone")
+    async def current_tz(self, ctx):
+        """Fetch and display the current and next terror zones."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://d2runewizard.com/api/terror-zone", headers=self.api_headers
+                ) as response:
+                    if response.status != 200:
+                        await ctx.send("⚠️ Failed to fetch terror zone data.")
+                        logger.warning(f"currenttz | API returned {response.status}")
+                        return
+
+                    data = await response.json()
+                    current = data.get("current", {}).get("name", "Unknown")
+                    next_zone = data.get("next", {}).get("name", "Unknown")
+                    next_eta = data.get("next", {}).get("eta", "Unknown")
+
+                    embed = discord.Embed(
+                        color=self.bot.embed_color,
+                        title="🔥 Terror Zone Info",
+                        description=(
+                            f"**Current TZ:** {current}\n"
+                            f"**Next TZ:** {next_zone}\n"
+                            f"**Next ETA:** {next_eta}"
+                        ),
+                    )
+                    await ctx.send(embed=embed)
+                    logger.info(
+                        f"currenttz | Current: {current} | Next: {next_zone} at {next_eta}"
+                    )
+
+        except Exception as e:
+            logger.error(f"currenttz | Error: {e}")
+            await ctx.send("❌ An error occurred while fetching TZ info.")
 
     @commands.is_owner()
     @commands.command()
     async def get_invite(self, ctx, id: int):
         try:
             guild = self.bot.get_guild(id)
-            print(guild)
-            for channel in guild.text_channels:
-                channels = [channel.id]
-
+            channels = [channel.id for channel in guild.text_channels]
             picked = random.choice(channels)
             channel = self.bot.get_channel(picked)
 
