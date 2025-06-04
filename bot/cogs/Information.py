@@ -15,7 +15,7 @@ class Information(commands.Cog):
         self.bot = bot
         self.bot_start_time = time.time()
 
-        self.keywords = ["World Stone"]
+        self.keywords = ["Worldstone"]
         self.last_announced = None
         self.channel_id = 1120385235813675103  # Replace with your notification channel
         self.api_headers = {
