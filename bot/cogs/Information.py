@@ -15,15 +15,15 @@ class Information(commands.Cog):
         self.bot = bot
         self.bot_start_time = time.time()
 
-        # Terror Zone monitoring setup
         self.keywords = ["World Stone"]
         self.last_announced = None
-        self.channel_id = 1120385235813675103  # Set to your notification channel ID
+        self.channel_id = 1120385235813675103  # Replace with your notification channel
         self.api_headers = {
-            "D2R-Contact": "your_email@example.com",  # Replace with your contact
+            "D2R-Contact": "your_email@example.com",  # Replace this
             "D2R-Platform": "Discord",
             "D2R-Repo": "https://github.com/benjamind10/darkbot.git",
         }
+
         self.scraping_task = bot.loop.create_task(self.poll_terror_zone_api())
         self.hourly_task = None
 
@@ -34,7 +34,6 @@ class Information(commands.Cog):
 
     async def poll_terror_zone_api(self):
         await self.bot.wait_until_ready()
-
         while not self.bot.is_closed():
             try:
                 async with aiohttp.ClientSession() as session:
@@ -53,7 +52,6 @@ class Information(commands.Cog):
                             logger.info(
                                 f"Scraper | Fetched current zone: {current_zone}"
                             )
-
                             for keyword in self.keywords:
                                 if (
                                     keyword.lower() in current_zone.lower()
@@ -75,13 +73,52 @@ class Information(commands.Cog):
                             )
             except Exception as e:
                 logger.error(f"Scraper | Exception during API poll: {e}")
+            await asyncio.sleep(300)  # Check every 5 minutes
 
-            await asyncio.sleep(60)
+    async def world_stone_reminders(self, next_zone):
+        logger.info("Reminder | World Stone is coming up, scheduling reminders...")
+        for _ in range(5):  # up to 50 minutes of reminders
+            await asyncio.sleep(600)  # 10 minutes
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        "https://d2runewizard.com/api/terror-zone",
+                        headers=self.api_headers,
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            current_zone = (
+                                data.get("currentTerrorZone", {})
+                                .get("zone", "")
+                                .lower()
+                            )
+                            if "world stone" in current_zone:
+                                logger.info(
+                                    "Reminder | World Stone is now active. Stopping reminders."
+                                )
+                                return
+                            channel = self.bot.get_channel(self.channel_id)
+                            if channel:
+                                await channel.send(
+                                    f"⚠️ Reminder: **{next_zone}** is coming up soon. Be ready!"
+                                )
+                                logger.info("Reminder | Sent World Stone reminder.")
+            except Exception as e:
+                logger.error(f"Reminder | Exception: {e}")
 
     async def start_hourly_tz_updates(self):
         await self.bot.wait_until_ready()
-
         while not self.bot.is_closed():
+            now = datetime.utcnow()
+            next_hour = (now + timedelta(hours=1)).replace(
+                minute=0, second=0, microsecond=0
+            )
+            wait_seconds = (next_hour - now).total_seconds()
+            logger.info(
+                f"Hourly Update | Sleeping until top of hour: {wait_seconds:.0f} seconds"
+            )
+            await asyncio.sleep(wait_seconds)
+
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
@@ -118,14 +155,13 @@ class Information(commands.Cog):
                                 logger.info(
                                     f"Hourly Update | Posted: {current} -> {next_zone}"
                                 )
-                        else:
-                            logger.warning(
-                                f"Hourly Update | API error: {response.status}"
-                            )
+
+                            if "world stone" in next_zone.lower():
+                                self.bot.loop.create_task(
+                                    self.world_stone_reminders(next_zone)
+                                )
             except Exception as e:
                 logger.error(f"Hourly Update | Exception: {e}")
-
-            await asyncio.sleep(3600)  # 1 hour
 
     @commands.command(
         name="tzupdates", help="Start hourly TZ update messages in notifier channel."
