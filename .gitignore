@@ -4,6 +4,8 @@ __pycache__/
 *$py.class
 myenv
 
+.idea/*
+
 darkbot_new.ppk
 
 # C extensions
