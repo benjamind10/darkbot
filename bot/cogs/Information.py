@@ -138,9 +138,8 @@ class Information(commands.Cog):
             )
             await asyncio.sleep(wait_seconds)
 
-            try:
-
-                async def fetch_and_post_tz_update():
+            async def fetch_and_post_tz_update():
+                try:
                     async with aiohttp.ClientSession() as session:
                         async with session.get(
                             "https://d2runewizard.com/api/terror-zone",
@@ -162,10 +161,12 @@ class Information(commands.Cog):
                                     "act", "Unknown"
                                 )
 
+                                is_stale = current == self.last_announced
+
                                 channel = self.bot.get_channel(self.channel_id)
                                 if not channel:
                                     logger.warning("TZUPDATES | Channel not found.")
-                                    return False
+                                    return False, current, is_stale
 
                                 embed = discord.Embed(
                                     color=self.bot.embed_color,
@@ -196,29 +197,26 @@ class Information(commands.Cog):
                                         self.world_stone_reminders(next_zone)
                                     )
 
-                                # Update last_announced to prevent double alerts
                                 self.last_announced = current
-                                return True
+                                return True, current, is_stale
                             else:
                                 logger.warning(
                                     f"[TZUPDATES] API error: {response.status}"
                                 )
-                                return False
+                                return False, None, False
+                except Exception as e:
+                    logger.error(f"[TZUPDATES] fetch_and_post_tz_update() error: {e}")
+                    return False, None, False
 
-                success = await fetch_and_post_tz_update()
+            success, current_zone, is_stale = await fetch_and_post_tz_update()
 
-                # Retry after 90 seconds if stale data suspected
-                if not success or self.last_announced == data.get(
-                    "currentTerrorZone", {}
-                ).get("zone"):
-                    logger.warning(
-                        "[TZUPDATES] Potential stale data detected. Retrying in 90s..."
-                    )
-                    await asyncio.sleep(90)
-                    await fetch_and_post_tz_update()
-
-            except Exception as e:
-                logger.error(f"[TZUPDATES] Exception during hourly update: {e}")
+            # Retry logic — only if it looked stale
+            if success and is_stale:
+                logger.warning(
+                    "[TZUPDATES] Zone may be stale. Retrying in 90 seconds..."
+                )
+                await asyncio.sleep(90)
+                await fetch_and_post_tz_update()
 
     @commands.command(
         name="tzupdates", help="Start hourly TZ update messages in notifier channel."
