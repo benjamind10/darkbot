@@ -129,70 +129,94 @@ class Information(commands.Cog):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             now = datetime.utcnow()
-            next_hour = (now + timedelta(hours=1)).replace(
-                minute=0, second=30, microsecond=0
+            next_poll_time = (now + timedelta(hours=1)).replace(
+                minute=3, second=0, microsecond=0
             )
-            wait_seconds = (next_hour - now).total_seconds()
-            logger.info(f"[TZUPDATES] Sleeping {wait_seconds:.0f}s until top of hour.")
-            await asyncio.sleep(wait_seconds + 30)  # Add 30 sec buffer
+            wait_seconds = (next_poll_time - now).total_seconds()
+            logger.info(
+                f"[TZUPDATES] Sleeping {wait_seconds:.0f}s until {next_poll_time.isoformat()}"
+            )
+            await asyncio.sleep(wait_seconds)
 
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        "https://d2runewizard.com/api/terror-zone",
-                        headers=self.api_headers,
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
 
-                            current = data.get("currentTerrorZone", {}).get(
-                                "zone", "Unknown"
-                            )
-                            current_act = data.get("currentTerrorZone", {}).get(
-                                "act", "Unknown"
-                            )
-                            next_zone = data.get("nextTerrorZone", {}).get(
-                                "zone", "Unknown"
-                            )
-                            next_act = data.get("nextTerrorZone", {}).get(
-                                "act", "Unknown"
-                            )
+                async def fetch_and_post_tz_update():
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(
+                            "https://d2runewizard.com/api/terror-zone",
+                            headers=self.api_headers,
+                        ) as response:
+                            if response.status == 200:
+                                data = await response.json()
 
-                            channel = self.bot.get_channel(self.channel_id)
-                            if not channel:
-                                logger.warning("TZUPDATES | Channel not found.")
-                                continue
-
-                            embed = discord.Embed(
-                                color=self.bot.embed_color,
-                                title="⏰ Hourly Terror Zone Update",
-                                description=(
-                                    f"**Current TZ:** {current} ({current_act})\n"
-                                    f"**Next TZ:** {next_zone} ({next_act})"
-                                ),
-                            )
-                            await channel.send(embed=embed)
-                            logger.info(
-                                f"[TZUPDATES] Sent hourly update: {current} -> {next_zone}"
-                            )
-
-                            if self.matches_keyword(current):
-                                await channel.send(
-                                    f"🔥 **{current}** is now the active Terror Zone!"
+                                current = data.get("currentTerrorZone", {}).get(
+                                    "zone", "Unknown"
                                 )
+                                current_act = data.get("currentTerrorZone", {}).get(
+                                    "act", "Unknown"
+                                )
+                                next_zone = data.get("nextTerrorZone", {}).get(
+                                    "zone", "Unknown"
+                                )
+                                next_act = data.get("nextTerrorZone", {}).get(
+                                    "act", "Unknown"
+                                )
+
+                                channel = self.bot.get_channel(self.channel_id)
+                                if not channel:
+                                    logger.warning("TZUPDATES | Channel not found.")
+                                    return False
+
+                                embed = discord.Embed(
+                                    color=self.bot.embed_color,
+                                    title="⏰ Hourly Terror Zone Update",
+                                    description=(
+                                        f"**Current TZ:** {current} ({current_act})\n"
+                                        f"**Next TZ:** {next_zone} ({next_act})"
+                                    ),
+                                )
+                                await channel.send(embed=embed)
                                 logger.info(
-                                    f"[TZUPDATES] Alert: {current} is active now."
+                                    f"[TZUPDATES] Sent hourly update: {current} -> {next_zone}"
                                 )
 
-                            if self.matches_keyword(next_zone):
-                                logger.info(
-                                    f"[TZUPDATES] {next_zone} is coming next. Starting reminders."
+                                if self.matches_keyword(current):
+                                    await channel.send(
+                                        f"🔥 **{current}** is now the active Terror Zone!"
+                                    )
+                                    logger.info(
+                                        f"[TZUPDATES] Alert: {current} is active now."
+                                    )
+
+                                if self.matches_keyword(next_zone):
+                                    logger.info(
+                                        f"[TZUPDATES] {next_zone} is coming next. Starting reminders."
+                                    )
+                                    self.bot.loop.create_task(
+                                        self.world_stone_reminders(next_zone)
+                                    )
+
+                                # Update last_announced to prevent double alerts
+                                self.last_announced = current
+                                return True
+                            else:
+                                logger.warning(
+                                    f"[TZUPDATES] API error: {response.status}"
                                 )
-                                self.bot.loop.create_task(
-                                    self.world_stone_reminders(next_zone)
-                                )
-                        else:
-                            logger.warning(f"[TZUPDATES] API error: {response.status}")
+                                return False
+
+                success = await fetch_and_post_tz_update()
+
+                # Retry after 90 seconds if stale data suspected
+                if not success or self.last_announced == data.get(
+                    "currentTerrorZone", {}
+                ).get("zone"):
+                    logger.warning(
+                        "[TZUPDATES] Potential stale data detected. Retrying in 90s..."
+                    )
+                    await asyncio.sleep(90)
+                    await fetch_and_post_tz_update()
+
             except Exception as e:
                 logger.error(f"[TZUPDATES] Exception during hourly update: {e}")
 
