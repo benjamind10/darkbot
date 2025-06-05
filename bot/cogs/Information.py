@@ -130,7 +130,7 @@ class Information(commands.Cog):
         while not self.bot.is_closed():
             now = datetime.utcnow()
             next_hour = (now + timedelta(hours=1)).replace(
-                minute=0, second=0, microsecond=0
+                minute=0, second=30, microsecond=0
             )
             wait_seconds = (next_hour - now).total_seconds()
             logger.info(f"[TZUPDATES] Sleeping {wait_seconds:.0f}s until top of hour.")
