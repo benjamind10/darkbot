@@ -24,7 +24,7 @@ class Information(commands.Cog):
             "D2R-Platform": "Discord",
             "D2R-Repo": "https://github.com/benjamind10/darkbot.git",
         }
-
+        self.last_zone_poll = None
         self.scraping_task = bot.loop.create_task(self.poll_terror_zone_api())
         self.hourly_task = None
 
@@ -208,13 +208,21 @@ class Information(commands.Cog):
                     logger.error(f"[TZUPDATES] fetch_and_post_tz_update() error: {e}")
                     return False, None, False
 
+            # Fetch API data
             success, current_zone, is_stale = await fetch_and_post_tz_update()
 
-            # Retry logic — only if it looked stale
-            if success and is_stale:
+            # If the zone hasn't changed from last poll, retry in 90s
+            should_retry = False
+            if self.last_zone_poll == current_zone:
                 logger.warning(
-                    "[TZUPDATES] Zone may be stale. Retrying in 90 seconds..."
+                    f"[TZUPDATES] Zone still '{current_zone}' from last poll — retrying in 90s..."
                 )
+                should_retry = True
+
+            # Update last poll value
+            self.last_zone_poll = current_zone
+
+            if should_retry:
                 await asyncio.sleep(90)
                 await fetch_and_post_tz_update()
 
