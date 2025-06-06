@@ -130,7 +130,7 @@ class Information(commands.Cog):
         while not self.bot.is_closed():
             now = datetime.utcnow()
             next_poll_time = (now + timedelta(hours=1)).replace(
-                minute=3, second=0, microsecond=0
+                minute=10, second=0, microsecond=0
             )
             wait_seconds = (next_poll_time - now).total_seconds()
             logger.info(
