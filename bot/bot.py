@@ -31,6 +31,7 @@ cogs = [
     "Database",
     "Mtg",
     "Chatgpt",
+    "Spotify",
 ]
 
 
