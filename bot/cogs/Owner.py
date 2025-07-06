@@ -1,7 +1,5 @@
 import random
 import discord
-import aiohttp
-import asyncio
 from discord.ext import commands
 from logging_files.owner_logging import logger
 
@@ -9,59 +7,13 @@ from logging_files.owner_logging import logger
 class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.keywords = [
-            "World Stone",
-            "Plains of Despair",
-            "Forgotten Tower",
-        ]  # Add more keywords as needed
-        self.scraping_task = bot.loop.create_task(self.scrape_tz_site())
-
-    def cog_unload(self):
-        self.scraping_task.cancel()
-
-    async def scrape_tz_site(self):
-        await self.bot.wait_until_ready()
-        last_seen = ""
-
-        while not self.bot.is_closed():
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get("https://d2emu.com/tz") as response:
-                        if response.status == 200:
-                            content = await response.text()
-                            logger.info("Scraper | Successfully fetched d2emu.com/tz")
-
-                            if (
-                                any(keyword in content for keyword in self.keywords)
-                                and content != last_seen
-                            ):
-                                last_seen = content
-                                channel = self.bot.get_channel("1120385235813675103")
-                                if channel:
-                                    await channel.send(
-                                        "🔍 Keyword match found on [https://d2emu.com/tz](https://d2emu.com/tz)!"
-                                    )
-                                    logger.info(
-                                        "Scraper | Keyword match found and notification sent."
-                                    )
-                        else:
-                            logger.warning(
-                                f"Scraper | Failed to fetch site. Status code: {response.status}"
-                            )
-            except Exception as e:
-                logger.error(f"Scraper | Error occurred during scraping: {e}")
-
-            await asyncio.sleep(60)
 
     @commands.is_owner()
     @commands.command()
     async def get_invite(self, ctx, id: int):
         try:
             guild = self.bot.get_guild(id)
-            print(guild)
-            for channel in guild.text_channels:
-                channels = [channel.id]
-
+            channels = [channel.id for channel in guild.text_channels]
             picked = random.choice(channels)
             channel = self.bot.get_channel(picked)
 
