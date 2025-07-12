@@ -136,15 +136,12 @@ class DarkBot(commands.Bot):
         Returns:
             str or list: Command prefix(es)
         """
-        # Handle both dict and Config object
-        if hasattr(self.config, "get"):
-            default_prefix = self.config.get("prefix", "!")
-        else:
-            default_prefix = getattr(self.config, "prefix", "!")
-
-        # TODO: Add database lookup for custom guild prefixes
-        # For now, return default prefix
-        return commands.when_mentioned_or()(self, message)
+        default = (
+            self.config.get("prefix", "!")
+            if hasattr(self.config, "get")
+            else self.config.prefix
+        )
+        return commands.when_mentioned_or(default)(self, message)
 
     async def setup_hook(self):
         """
@@ -211,6 +208,8 @@ class DarkBot(commands.Bot):
         self.logger.info(f"DarkBot is ready!")
         self.logger.info(f"Logged in as {self.user} (ID: {self.user.id})")
         self.logger.info(f"Connected to {len(self.guilds)} guilds")
+
+        self.logger.info(f"Commands loaded: {[c.name for c in self.commands]}")
 
         # Set bot status - handle both dict and Config object
         if hasattr(self.config, "get"):

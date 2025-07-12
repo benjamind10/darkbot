@@ -160,7 +160,7 @@ class Config:
         self.description = self._get_config(
             "BOT_DESCRIPTION", "description", DEFAULT_DESCRIPTION
         )
-        print(self.prefix)
+
         # Owner configuration
         owner_id = self._get_config("OWNER_ID", "owner_id", OWNER_ID)
         self.owner_ids = [int(owner_id)] if owner_id else []
