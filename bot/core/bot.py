@@ -44,6 +44,18 @@ class DarkBot(commands.Bot):
         self.event_manager = EventManager(self)
         self.redis_manager = RedisManager(config)
 
+        # Default embed color used throughout the bot
+        self.embed_color = discord.Color.blurple()
+
+        # Optional: color palette for consistent themed embeds
+        self.colors = {
+            "info": discord.Color.blurple(),
+            "success": discord.Color.green(),
+            "error": discord.Color.red(),
+            "warning": discord.Color.gold(),
+            "neutral": discord.Color.light_grey(),
+        }
+
         # Set up intents
         intents = discord.Intents.default()
         intents.message_content = True
@@ -251,7 +263,7 @@ class DarkBot(commands.Bot):
         self.stats["commands_used"] += 1
 
         if self.redis_manager.redis:
-            await self.redis_manager.increment_command_usage("total")  # 👈 ADD THIS
+            await self.redis_manager.increment_command_usage("total")
             await self.redis_manager.increment_command_usage(ctx.command.name)
 
         self.logger.info(f"Command '{ctx.command}' used by {ctx.author} in {ctx.guild}")
