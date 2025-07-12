@@ -316,8 +316,6 @@ class Config:
             "port": port,
         }
 
-        print(params)
-
         # Return DatabaseConfig with url and params
         return DatabaseConfig(
             url=db_url,

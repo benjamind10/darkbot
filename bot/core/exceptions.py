@@ -15,7 +15,9 @@ class DarkBotException(Exception):
     All custom exceptions should inherit from this class.
     """
 
-    def __init__(self, message: str, code: Optional[str] = None, details: Optional[dict] = None):
+    def __init__(
+        self, message: str, code: Optional[str] = None, details: Optional[dict] = None
+    ):
         """
         Initialize the exception.
 
@@ -38,10 +40,10 @@ class DarkBotException(Exception):
     def to_dict(self):
         """Convert exception to dictionary."""
         return {
-            'type': self.__class__.__name__,
-            'message': self.message,
-            'code': self.code,
-            'details': self.details
+            "type": self.__class__.__name__,
+            "message": self.message,
+            "code": self.code,
+            "details": self.details,
         }
 
 
@@ -67,7 +69,7 @@ class ConfigurationError(DarkBotException):
         super().__init__(message, code="CONFIG_ERROR", **kwargs)
         self.config_key = config_key
         if config_key:
-            self.details['config_key'] = config_key
+            self.details["config_key"] = config_key
 
 
 class BotConfigurationError(ConfigurationError):
@@ -119,7 +121,7 @@ class DatabaseError(DarkBotException):
         super().__init__(message, code="DB_ERROR", **kwargs)
         self.operation = operation
         if operation:
-            self.details['operation'] = operation
+            self.details["operation"] = operation
 
 
 class APIError(DarkBotException):
@@ -133,7 +135,13 @@ class APIError(DarkBotException):
     - Invalid responses
     """
 
-    def __init__(self, message: str, api_name: Optional[str] = None, status_code: Optional[int] = None, **kwargs):
+    def __init__(
+        self,
+        message: str,
+        api_name: Optional[str] = None,
+        status_code: Optional[int] = None,
+        **kwargs,
+    ):
         """
         Initialize API error.
 
@@ -148,9 +156,9 @@ class APIError(DarkBotException):
         self.status_code = status_code
 
         if api_name:
-            self.details['api_name'] = api_name
+            self.details["api_name"] = api_name
         if status_code:
-            self.details['status_code'] = status_code
+            self.details["status_code"] = status_code
 
 
 class ValidationError(DarkBotException):
@@ -164,7 +172,13 @@ class ValidationError(DarkBotException):
     - Value out of range
     """
 
-    def __init__(self, message: str, field: Optional[str] = None, value: Optional[Any] = None, **kwargs):
+    def __init__(
+        self,
+        message: str,
+        field: Optional[str] = None,
+        value: Optional[Any] = None,
+        **kwargs,
+    ):
         """
         Initialize validation error.
 
@@ -179,9 +193,9 @@ class ValidationError(DarkBotException):
         self.value = value
 
         if field:
-            self.details['field'] = field
+            self.details["field"] = field
         if value is not None:
-            self.details['value'] = str(value)
+            self.details["value"] = str(value)
 
 
 class PermissionError(DarkBotException):
@@ -194,7 +208,9 @@ class PermissionError(DarkBotException):
     - Role hierarchy issues
     """
 
-    def __init__(self, message: str, required_permission: Optional[str] = None, **kwargs):
+    def __init__(
+        self, message: str, required_permission: Optional[str] = None, **kwargs
+    ):
         """
         Initialize permission error.
 
@@ -206,7 +222,7 @@ class PermissionError(DarkBotException):
         super().__init__(message, code="PERMISSION_ERROR", **kwargs)
         self.required_permission = required_permission
         if required_permission:
-            self.details['required_permission'] = required_permission
+            self.details["required_permission"] = required_permission
 
 
 class CogError(DarkBotException):
@@ -231,7 +247,7 @@ class CogError(DarkBotException):
         super().__init__(message, code="COG_ERROR", **kwargs)
         self.cog_name = cog_name
         if cog_name:
-            self.details['cog_name'] = cog_name
+            self.details["cog_name"] = cog_name
 
 
 class RateLimitError(DarkBotException):
@@ -256,7 +272,7 @@ class RateLimitError(DarkBotException):
         super().__init__(message, code="RATE_LIMIT_ERROR", **kwargs)
         self.retry_after = retry_after
         if retry_after:
-            self.details['retry_after'] = retry_after
+            self.details["retry_after"] = retry_after
 
 
 class ModuleError(DarkBotException):
@@ -281,7 +297,7 @@ class ModuleError(DarkBotException):
         super().__init__(message, code="MODULE_ERROR", **kwargs)
         self.module_name = module_name
         if module_name:
-            self.details['module_name'] = module_name
+            self.details["module_name"] = module_name
 
 
 class CommandError(DarkBotException):
@@ -306,10 +322,11 @@ class CommandError(DarkBotException):
         super().__init__(message, code="COMMAND_ERROR", **kwargs)
         self.command_name = command_name
         if command_name:
-            self.details['command_name'] = command_name
+            self.details["command_name"] = command_name
 
 
 # Convenience functions for common error scenarios
+
 
 def raise_config_error(message: str, config_key: Optional[str] = None):
     """Raise a configuration error with consistent formatting."""
@@ -326,12 +343,16 @@ def raise_db_error(message: str, operation: Optional[str] = None):
     raise DatabaseError(message, operation=operation)
 
 
-def raise_api_error(message: str, api_name: Optional[str] = None, status_code: Optional[int] = None):
+def raise_api_error(
+    message: str, api_name: Optional[str] = None, status_code: Optional[int] = None
+):
     """Raise an API error with consistent formatting."""
     raise APIError(message, api_name=api_name, status_code=status_code)
 
 
-def raise_validation_error(message: str, field: Optional[str] = None, value: Optional[Any] = None):
+def raise_validation_error(
+    message: str, field: Optional[str] = None, value: Optional[Any] = None
+):
     """Raise a validation error with consistent formatting."""
     raise ValidationError(message, field=field, value=value)
 
@@ -349,6 +370,7 @@ def handle_errors(error_type: type = DarkBotException):
     Args:
         error_type: Type of error to handle
     """
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             try:
@@ -356,8 +378,11 @@ def handle_errors(error_type: type = DarkBotException):
             except error_type as e:
                 # Log the error
                 import logging
-                logger = logging.getLogger('darkbot.errors')
+
+                logger = logging.getLogger("darkbot.errors")
                 logger.error(f"Error in {func.__name__}: {e}")
                 raise
+
         return wrapper
+
     return decorator

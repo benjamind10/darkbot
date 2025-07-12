@@ -166,7 +166,7 @@ class DarkBot(commands.Bot):
         await self.load_cogs()
 
         # Initialize database connection
-        # await self.setup_database()
+        await self.setup_database()
 
         # Setup event handlers
         await self.event_manager.setup()
@@ -221,13 +221,15 @@ class DarkBot(commands.Bot):
         self.logger.info(f"Logged in as {self.user} (ID: {self.user.id})")
         self.logger.info(f"Connected to {len(self.guilds)} guilds")
 
-        self.logger.info(f"Commands loaded: {[c.name for c in self.commands]}")
+        # self.logger.info(f"Commands loaded: {[c.name for c in self.commands]}")
+
+        await self.redis_manager.set("bot:last_ready_time", str(datetime.utcnow()))
 
         # Set bot status - handle both dict and Config object
         if hasattr(self.config, "get"):
-            activity_name = self.config.get("activity", "with darkness")
+            activity_name = self.config.get("activity_name", "with darkness")
         else:
-            activity_name = getattr(self.config, "activity", "with darkness")
+            activity_name = getattr(self.config, "activity_name", "with darkness")
 
         activity = discord.Game(name=activity_name)
         await self.change_presence(activity=activity)
@@ -239,7 +241,9 @@ class DarkBot(commands.Bot):
 
         self.stats["messages_seen"] += 1
 
-        # Process commands
+        if self.redis_manager.redis:
+            await self.redis_manager.increment_command_usage("messages_seen")
+
         await self.process_commands(message)
 
     async def on_command(self, ctx):
@@ -247,6 +251,7 @@ class DarkBot(commands.Bot):
         self.stats["commands_used"] += 1
 
         if self.redis_manager.redis:
+            await self.redis_manager.increment_command_usage("total")  # 👈 ADD THIS
             await self.redis_manager.increment_command_usage(ctx.command.name)
 
         self.logger.info(f"Command '{ctx.command}' used by {ctx.author} in {ctx.guild}")
@@ -254,6 +259,9 @@ class DarkBot(commands.Bot):
     async def on_command_error(self, ctx, error):
         """Handle command errors."""
         self.stats["errors"] += 1
+
+        if self.redis_manager.redis:
+            await self.redis_manager.increment_command_usage("errors")
 
         if isinstance(error, commands.CommandNotFound):
             return  # Ignore unknown commands
@@ -282,6 +290,7 @@ class DarkBot(commands.Bot):
 
         # Close database connections
         # TODO: Implement database cleanup
+        await self.redis_manager.set("bot:last_shutdown_time", str(datetime.utcnow()))
 
         # Close Redis connection
         if self.redis_manager:
@@ -313,10 +322,23 @@ class DarkBot(commands.Bot):
 
     def get_stats(self):
         """Get bot statistics."""
+        # Redis integration (if available)
+        redis_stats = {}
+
+        if self.redis_manager.redis:
+
+            async def gather_redis_stats():
+                keys = ["commands_used", "messages_seen", "errors"]
+                for key in keys:
+                    redis_stats[key] = await self.redis_manager.get_command_usage(key)
+
+            asyncio.create_task(gather_redis_stats())  # run non-blocking
+
         return {
             **self.stats,
             "uptime": str(self.uptime),
             "guilds": len(self.guilds),
             "users": len(self.users),
             "cogs": len(self.cogs),
+            **redis_stats,
         }
