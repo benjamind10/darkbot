@@ -63,6 +63,37 @@ class Information(commands.Cog):
         if self.logger:
             self.logger.info(f"Bot statistics sent to {ctx.author} in {ctx.guild}")
 
+    @commands.command(aliases=["commands", "cmds"])
+    async def robot_commands(self, ctx):
+        """Show a list of available bot commands grouped by category."""
+        try:
+            embed = discord.Embed(
+                color=self.bot.colors["info"],
+                title="→ All Available Bot Commands!",
+                description=(
+                    "—\n"
+                    "➤ Shows info about all available bot commands!\n"
+                    "➤ Capitalization does not matter for the bot prefix.\n"
+                    "—"
+                ),
+            )
+            embed.set_thumbnail(url="https://i.imgur.com/BUlgakY.png")
+
+            # Example command section
+            info_commands = "!commands"
+
+            embed.add_field(
+                name="• Information Commands!",
+                value=info_commands,
+                inline=False,
+            )
+
+            await ctx.send(embed=embed)
+            self.logger.info(f"Command list sent to {ctx.author} in {ctx.guild}")
+        except Exception as e:
+            await ctx.send("⚠️ Failed to show commands.")
+            self.logger.exception(f"Failed to send command list to {ctx.author}: {e}")
+
 
 async def setup(bot):
     await bot.add_cog(Information(bot))
