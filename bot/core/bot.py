@@ -63,6 +63,9 @@ class DarkBot(commands.Bot):
         # Setup logging
         self.setup_logging()
 
+        # Setup configuration
+        # self.setup_hook()
+
         # Validate configuration
         self._validate_config()
 
@@ -122,7 +125,7 @@ class DarkBot(commands.Bot):
             if not self.config.token:
                 raise ConfigurationError("Bot token cannot be empty")
 
-    async def get_prefix(self, bot, message):
+    async def get_prefix(self, message):
         """
         Get the command prefix for a message.
 
@@ -141,7 +144,7 @@ class DarkBot(commands.Bot):
 
         # TODO: Add database lookup for custom guild prefixes
         # For now, return default prefix
-        return commands.when_mentioned_or(default_prefix)(bot, message)
+        return commands.when_mentioned_or()(self, message)
 
     async def setup_hook(self):
         """

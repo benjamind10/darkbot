@@ -29,21 +29,17 @@ async def main():
         config = Config()
 
         # Validate required configuration
-        if not config.discord_token:
+        if not config.token:
             raise BotConfigurationError("Discord token is required")
 
         # Create and configure the bot
         bot = DarkBot(config=config)
 
-        bot.conn = config.database
-        if not bot.conn:
-            raise BotConfigurationError("Failed to connect to the database")
-
         # Start the bot
         logger.info("Bot configuration loaded successfully")
         logger.info("Attempting to connect to Discord...")
 
-        await bot.start(config.discord_token)
+        await bot.start(config.token)
 
     except BotConfigurationError as e:
         logger.error(f"Configuration error: {e}")

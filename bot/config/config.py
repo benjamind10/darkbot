@@ -123,7 +123,6 @@ class Config:
         """
         # Load environment variables
         load_dotenv(PROJECT_ROOT / ".env")
-        self.token = DISCORD_TOKEN
 
         # Load configuration from file if provided
         self._file_config = {}
@@ -156,14 +155,12 @@ class Config:
     def _initialize_config(self) -> None:
         """Initialize all configuration sections."""
         # Bot basic settings
-        self.discord_token = self._get_config(
-            "DISCORD_TOKEN", "discord_token", DISCORD_TOKEN
-        )
+        self.token = self._get_config("DISCORD_TOKEN", "token", DISCORD_TOKEN)
         self.prefix = self._get_config("BOT_PREFIX", "prefix", DEFAULT_PREFIX)
         self.description = self._get_config(
             "BOT_DESCRIPTION", "description", DEFAULT_DESCRIPTION
         )
-
+        print(self.prefix)
         # Owner configuration
         owner_id = self._get_config("OWNER_ID", "owner_id", OWNER_ID)
         self.owner_ids = [int(owner_id)] if owner_id else []
@@ -462,7 +459,7 @@ class Config:
         """Validate configuration and return list of errors."""
         errors = []
 
-        if not self.discord_token:
+        if not self.token:
             errors.append("Discord token is required")
 
         if not self.prefix:
