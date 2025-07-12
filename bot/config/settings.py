@@ -25,6 +25,14 @@ DEFAULT_DESCRIPTION = "DarkBot - A powerful Discord bot"
 DEFAULT_ACTIVITY_NAME = "with discord.py"
 DEFAULT_ACTIVITY_TYPE = "listening"  # playing, watching, listening, streaming
 
+# Redis Config
+REDIS_ENABLED = os.getenv("REDIS_ENABLED", False)
+REDDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDDIS_DB = int(os.getenv("REDIS_DB", 0))
+REDDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+REDIS_KEY_PREFIX = os.getenv("REDIS_KEY_PREFIX", "darkbot:")
+
 # Discord API limits
 MAX_MESSAGE_LENGTH = 2000
 MAX_EMBED_TITLE_LENGTH = 256
@@ -53,10 +61,10 @@ LOG_MAX_BYTES = 10 * 1024 * 1024  # 10MB
 LOG_BACKUP_COUNT = 5
 
 # Redis configuration (disabled)
-# REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-# REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-# REDIS_DB = int(os.getenv("REDIS_DB", 0))
-# REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_DB = int(os.getenv("REDIS_DB", 0))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 
 # Music configuration
 MUSIC_DEFAULT_VOLUME = 0.5

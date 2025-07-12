@@ -5,6 +5,7 @@ DarkBot Configuration Management
 import os
 import json
 from pathlib import Path
+import ssl
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
 
@@ -33,6 +34,12 @@ from .settings import (
     EMBED_COLORS,
     EMOJIS,
     PERMISSION_LEVELS,
+    REDIS_ENABLED,
+    REDDIS_PORT,
+    REDDIS_DB,
+    REDDIS_PASSWORD,
+    REDDIS_HOST,
+    REDIS_KEY_PREFIX,
 )
 
 
@@ -55,9 +62,28 @@ class DatabaseConfig:
 
 @dataclass
 class RedisConfig:
-    """Redis configuration - DISABLED."""
+    """Redis configuration."""
 
-    enabled: bool = False
+    enabled: bool = REDIS_ENABLED
+    host: str = REDDIS_HOST
+    port: int = REDDIS_PORT
+    password: Optional[str] = REDDIS_PASSWORD
+    db: int = REDDIS_DB
+    decode_responses: bool = True
+    socket_timeout: int = 5
+    socket_connect_timeout: int = 5
+    socket_keepalive: bool = True
+    socket_keepalive_options: Dict[str, int] = field(default_factory=dict)
+    connection_pool_max_connections: int = 10
+    retry_on_timeout: bool = True
+    health_check_interval: int = 30
+    prefix: str = REDIS_KEY_PREFIX
+    ssl_context: Optional[ssl.SSLContext] = None
+    # ssl: bool = False
+    # ssl_cert_reqs: str = "required"
+    # ssl_ca_certs: Optional[str] = None
+    # ssl_certfile: Optional[str] = None
+    # ssl_keyfile: Optional[str] = None
 
 
 @dataclass
@@ -152,6 +178,45 @@ class Config:
         except json.JSONDecodeError as e:
             print(f"Invalid JSON in config file: {e}")
 
+    def _initialize_redis_config(self) -> RedisConfig:
+        """Initialize Redis configuration."""
+        return RedisConfig(
+            enabled=self._get_bool_config("REDIS_ENABLED", "redis.enabled", True),
+            host=self._get_config("REDIS_HOST", "redis.host", "redis"),
+            port=self._get_int_config("REDIS_PORT", "redis.port", 6379),
+            password=None,
+            # password=self._get_config("REDIS_PASSWORD", "redis.password"),
+            db=self._get_int_config("REDIS_DB", "redis.db", 0),
+            decode_responses=self._get_bool_config(
+                "REDIS_DECODE_RESPONSES", "redis.decode_responses", True
+            ),
+            socket_timeout=self._get_int_config(
+                "REDIS_SOCKET_TIMEOUT", "redis.socket_timeout", 5
+            ),
+            socket_connect_timeout=self._get_int_config(
+                "REDIS_SOCKET_CONNECT_TIMEOUT", "redis.socket_connect_timeout", 5
+            ),
+            socket_keepalive=self._get_bool_config(
+                "REDIS_SOCKET_KEEPALIVE", "redis.socket_keepalive", True
+            ),
+            socket_keepalive_options=self._get_config(
+                "REDIS_SOCKET_KEEPALIVE_OPTIONS", "redis.socket_keepalive_options", {}
+            ),
+            connection_pool_max_connections=self._get_int_config(
+                "REDIS_CONNECTION_POOL_MAX_CONNECTIONS",
+                "redis.connection_pool_max_connections",
+                10,
+            ),
+            retry_on_timeout=self._get_bool_config(
+                "REDIS_RETRY_ON_TIMEOUT", "redis.retry_on_timeout", True
+            ),
+            health_check_interval=self._get_int_config(
+                "REDIS_HEALTH_CHECK_INTERVAL", "redis.health_check_interval", 30
+            ),
+            prefix=self._get_config("REDIS_KEY_PREFIX", "redis.prefix", "darkbot:"),
+            ssl_context=None,  # You can implement SSL context if needed
+        )
+
     def _initialize_config(self) -> None:
         """Initialize all configuration sections."""
         # Bot basic settings
@@ -184,7 +249,7 @@ class Config:
 
         # Configuration objects
         self.database = self._initialize_database_config()
-        self.redis = RedisConfig()  # Redis disabled
+        self.redis = self._initialize_redis_config()  # Redis disabled
         self.music = self._initialize_music_config()
         self.lavalink = self._initialize_lavalink_config()
         self.moderation = self._initialize_moderation_config()
@@ -273,10 +338,6 @@ class Config:
             echo=self._get_bool_config("DATABASE_ECHO", "database.echo", False),
             params=params,  # Add this field to your DatabaseConfig dataclass
         )
-
-    def _initialize_redis_config(self) -> RedisConfig:
-        """Initialize Redis configuration - DISABLED."""
-        return RedisConfig(enabled=False)
 
     def _initialize_lavalink_config(self) -> LavalinkConfig:
         """Initialize Lavalink configuration."""

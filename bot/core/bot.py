@@ -13,6 +13,8 @@ from typing import Optional, Dict, Any
 import os
 from datetime import datetime
 
+from utils.redis_manager import RedisManager
+
 from .exceptions import DarkBotException, ConfigurationError
 from .events import EventManager
 
@@ -40,6 +42,7 @@ class DarkBot(commands.Bot):
         self.config = config
         self.start_time = datetime.utcnow()
         self.event_manager = EventManager(self)
+        self.redis_manager = RedisManager(config)
 
         # Set up intents
         intents = discord.Intents.default()
@@ -150,6 +153,15 @@ class DarkBot(commands.Bot):
         """
         self.logger.info("Setting up DarkBot...")
 
+        # Initialize Redis
+        redis_success = await self.redis_manager.initialize()
+        if redis_success:
+            self.logger.info("Redis initialized successfully")
+        else:
+            self.logger.warning(
+                "Redis initialization failed - continuing without Redis"
+            )
+
         # Load all cogs
         await self.load_cogs()
 
@@ -233,6 +245,10 @@ class DarkBot(commands.Bot):
     async def on_command(self, ctx):
         """Called when a command is invoked."""
         self.stats["commands_used"] += 1
+
+        if self.redis_manager.redis:
+            await self.redis_manager.increment_command_usage(ctx.command.name)
+
         self.logger.info(f"Command '{ctx.command}' used by {ctx.author} in {ctx.guild}")
 
     async def on_command_error(self, ctx, error):
@@ -266,6 +282,10 @@ class DarkBot(commands.Bot):
 
         # Close database connections
         # TODO: Implement database cleanup
+
+        # Close Redis connection
+        if self.redis_manager:
+            await self.redis_manager.close()
 
         # Close event manager
         await self.event_manager.cleanup()

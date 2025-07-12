@@ -13,19 +13,20 @@ from .exceptions import (
     BotConfigurationError,
     DatabaseError,
     APIError,
-    ValidationError
+    ValidationError,
 )
 
 __version__ = "1.0.0"
 __author__ = "Shiva"
 
 __all__ = [
-    'DarkBot',
-    'EventManager',
-    'DarkBotException',
-    'ConfigurationError',
-    'BotConfigurationError',
-    'DatabaseError',
-    'APIError',
-    'ValidationError'
+    "DarkBot",
+    "RedisManager",
+    "EventManager",
+    "DarkBotException",
+    "ConfigurationError",
+    "BotConfigurationError",
+    "DatabaseError",
+    "APIError",
+    "ValidationError",
 ]

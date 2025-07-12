@@ -1,7 +1,3 @@
-"""
-DarkBot - Discord Bot Main Entry Point
-"""
-
 import asyncio
 import logging
 import sys
@@ -13,18 +9,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 from config.config import Config
 from core.bot import DarkBot
 from core.exceptions import BotConfigurationError
-from utils.logger import setup_logging
+
+# Use the same logger as the bot
+logger = logging.getLogger("darkbot")
 
 
 async def main():
     """Main entry point for the bot."""
     try:
-        # Setup logging
-        setup_logging()
-        logger = logging.getLogger(__name__)
-
-        logger.info("Starting DarkBot...")
-
         # Load configuration
         config = Config()
 
@@ -32,13 +24,14 @@ async def main():
         if not config.token:
             raise BotConfigurationError("Discord token is required")
 
-        # Create and configure the bot
+        # Create and configure the bot (this also sets up logging)
         bot = DarkBot(config=config)
 
-        # Start the bot
+        # Log startup messages
         logger.info("Bot configuration loaded successfully")
         logger.info("Attempting to connect to Discord...")
 
+        # Start the bot
         await bot.start(config.token)
 
     except BotConfigurationError as e:
@@ -51,25 +44,22 @@ async def main():
 
 async def shutdown_handler(bot: DarkBot):
     """Handle graceful shutdown of the bot."""
-    logger = logging.getLogger(__name__)
-    logger.info("Received shutdown signal. Closing bot...")
-
+    bot.logger.info("Received shutdown signal. Closing bot...")
     try:
         await bot.close()
-        logger.info("Bot closed successfully")
+        bot.logger.info("Bot closed successfully")
     except Exception as e:
-        logger.error(f"Error during shutdown: {e}")
+        bot.logger.error(f"Error during shutdown: {e}")
 
 
 def run_bot():
     """Run the bot with proper error handling and cleanup."""
     try:
-        # Run the main coroutine
         asyncio.run(main())
     except KeyboardInterrupt:
-        logging.getLogger(__name__).info("Bot stopped by user")
+        logger.info("Bot stopped by user")
     except Exception as e:
-        logging.getLogger(__name__).error(f"Fatal error: {e}", exc_info=True)
+        logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
 
 
