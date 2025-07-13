@@ -34,7 +34,7 @@ class Information(commands.Cog):
         """Fetch additional Redis metrics if Redis is enabled."""
         redis_stats = {}
         if self.redis and getattr(self.redis, "redis", None):
-            keys = ["commandcount", "messages_seen", "errors"]
+            keys = ["command_count", "messages_seen", "errors"]
             for key in keys:
                 try:
                     redis_stats[key.replace("_", " ").title()] = (

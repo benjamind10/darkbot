@@ -73,7 +73,7 @@ class DarkBot(commands.Bot):
         )
 
         # Bot statistics
-        self.stats = {"commands_used": 0, "messages_seen": 0, "errors": 0}
+        self.stats = {"command_count": 0, "messages_seen": 0, "errors": 0}
 
         # Setup logging
         self.setup_logging()
@@ -260,10 +260,10 @@ class DarkBot(commands.Bot):
 
     async def on_command(self, ctx):
         """Called when a command is invoked."""
-        self.stats["commands_used"] += 1
+        self.stats["command_count"] += 1
 
         if self.redis_manager.redis:
-            await self.redis_manager.increment_command_usage("total")
+            await self.redis_manager.increment_command_usage("command_count")
             await self.redis_manager.increment_command_usage(ctx.command.name)
 
         self.logger.info(f"Command '{ctx.command}' used by {ctx.author} in {ctx.guild}")
@@ -340,7 +340,7 @@ class DarkBot(commands.Bot):
         if self.redis_manager.redis:
 
             async def gather_redis_stats():
-                keys = ["commands_used", "messages_seen", "errors"]
+                keys = ["commandcount", "messages_seen", "errors"]
                 for key in keys:
                     redis_stats[key] = await self.redis_manager.get_command_usage(key)
 

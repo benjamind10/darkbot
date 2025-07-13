@@ -1,3 +1,10 @@
+"""
+Database Cog
+===============
+
+Handles database related commands.
+"""
+
 import discord
 from discord.ext import commands
 
