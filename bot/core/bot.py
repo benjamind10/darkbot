@@ -1,8 +1,8 @@
 """
-DarkBot Main Bot Class
-=====================
+DarkBot Main Bot Class - Refactored
+===================================
 
-Main bot class that handles Discord client initialization and core functionality.
+Main bot class with events moved to EventManager.
 """
 
 import discord
@@ -26,7 +26,6 @@ class DarkBot(commands.Bot):
     Handles core bot functionality including:
     - Bot initialization and configuration
     - Cog loading and management
-    - Event handling
     - Database connections
     - Error handling
     """
@@ -41,7 +40,6 @@ class DarkBot(commands.Bot):
         """
         self.config = config
         self.start_time = datetime.utcnow()
-        self.event_manager = EventManager(self)
         self.redis_manager = RedisManager(config)
 
         # Default embed color used throughout the bot
@@ -78,8 +76,8 @@ class DarkBot(commands.Bot):
         # Setup logging
         self.setup_logging()
 
-        # Setup configuration
-        # self.setup_hook()
+        # Initialize event manager AFTER bot is initialized
+        self.event_manager = EventManager(self)
 
         # Validate configuration
         self._validate_config()
@@ -105,7 +103,6 @@ class DarkBot(commands.Bot):
             )
 
         # Create logs directory if it doesn't exist
-
         os.makedirs("logs", exist_ok=True)
 
         logging.basicConfig(
@@ -145,7 +142,6 @@ class DarkBot(commands.Bot):
         Get the command prefix for a message.
 
         Args:
-            bot: The bot instance
             message: The message to get prefix for
 
         Returns:
@@ -227,74 +223,54 @@ class DarkBot(commands.Bot):
             self.logger.error(f"Database setup failed: {e}")
             raise
 
+    # Discord event handlers - these delegate to the event manager
     async def on_ready(self):
         """Called when the bot is ready and connected to Discord."""
-        self.logger.info(f"DarkBot is ready!")
-        self.logger.info(f"Logged in as {self.user} (ID: {self.user.id})")
-        self.logger.info(f"Connected to {len(self.guilds)} guilds")
-
-        # self.logger.info(f"Commands loaded: {[c.name for c in self.commands]}")
-
-        await self.redis_manager.set("bot:last_ready_time", str(datetime.utcnow()))
-
-        # Set bot status - handle both dict and Config object
-        if hasattr(self.config, "get"):
-            activity_name = self.config.get("activity_name", "with darkness")
-        else:
-            activity_name = getattr(self.config, "activity_name", "with darkness")
-
-        activity = discord.Game(name=activity_name)
-        await self.change_presence(activity=activity)
+        await self.event_manager.on_ready()
 
     async def on_message(self, message):
         """Handle incoming messages."""
-        if message.author.bot:
-            return
-
-        self.stats["messages_seen"] += 1
-
-        if self.redis_manager.redis:
-            await self.redis_manager.increment_command_usage("messages_seen")
-
-        await self.process_commands(message)
+        await self.event_manager.on_message(message)
 
     async def on_command(self, ctx):
         """Called when a command is invoked."""
-        self.stats["command_count"] += 1
-
-        if self.redis_manager.redis:
-            await self.redis_manager.increment_command_usage("command_count")
-            await self.redis_manager.increment_command_usage(ctx.command.name)
-
-        self.logger.info(f"Command '{ctx.command}' used by {ctx.author} in {ctx.guild}")
+        await self.event_manager.on_command(ctx)
 
     async def on_command_error(self, ctx, error):
         """Handle command errors."""
-        self.stats["errors"] += 1
+        await self.event_manager.on_command_error(ctx, error)
 
-        if self.redis_manager.redis:
-            await self.redis_manager.increment_command_usage("errors")
+    async def on_guild_join(self, guild):
+        """Handle guild join events."""
+        await self.event_manager.dispatch_event("guild_join", guild)
 
-        if isinstance(error, commands.CommandNotFound):
-            return  # Ignore unknown commands
+    async def on_guild_remove(self, guild):
+        """Handle guild remove events."""
+        await self.event_manager.dispatch_event("guild_remove", guild)
 
-        elif isinstance(error, commands.MissingPermissions):
-            await ctx.send("❌ You don't have permission to use this command.")
+    async def on_member_join(self, member):
+        """Handle member join events."""
+        await self.event_manager.dispatch_event("member_join", member)
 
-        elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send(
-                "❌ I don't have the required permissions to execute this command."
-            )
+    async def on_member_remove(self, member):
+        """Handle member leave events."""
+        await self.event_manager.dispatch_event("member_remove", member)
 
-        elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(
-                f"❌ Command is on cooldown. Try again in {error.retry_after:.2f} seconds."
-            )
+    async def on_message_delete(self, message):
+        """Handle message deletion events."""
+        await self.event_manager.dispatch_event("message_delete", message)
 
-        else:
-            # Log unexpected errors
-            self.logger.error(f"Unexpected error in command '{ctx.command}': {error}")
-            await ctx.send("❌ An unexpected error occurred. Please try again later.")
+    async def on_message_edit(self, before, after):
+        """Handle message edit events."""
+        await self.event_manager.dispatch_event("message_edit", before, after)
+
+    async def on_member_ban(self, guild, user):
+        """Handle member ban events."""
+        await self.event_manager.dispatch_event("member_ban", guild, user)
+
+    async def on_member_unban(self, guild, user):
+        """Handle member unban events."""
+        await self.event_manager.dispatch_event("member_unban", guild, user)
 
     async def close(self):
         """Clean up resources when the bot shuts down."""
@@ -302,7 +278,10 @@ class DarkBot(commands.Bot):
 
         # Close database connections
         # TODO: Implement database cleanup
-        await self.redis_manager.set("bot:last_shutdown_time", str(datetime.utcnow()))
+        if self.redis_manager:
+            await self.redis_manager.set(
+                "bot:last_shutdown_time", str(datetime.utcnow())
+            )
 
         # Close Redis connection
         if self.redis_manager:
@@ -340,7 +319,7 @@ class DarkBot(commands.Bot):
         if self.redis_manager.redis:
 
             async def gather_redis_stats():
-                keys = ["commandcount", "messages_seen", "errors"]
+                keys = ["command_count", "messages_seen", "errors"]
                 for key in keys:
                     redis_stats[key] = await self.redis_manager.get_command_usage(key)
 

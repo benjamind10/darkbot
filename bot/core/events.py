@@ -1,8 +1,8 @@
 """
-DarkBot Event Management
-=======================
+DarkBot Event Management - Updated
+==================================
 
-Event handlers and management for the DarkBot.
+Event handlers and management for the DarkBot with Discord event handlers.
 """
 
 import discord
@@ -17,13 +17,14 @@ from .exceptions import DarkBotException
 
 class EventManager:
     """
-    Manages custom events and event handlers for DarkBot.
+    Manages custom events and Discord event handlers for DarkBot.
 
     Provides functionality for:
     - Custom event registration
     - Event dispatching
     - Event logging
     - Event statistics
+    - Discord event handling
     """
 
     def __init__(self, bot):
@@ -121,7 +122,81 @@ class EventManager:
         self.events.clear()
         self.logger.info("Event manager cleanup complete")
 
-    # Built-in event handlers
+    # Discord event handlers (moved from main bot class)
+
+    async def on_ready(self):
+        """Called when the bot is ready and connected to Discord."""
+        self.logger.info(f"DarkBot is ready!")
+        self.logger.info(f"Logged in as {self.bot.user} (ID: {self.bot.user.id})")
+        self.logger.info(f"Connected to {len(self.bot.guilds)} guilds")
+
+        if self.bot.redis_manager:
+            await self.bot.redis_manager.set(
+                "bot:last_ready_time", str(datetime.utcnow())
+            )
+
+        # Set bot status - handle both dict and Config object
+        if hasattr(self.bot.config, "get"):
+            activity_name = self.bot.config.get("activity_name", "with darkness")
+        else:
+            activity_name = getattr(self.bot.config, "activity_name", "with darkness")
+
+        activity = discord.Game(name=activity_name)
+        await self.bot.change_presence(activity=activity)
+
+    async def on_message(self, message: discord.Message):
+        """Handle incoming messages."""
+        if message.author.bot:
+            return
+
+        self.bot.stats["messages_seen"] += 1
+
+        if self.bot.redis_manager and self.bot.redis_manager.redis:
+            await self.bot.redis_manager.increment_command_usage("messages_seen")
+
+        await self.bot.process_commands(message)
+
+    async def on_command(self, ctx: commands.Context):
+        """Called when a command is invoked."""
+        self.bot.stats["command_count"] += 1
+
+        if self.bot.redis_manager and self.bot.redis_manager.redis:
+            await self.bot.redis_manager.increment_command_usage("command_count")
+            await self.bot.redis_manager.increment_command_usage(ctx.command.name)
+
+        self.logger.info(f"Command '{ctx.command}' used by {ctx.author} in {ctx.guild}")
+
+    async def on_command_error(
+        self, ctx: commands.Context, error: commands.CommandError
+    ):
+        """Handle command errors."""
+        self.bot.stats["errors"] += 1
+
+        if self.bot.redis_manager and self.bot.redis_manager.redis:
+            await self.bot.redis_manager.increment_command_usage("errors")
+
+        if isinstance(error, commands.CommandNotFound):
+            return  # Ignore unknown commands
+
+        elif isinstance(error, commands.MissingPermissions):
+            await ctx.send("❌ You don't have permission to use this command.")
+
+        elif isinstance(error, commands.BotMissingPermissions):
+            await ctx.send(
+                "❌ I don't have the required permissions to execute this command."
+            )
+
+        elif isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(
+                f"❌ Command is on cooldown. Try again in {error.retry_after:.2f} seconds."
+            )
+
+        else:
+            # Log unexpected errors
+            self.logger.error(f"Unexpected error in command '{ctx.command}': {error}")
+            await ctx.send("❌ An unexpected error occurred. Please try again later.")
+
+    # Custom event handlers (existing functionality)
 
     async def on_guild_join(self, guild: discord.Guild):
         """Handle guild join events."""
@@ -197,54 +272,6 @@ class EventManager:
         """Get list of registered events."""
         return list(self.events.keys())
 
-    async def on_message(self, message: discord.Message):
-        if message.author.bot:
-            return
-
-        self.bot.stats["messages_seen"] += 1
-
-        if self.bot.redis_manager and self.bot.redis_manager.redis:
-            await self.bot.redis_manager.increment_command_usage("messages_seen")
-
-        await self.bot.process_commands(message)
-
-    async def on_command(self, ctx: commands.Context):
-        self.bot.stats["command_count"] += 1
-
-        if self.bot.redis_manager and self.bot.redis_manager.redis:
-            await self.bot.redis_manager.increment_command_usage("total")
-            await self.bot.redis_manager.increment_command_usage(ctx.command.name)
-
-        self.bot.logger.info(
-            f"Command '{ctx.command}' used by {ctx.author} in {ctx.guild}"
-        )
-
-    async def on_command_error(
-        self, ctx: commands.Context, error: commands.CommandError
-    ):
-        self.bot.stats["errors"] += 1
-
-        if self.bot.redis_manager and self.bot.redis_manager.redis:
-            await self.bot.redis_manager.increment_command_usage("errors")
-
-        if isinstance(error, commands.CommandNotFound):
-            return
-        elif isinstance(error, commands.MissingPermissions):
-            await ctx.send("❌ You don't have permission to use this command.")
-        elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send(
-                "❌ I don't have the required permissions to execute this command."
-            )
-        elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(
-                f"❌ Command is on cooldown. Try again in {error.retry_after:.2f} seconds."
-            )
-        else:
-            self.bot.logger.error(
-                f"Unexpected error in command '{ctx.command}': {error}"
-            )
-            await ctx.send("❌ An unexpected error occurred. Please try again later.")
-
 
 class EventLogger:
     """
@@ -263,7 +290,11 @@ class EventLogger:
         """
         self.bot = bot
         self.logger = logging.getLogger("darkbot.events.logger")
-        self.log_events = bot.config.get("logging", {}).get("events", [])
+        # Handle both dict and Config object
+        if hasattr(bot.config, "get"):
+            self.log_events = bot.config.get("logging", {}).get("events", [])
+        else:
+            self.log_events = getattr(bot.config, "log_events", [])
 
     async def log_event(self, event_type: str, data: Dict[str, Any]):
         """
