@@ -1,3 +1,10 @@
+"""
+BoardGames Cog
+===============
+
+Handles board game related commands, including integration with BoardGameGeek (BGG).
+"""
+
 import re
 import discord
 from discord.ext import commands
