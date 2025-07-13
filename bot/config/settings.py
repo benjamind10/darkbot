@@ -60,11 +60,6 @@ LOG_FILE = LOGS_DIR / "darkbot.log"
 LOG_MAX_BYTES = 10 * 1024 * 1024  # 10MB
 LOG_BACKUP_COUNT = 5
 
-# Redis configuration (disabled)
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_DB = int(os.getenv("REDIS_DB", 0))
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 
 # Music configuration
 MUSIC_DEFAULT_VOLUME = 0.5
@@ -152,7 +147,7 @@ EMOJIS = {
 }
 
 # Cog settings
-COGS_TO_LOAD = ["cogs.moderation", "cogs.music", "cogs.utility", "cogs.admin"]
+# COGS_TO_LOAD = ["cogs.moderation", "cogs.music", "cogs.utility", "cogs.admin"]
 
 # Development settings
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"

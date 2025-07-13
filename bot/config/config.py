@@ -29,7 +29,7 @@ from .settings import (
     LAVALINK_DEFAULT_HOST,
     LAVALINK_DEFAULT_PORT,
     LAVALINK_DEFAULT_PASSWORD,
-    COGS_TO_LOAD,
+    # COGS_TO_LOAD,
     FEATURES,
     EMBED_COLORS,
     EMOJIS,
@@ -258,10 +258,10 @@ class Config:
         # Features
         self.features = self._initialize_features()
 
-        # Cogs
-        self.cogs_to_load = self._get_list_config(
-            "COGS_TO_LOAD", "cogs_to_load", COGS_TO_LOAD
-        )
+        # # Cogs
+        # self.cogs_to_load = self._get_list_config(
+        #     "COGS_TO_LOAD", "cogs_to_load", COGS_TO_LOAD
+        # )
 
         # Colors and emojis
         self.colors = EMBED_COLORS.copy()

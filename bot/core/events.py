@@ -10,6 +10,7 @@ import logging
 from typing import Dict, List, Callable, Any
 from datetime import datetime
 import asyncio
+from discord.ext import commands
 
 from .exceptions import DarkBotException
 
@@ -33,7 +34,7 @@ class EventManager:
             bot: The DarkBot instance
         """
         self.bot = bot
-        self.logger = logging.getLogger('darkbot.events')
+        self.logger = logging.getLogger("darkbot.events")
         self.events: Dict[str, List[Callable]] = {}
         self.event_stats: Dict[str, int] = {}
 
@@ -43,20 +44,20 @@ class EventManager:
     def _register_builtin_handlers(self):
         """Register built-in event handlers."""
         # Guild events
-        self.register_event('guild_join', self.on_guild_join)
-        self.register_event('guild_remove', self.on_guild_remove)
+        self.register_event("guild_join", self.on_guild_join)
+        self.register_event("guild_remove", self.on_guild_remove)
 
         # Member events
-        self.register_event('member_join', self.on_member_join)
-        self.register_event('member_remove', self.on_member_remove)
+        self.register_event("member_join", self.on_member_join)
+        self.register_event("member_remove", self.on_member_remove)
 
         # Message events
-        self.register_event('message_delete', self.on_message_delete)
-        self.register_event('message_edit', self.on_message_edit)
+        self.register_event("message_delete", self.on_message_delete)
+        self.register_event("message_edit", self.on_message_edit)
 
         # Moderation events
-        self.register_event('member_ban', self.on_member_ban)
-        self.register_event('member_unban', self.on_member_unban)
+        self.register_event("member_ban", self.on_member_ban)
+        self.register_event("member_unban", self.on_member_unban)
 
     def register_event(self, event_name: str, handler: Callable):
         """
@@ -107,7 +108,9 @@ class EventManager:
                 else:
                     handler(*args, **kwargs)
             except Exception as e:
-                self.logger.error(f"Error in event handler {handler.__name__} for {event_name}: {e}")
+                self.logger.error(
+                    f"Error in event handler {handler.__name__} for {event_name}: {e}"
+                )
 
     async def setup(self):
         """Setup the event manager."""
@@ -135,7 +138,9 @@ class EventManager:
 
     async def on_member_join(self, member: discord.Member):
         """Handle member join events."""
-        self.logger.info(f"Member joined {member.guild.name}: {member} (ID: {member.id})")
+        self.logger.info(
+            f"Member joined {member.guild.name}: {member} (ID: {member.id})"
+        )
 
         # TODO: Check for auto-role assignment
         # TODO: Send welcome message if configured
@@ -153,7 +158,9 @@ class EventManager:
         if message.author.bot:
             return
 
-        self.logger.debug(f"Message deleted in {message.guild.name}: {message.content[:50]}...")
+        self.logger.debug(
+            f"Message deleted in {message.guild.name}: {message.content[:50]}..."
+        )
 
         # TODO: Log to modlog if configured
         # TODO: Store in message cache for snipe commands
@@ -190,6 +197,54 @@ class EventManager:
         """Get list of registered events."""
         return list(self.events.keys())
 
+    async def on_message(self, message: discord.Message):
+        if message.author.bot:
+            return
+
+        self.bot.stats["messages_seen"] += 1
+
+        if self.bot.redis_manager and self.bot.redis_manager.redis:
+            await self.bot.redis_manager.increment_command_usage("messages_seen")
+
+        await self.bot.process_commands(message)
+
+    async def on_command(self, ctx: commands.Context):
+        self.bot.stats["command_count"] += 1
+
+        if self.bot.redis_manager and self.bot.redis_manager.redis:
+            await self.bot.redis_manager.increment_command_usage("total")
+            await self.bot.redis_manager.increment_command_usage(ctx.command.name)
+
+        self.bot.logger.info(
+            f"Command '{ctx.command}' used by {ctx.author} in {ctx.guild}"
+        )
+
+    async def on_command_error(
+        self, ctx: commands.Context, error: commands.CommandError
+    ):
+        self.bot.stats["errors"] += 1
+
+        if self.bot.redis_manager and self.bot.redis_manager.redis:
+            await self.bot.redis_manager.increment_command_usage("errors")
+
+        if isinstance(error, commands.CommandNotFound):
+            return
+        elif isinstance(error, commands.MissingPermissions):
+            await ctx.send("❌ You don't have permission to use this command.")
+        elif isinstance(error, commands.BotMissingPermissions):
+            await ctx.send(
+                "❌ I don't have the required permissions to execute this command."
+            )
+        elif isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(
+                f"❌ Command is on cooldown. Try again in {error.retry_after:.2f} seconds."
+            )
+        else:
+            self.bot.logger.error(
+                f"Unexpected error in command '{ctx.command}': {error}"
+            )
+            await ctx.send("❌ An unexpected error occurred. Please try again later.")
+
 
 class EventLogger:
     """
@@ -207,8 +262,8 @@ class EventLogger:
             bot: The DarkBot instance
         """
         self.bot = bot
-        self.logger = logging.getLogger('darkbot.events.logger')
-        self.log_events = bot.config.get('logging', {}).get('events', [])
+        self.logger = logging.getLogger("darkbot.events.logger")
+        self.log_events = bot.config.get("logging", {}).get("events", [])
 
     async def log_event(self, event_type: str, data: Dict[str, Any]):
         """
@@ -222,41 +277,35 @@ class EventLogger:
             return
 
         timestamp = datetime.utcnow().isoformat()
-        log_entry = {
-            'timestamp': timestamp,
-            'event_type': event_type,
-            'data': data
-        }
+        log_entry = {"timestamp": timestamp, "event_type": event_type, "data": data}
 
         self.logger.info(f"Event logged: {event_type}", extra=log_entry)
 
     async def log_guild_event(self, guild: discord.Guild, event_type: str, **kwargs):
         """Log a guild-specific event."""
-        data = {
-            'guild_id': guild.id,
-            'guild_name': guild.name,
-            **kwargs
-        }
+        data = {"guild_id": guild.id, "guild_name": guild.name, **kwargs}
         await self.log_event(event_type, data)
 
     async def log_member_event(self, member: discord.Member, event_type: str, **kwargs):
         """Log a member-specific event."""
         data = {
-            'guild_id': member.guild.id,
-            'guild_name': member.guild.name,
-            'user_id': member.id,
-            'username': str(member),
-            **kwargs
+            "guild_id": member.guild.id,
+            "guild_name": member.guild.name,
+            "user_id": member.id,
+            "username": str(member),
+            **kwargs,
         }
         await self.log_event(event_type, data)
 
-    async def log_message_event(self, message: discord.Message, event_type: str, **kwargs):
+    async def log_message_event(
+        self, message: discord.Message, event_type: str, **kwargs
+    ):
         """Log a message-specific event."""
         data = {
-            'guild_id': message.guild.id if message.guild else None,
-            'channel_id': message.channel.id,
-            'user_id': message.author.id,
-            'message_id': message.id,
-            **kwargs
+            "guild_id": message.guild.id if message.guild else None,
+            "channel_id": message.channel.id,
+            "user_id": message.author.id,
+            "message_id": message.id,
+            **kwargs,
         }
         await self.log_event(event_type, data)
