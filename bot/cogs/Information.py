@@ -47,28 +47,25 @@ class Information(commands.Cog):
         return redis_stats
 
     @commands.command(
-        name="botstats",
-        help="Displays general statistics about the bot.",
-        aliases=["status", "stats"],
+        name="botstats", help="Displays general statistics about the bot."
     )
     async def show_stats(self, ctx):
-        """Return overall bot statistics."""
-        basic = self.get_basic_stats()
-        redis = await self.get_redis_stats()
+        stats = await self.bot.get_stats()
 
-        color = getattr(self.bot, "embed_color", discord.Color.blurple())
         embed = discord.Embed(
             title="📊 Bot Statistics",
-            color=color,
+            color=self.bot.embed_color,
             timestamp=datetime.utcnow(),
         )
 
-        for name, value in {**basic, **redis}.items():
-            embed.add_field(name=name, value=value, inline=True)
+        # Add each stat
+        for name, value in stats.items():
+            embed.add_field(
+                name=name.replace("_", " ").capitalize(), value=value, inline=True
+            )
 
         await ctx.send(embed=embed)
-        if self.logger:
-            self.logger.info(f"Bot statistics sent to {ctx.author} in {ctx.guild}")
+        self.logger.info(f"Bot statistics sent to {ctx.author} in {ctx.guild}")
 
     @commands.command(aliases=["commands", "cmds"])
     async def robot_commands(self, ctx):

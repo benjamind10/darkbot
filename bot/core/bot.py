@@ -86,31 +86,6 @@ class DarkBot(commands.Bot):
 
     def setup_logging(self):
         """Set up logging configuration."""
-        # Handle both dict and Config object
-        if hasattr(self.config, "get"):
-            # Dictionary-like object
-            log_level = self.config.get("logging", {}).get("level", "INFO")
-            log_format = self.config.get("logging", {}).get(
-                "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
-        else:
-            # Config object with attributes
-            log_level = getattr(self.config, "log_level", "INFO")
-            log_format = getattr(
-                self.config,
-                "log_format",
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            )
-
-        # Create logs directory if it doesn't exist
-        os.makedirs("logs", exist_ok=True)
-
-        logging.basicConfig(
-            level=getattr(logging, log_level.upper()),
-            format=log_format,
-            handlers=[logging.FileHandler("logs/darkbot.log"), logging.StreamHandler()],
-        )
-
         self.logger = logging.getLogger("darkbot")
 
     def _validate_config(self):
@@ -176,9 +151,6 @@ class DarkBot(commands.Bot):
         # Initialize database connection
         await self.setup_database()
 
-        # Setup event handlers
-        await self.event_manager.setup()
-
         self.logger.info("DarkBot setup complete")
 
     async def load_cogs(self):
@@ -189,6 +161,8 @@ class DarkBot(commands.Bot):
             for f in os.listdir(cogs_dir)
             if f.endswith(".py") and not f.startswith("__")
         ]
+        # # Setup event handlers
+        # await self.event_manager.setup()
 
         for cog_file in cog_files:
             cog_name = f"cogs.{cog_file[:-3]}"
@@ -311,25 +285,22 @@ class DarkBot(commands.Bot):
         """Get the bot's uptime."""
         return datetime.utcnow() - self.start_time
 
-    def get_stats(self):
-        """Get bot statistics."""
-        # Redis integration (if available)
-        redis_stats = {}
-
-        if self.redis_manager.redis:
-
-            async def gather_redis_stats():
-                keys = ["command_count", "messages_seen", "errors"]
-                for key in keys:
-                    redis_stats[key] = await self.redis_manager.get_command_usage(key)
-
-            asyncio.create_task(gather_redis_stats())  # run non-blocking
-
-        return {
+    async def get_stats(self) -> Dict[str, Any]:
+        """Get bot statistics, including live Redis metrics if available."""
+        # Base in‐memory stats
+        stats = {
             **self.stats,
             "uptime": str(self.uptime),
             "guilds": len(self.guilds),
             "users": len(self.users),
             "cogs": len(self.cogs),
-            **redis_stats,
         }
+
+        # If Redis is connected, fetch those counters
+        if self.redis_manager.redis:
+            for key in ["command_count", "messages_seen", "errors"]:
+                try:
+                    stats[key] = await self.redis_manager.get_command_usage(key)
+                except Exception:
+                    stats[key] = "N/A"
+        return stats

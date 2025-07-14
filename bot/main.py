@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import sys
 import signal
 from pathlib import Path
@@ -21,13 +22,41 @@ class BotRunner:
         self.logger = None
 
     def setup_logging(self):
-        """Setup basic logging before bot initialization."""
+        """Set up logging configuration."""
+        # 1) Figure out what level & format you want
+        if hasattr(self.config, "get"):
+            log_level = self.config.get("logging", {}).get("level", "INFO")
+            log_format = self.config.get("logging", {}).get(
+                "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+        else:
+            log_level = getattr(self.config, "log_level", "INFO")
+            log_format = getattr(
+                self.config,
+                "log_format",
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            )
+
+        # 2) Make sure the logs directory exists
+        os.makedirs("logs", exist_ok=True)
+
+        # 3) Configure console output only
         logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            level=getattr(logging, log_level.upper()),
+            format=log_format,
             handlers=[logging.StreamHandler()],
+            force=True,  # remove any previously‐registered handlers (requires Python 3.8+)
         )
-        self.logger = logging.getLogger("darkbot.runner")
+
+        # 4) Now add a file handler to the root logger
+        root = logging.getLogger()
+        fh = logging.FileHandler("logs/darkbot.log", encoding="utf-8")
+        fh.setLevel(getattr(logging, log_level.upper()))
+        fh.setFormatter(logging.Formatter(log_format))
+        root.addHandler(fh)
+
+        # 5) Grab your named logger for the bot
+        self.logger = logging.getLogger("darkbot")
 
     async def setup_bot(self):
         """Setup and configure the bot."""
