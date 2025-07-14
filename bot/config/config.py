@@ -136,6 +136,7 @@ class LoggingConfig:
     file_path: str = str(PROJECT_ROOT / "logs" / "darkbot.log")
     max_bytes: int = 10 * 1024 * 1024  # 10MB
     backup_count: int = 5
+    file: str = "logs/darkbot.log"
 
 
 class Config:

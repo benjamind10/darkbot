@@ -1,163 +1,116 @@
+# main.py
 import asyncio
 import logging
 import os
-import sys
 import signal
+import sys
 from pathlib import Path
 
-# Add the bot directory to the Python path
+# Add project root to import path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config.config import Config
+from config.config import Config  # ← typed dataclass
 from core.bot import DarkBot
 from core.exceptions import BotConfigurationError
 
 
+def init_logging(cfg: Config) -> logging.Logger:
+    """
+    Configure root logging *once* using the typed Config object
+    and return a named logger for the runner.
+    """
+    os.makedirs(Path(cfg.logging.file).parent, exist_ok=True)
+
+    logging.basicConfig(
+        level=getattr(logging, cfg.logging.level.upper()),
+        format=cfg.logging.format,
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(cfg.logging.file, encoding="utf-8"),
+        ],
+        force=True,  # wipes any earlier basicConfig
+    )
+    return logging.getLogger("darkbot.runner")
+
+
 class BotRunner:
-    """Bot runner class to handle bot lifecycle."""
+    """Responsible for bootstrapping, running and shutting down the bot."""
 
-    def __init__(self):
-        self.bot = None
-        self.config = None
-        self.logger = None
+    def __init__(self) -> None:
+        # ① Load config immediately so it’s available for logging & bot
+        self.config: Config = Config()
 
-    def setup_logging(self):
-        """Set up logging configuration."""
-        # 1) Figure out what level & format you want
-        if hasattr(self.config, "get"):
-            log_level = self.config.get("logging", {}).get("level", "INFO")
-            log_format = self.config.get("logging", {}).get(
-                "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        # ② Set up logging before anything else
+        self.logger = init_logging(self.config)
+
+        # ③ Will be created in `setup_bot`
+        self.bot: DarkBot | None = None
+
+    # ------------------------------------------------------------------ #
+    # bootstrap helpers
+    # ------------------------------------------------------------------ #
+    async def setup_bot(self) -> None:
+        """Instantiate DarkBot with the already-loaded Config."""
+        if not self.config.token:
+            raise BotConfigurationError("DISCORD_TOKEN is missing in .env")
+
+        self.bot = DarkBot(config=self.config)
+        self.logger.info("Bot object created; attempting Discord login…")
+
+    async def start_bot(self) -> None:
+        """Connect to Discord and begin polling events."""
+        assert self.bot is not None
+        await self.bot.start(self.config.token)
+
+    async def shutdown_bot(self) -> None:
+        """Gracefully close the bot and all resources."""
+        if self.bot is None:
+            return
+
+        self.logger.info("Shutdown initiated – closing bot session…")
+        try:
+            await self.bot.close()
+            self.logger.info("Bot closed cleanly")
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("Error during shutdown", exc_info=exc)
+
+    # ------------------------------------------------------------------ #
+    # public entry-point
+    # ------------------------------------------------------------------ #
+    async def run(self) -> None:
+        """Top-level coroutine (called by asyncio.run)."""
+        # Handle SIGINT / SIGTERM so docker & CTRL-C work
+        loop = asyncio.get_running_loop()
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(
+                sig, lambda s=sig: asyncio.create_task(self._on_signal(s))
             )
-        else:
-            log_level = getattr(self.config, "log_level", "INFO")
-            log_format = getattr(
-                self.config,
-                "log_format",
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            )
-
-        # 2) Make sure the logs directory exists
-        os.makedirs("logs", exist_ok=True)
-
-        # 3) Configure console output only
-        logging.basicConfig(
-            level=getattr(logging, log_level.upper()),
-            format=log_format,
-            handlers=[logging.StreamHandler()],
-            force=True,  # remove any previously‐registered handlers (requires Python 3.8+)
-        )
-
-        # 4) Now add a file handler to the root logger
-        root = logging.getLogger()
-        fh = logging.FileHandler("logs/darkbot.log", encoding="utf-8")
-        fh.setLevel(getattr(logging, log_level.upper()))
-        fh.setFormatter(logging.Formatter(log_format))
-        root.addHandler(fh)
-
-        # 5) Grab your named logger for the bot
-        self.logger = logging.getLogger("darkbot")
-
-    async def setup_bot(self):
-        """Setup and configure the bot."""
-        try:
-            # Load configuration
-            self.config = Config()
-
-            # Validate required configuration
-            if not self.config.token:
-                raise BotConfigurationError("Discord token is required")
-
-            # Create and configure the bot
-            self.bot = DarkBot(config=self.config)
-
-            # Log startup messages
-            self.bot.logger.info("Bot configuration loaded successfully")
-            self.bot.logger.info("Attempting to connect to Discord...")
-
-            return True
-
-        except BotConfigurationError as e:
-            if self.logger:
-                self.logger.error(f"Configuration error: {e}")
-            else:
-                print(f"Configuration error: {e}")
-            return False
-        except Exception as e:
-            if self.logger:
-                self.logger.error(f"Unexpected error during setup: {e}", exc_info=True)
-            else:
-                print(f"Unexpected error during setup: {e}")
-            return False
-
-    async def start_bot(self):
-        """Start the bot."""
-        if not self.bot:
-            raise RuntimeError("Bot not initialized. Call setup_bot() first.")
 
         try:
-            await self.bot.start(self.config.token)
-        except Exception as e:
-            self.bot.logger.error(f"Error starting bot: {e}", exc_info=True)
-            raise
-
-    async def shutdown_bot(self):
-        """Handle graceful shutdown of the bot."""
-        if self.bot:
-            self.bot.logger.info("Received shutdown signal. Closing bot...")
-            try:
-                await self.bot.close()
-                self.bot.logger.info("Bot closed successfully")
-            except Exception as e:
-                self.bot.logger.error(f"Error during shutdown: {e}")
-        else:
-            if self.logger:
-                self.logger.info("Shutdown requested but bot was not initialized")
-
-    async def run(self):
-        """Main bot runner method."""
-        # Setup basic logging
-        self.setup_logging()
-
-        # Setup signal handlers for graceful shutdown
-        def signal_handler(signum, frame):
-            self.logger.info(f"Received signal {signum}. Initiating shutdown...")
-            if self.bot:
-                asyncio.create_task(self.shutdown_bot())
-
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-
-        # Setup bot
-        if not await self.setup_bot():
-            sys.exit(1)
-
-        # Start bot
-        try:
-            await self.start_bot()
+            await self.setup_bot()
+            await self.start_bot()  # blocks until disconnect / error
         except KeyboardInterrupt:
-            self.bot.logger.info("Bot stopped by user")
-        except Exception as e:
-            self.bot.logger.error(f"Fatal error: {e}", exc_info=True)
-            sys.exit(1)
+            self.logger.info("Interrupted by user")
         finally:
             await self.shutdown_bot()
 
+    async def _on_signal(self, signum: signal.Signals) -> None:  # noqa: D401
+        """Handle POSIX signals by shutting down the bot."""
+        self.logger.warning("Received %s – shutting down…", signum.name)
+        await self.shutdown_bot()
 
-async def main():
-    """Main entry point for the bot."""
-    runner = BotRunner()
-    await runner.run()
 
-
-def run_bot():
-    """Run the bot with proper error handling and cleanup."""
+# ---------------------------------------------------------------------- #
+# CLI wrapper – keeps `python main.py` nice and short
+# ---------------------------------------------------------------------- #
+def run_bot() -> None:
+    """Run the asynchronous runner inside the event loop."""
     try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("Bot stopped by user")
-    except Exception as e:
-        print(f"Fatal error: {e}")
+        asyncio.run(BotRunner().run())
+    except Exception as exc:  # noqa: BLE001
+        # Any error here means even the logger failed – last-chance print
+        print("Fatal error starting bot:", exc, file=sys.stderr)
         sys.exit(1)
 
 
