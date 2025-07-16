@@ -22,6 +22,15 @@ class BoardGames(commands.Cog):
         self.redis = bot.redis_manager
 
     async def _send_paginated_embeds(self, ctx, games, title, color):
+        """
+        Helper function to send a paginated embed message list to Discord.
+
+        Args:
+            ctx (commands.Context): The command context.
+            games (List[str]): List of game description strings.
+            title (str): Embed title.
+            color (discord.Color): Embed color.
+        """
         EMBED_MAX_DESC_LENGTH = 2048
         EMBED_MAX_FIELDS = 25
 
@@ -57,6 +66,13 @@ class BoardGames(commands.Cog):
         name="bgsearch", help="Search BGG for board games. Example: !bgsearch Catan"
     )
     async def search_boardgame(self, ctx, *, search_query: str):
+        """
+        Searches the BoardGameGeek (BGG) API for a board game by name.
+
+        Args:
+            ctx (commands.Context): The command context.
+            search_query (str): The name or keyword to search.
+        """
         search_url = f"{self.BASE_URL}search?search={search_query}"
         self.bot.logger.info(f"BGG search query: {search_query}")
 
@@ -98,6 +114,13 @@ class BoardGames(commands.Cog):
         name="bginfo", help="Get BGG board game details by ID. Example: !bginfo 12345"
     )
     async def boardgame_info(self, ctx, game_id: str):
+        """
+        Fetches detailed info from BGG by a game's object ID.
+
+        Args:
+            ctx (commands.Context): The command context.
+            game_id (str): The BGG object ID.
+        """
         self.bot.logger.info(f"Fetching BGG info for ID: {game_id}")
         info_url = f"{self.BASE_URL}boardgame/{game_id}?stats=1"
 
@@ -163,6 +186,13 @@ class BoardGames(commands.Cog):
         name="bggcollection", help="Fetch a BGG user's collection by username."
     )
     async def bgg_collection(self, ctx, username: str):
+        """
+        Fetches the board game collection of a BGG user who owns games.
+
+        Args:
+            ctx (commands.Context): The command context.
+            username (str): BGG username.
+        """
         collection_url = f"{self.BASE_URL}collection/{username}?own=1&stats=1"
         self.bot.logger.info(f"Fetching BGG collection for: {username}")
 
@@ -214,6 +244,9 @@ class BoardGames(commands.Cog):
         name="manualbggupdate", help="Trigger manual BGG update for all users."
     )
     async def manual_bgg_update(self, ctx):
+        """
+        Manually triggers the process to update all users' BGG collections.
+        """
         await ctx.send("Starting manual update of BGG collections. Please wait...")
         try:
             await bg_utils.process_bgg_users(self.bot.db_conn, self.bot.logger)
@@ -225,4 +258,5 @@ class BoardGames(commands.Cog):
 
 
 async def setup(bot):
+    """Register the Boardgames cog with the bot."""
     await bot.add_cog(BoardGames(bot))

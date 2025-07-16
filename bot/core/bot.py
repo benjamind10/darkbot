@@ -12,6 +12,7 @@ import asyncio
 from typing import Optional, Dict, Any
 import os
 from datetime import datetime
+import psycopg2
 
 from utils.redis_manager import RedisManager
 
@@ -186,8 +187,6 @@ class DarkBot(commands.Bot):
                 raise ConfigurationError(
                     "Database connection parameters not found in config."
                 )
-
-            import psycopg2
 
             print(params)  # For debugging
             conn = psycopg2.connect(**params)

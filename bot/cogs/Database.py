@@ -20,6 +20,10 @@ class Database(commands.Cog):
 
     @commands.command(name="listusers", help="Lists all users from the database.")
     async def list_users(self, ctx):
+        """
+        Retrieves and lists all enabled users in the database.
+        Displays user ID, name, Discord ID, BGG username, and enabled status.
+        """
         cursor = None
         try:
             cursor = self.bot.db_conn.cursor()
@@ -62,6 +66,15 @@ class Database(commands.Cog):
         bgg_user: str,
         is_enabled: bool = True,
     ):
+        """
+        Inserts or updates a user record in the database.
+
+        Args:
+            name (str): The user's name.
+            discord_user (int): Discord ID.
+            bgg_user (str): BGG username.
+            is_enabled (bool): Whether the user is active.
+        """
         cursor = None
         try:
             discord_user_int = int(discord_user)
@@ -94,6 +107,12 @@ class Database(commands.Cog):
         help="Disables a user by their ID. Usage: !disableuser <user_id>",
     )
     async def disable_user(self, ctx, user_id: int):
+        """
+        Disables an existing user by their database ID.
+
+        Args:
+            user_id (int): The internal DB user ID.
+        """
         cursor = None
         try:
             cursor = self.bot.db_conn.cursor()
@@ -118,6 +137,12 @@ class Database(commands.Cog):
         help="Enables a user by their ID. Usage: !enableuser <user_id>",
     )
     async def enable_user(self, ctx, user_id: int):
+        """
+        Enables a previously disabled user by their database ID.
+
+        Args:
+            user_id (int): The internal DB user ID.
+        """
         cursor = None
         try:
             cursor = self.bot.db_conn.cursor()
@@ -147,6 +172,13 @@ class Database(commands.Cog):
         help="Lists all board games starting with a specified letter. Optionally filter by username.",
     )
     async def list_board_games(self, ctx, letter: str, username: str = None):
+        """
+        Fetches and lists board games from the DB starting with a specified letter.
+
+        Args:
+            letter (str): The starting letter to filter game names.
+            username (str, optional): Filter games owned by a specific user.
+        """
         if len(letter) != 1 or not letter.isalpha():
             await ctx.send("Please provide a single alphabetical letter.")
             self.bot.logger.warning(
@@ -217,6 +249,12 @@ class Database(commands.Cog):
     )
     @commands.is_owner()
     async def execute_sql(self, ctx, *, query: str):
+        """
+        Executes a raw SQL query (non-destructive only). Only the bot owner may use this.
+
+        Args:
+            query (str): The SQL statement to execute.
+        """
         destructive_operations = ["DROP", "DELETE", "TRUNCATE", "ALTER"]
 
         if any(op in query.upper() for op in destructive_operations):
@@ -246,6 +284,13 @@ class Database(commands.Cog):
             await self.close_db(cursor)
 
     async def send_paginated_embeds(self, ctx, games):
+        """
+        Utility method to paginate and send a long list of board games in multiple embeds.
+
+        Args:
+            ctx (Context): The command context.
+            games (list): A list of game tuples to paginate.
+        """
         per_page = 5
         pages = [games[i : i + per_page] for i in range(0, len(games), per_page)]
         page_number = 1
@@ -267,7 +312,9 @@ class Database(commands.Cog):
 
     @commands.command(aliases=["bgcount"])
     async def boardgame_count(self, ctx):
-        """Check how many boardgames are in the DB."""
+        """
+        Counts how many unique board games are marked as owned in the database.
+        """
         cursor = None
         try:
             if not self.bot.db_conn:
@@ -298,4 +345,5 @@ class Database(commands.Cog):
 
 
 async def setup(bot):
+    """Register the Database cog with the bot."""
     await bot.add_cog(Database(bot))
