@@ -249,21 +249,44 @@ class DarkBot(commands.Bot):
         """Clean up resources when the bot shuts down."""
         self.logger.info("Shutting down DarkBot...")
 
+        # Close Wavelink connection if Music cog is loaded
+        try:
+            import wavelink
+            if wavelink.Pool.nodes:
+                await wavelink.Pool.close()
+                self.logger.info("Wavelink connection closed")
+        except (ImportError, Exception) as e:
+            pass  # Wavelink not installed or already closed
+
         # Close database connections
-        # TODO: Implement database cleanup
-        if self.redis_manager:
-            await self.redis_manager.set(
-                "bot:last_shutdown_time", str(datetime.utcnow())
-            )
+        if hasattr(self, 'db_conn') and self.db_conn:
+            try:
+                self.db_conn.close()
+                self.logger.info("Database connection closed")
+            except Exception as e:
+                self.logger.error(f"Error closing database: {e}")
 
         # Close Redis connection
         if self.redis_manager:
-            await self.redis_manager.close()
+            try:
+                await self.redis_manager.set(
+                    "bot:last_shutdown_time", str(datetime.utcnow())
+                )
+                await self.redis_manager.close()
+            except Exception as e:
+                self.logger.error(f"Error closing Redis: {e}")
 
         # Close event manager
-        await self.event_manager.cleanup()
+        try:
+            await self.event_manager.cleanup()
+        except Exception as e:
+            self.logger.error(f"Error cleaning up event manager: {e}")
 
+        # Call parent close
         await super().close()
+        
+        # Give a moment for all cleanup to finish
+        await asyncio.sleep(0.5)
 
     def run_bot(self):
         """Run the bot with the configured token."""

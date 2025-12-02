@@ -4,9 +4,14 @@ FROM python:3.10
 # Set the working directory inside the container
 WORKDIR /usr/local/share/bot
 
-# Install PostgreSQL development libraries
-RUN apt-get update && apt-get install -y libpq-dev gcc && apt-get clean && rm -rf /var/lib/apt/lists/* \
-RUN pip install psycopg2-binary && pip install lavalink
+# Install PostgreSQL development libraries and system dependencies
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    gcc \
+    libffi-dev \
+    libsodium-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements.txt file into the container
 COPY ./bot/requirements.txt .

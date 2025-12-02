@@ -35,10 +35,10 @@ from .settings import (
     EMOJIS,
     PERMISSION_LEVELS,
     REDIS_ENABLED,
-    REDDIS_PORT,
-    REDDIS_DB,
-    REDDIS_PASSWORD,
-    REDDIS_HOST,
+    REDIS_PORT,
+    REDIS_DB,
+    REDIS_PASSWORD,
+    REDIS_HOST,
     REDIS_KEY_PREFIX,
 )
 
@@ -65,10 +65,10 @@ class RedisConfig:
     """Redis configuration."""
 
     enabled: bool = REDIS_ENABLED
-    host: str = REDDIS_HOST
-    port: int = REDDIS_PORT
-    password: Optional[str] = REDDIS_PASSWORD
-    db: int = REDDIS_DB
+    host: str = REDIS_HOST
+    port: int = REDIS_PORT
+    password: Optional[str] = REDIS_PASSWORD
+    db: int = REDIS_DB
     decode_responses: bool = True
     socket_timeout: int = 5
     socket_connect_timeout: int = 5
@@ -183,8 +183,10 @@ class Config:
         """Initialize Redis configuration."""
         return RedisConfig(
             enabled=self._get_bool_config("REDIS_ENABLED", "redis.enabled", True),
-            host=self._get_config("REDIS_HOST", "redis.host", "redis"),
-            port=self._get_int_config("REDIS_PORT", "redis.port", 6379),
+            # Prefer explicit env `REDIS_HOST`. Fall back to settings value which
+            # defaults to localhost/127.0.0.1 for developer environments.
+            host=self._get_config("REDIS_HOST", "redis.host", REDIS_HOST),
+            port=self._get_int_config("REDIS_PORT", "redis.port", REDIS_PORT),
             password=None,
             # password=self._get_config("REDIS_PASSWORD", "redis.password"),
             db=self._get_int_config("REDIS_DB", "redis.db", 0),

@@ -81,24 +81,34 @@ class BotRunner:
         """Top-level coroutine (called by asyncio.run)."""
         # Handle SIGINT / SIGTERM so docker & CTRL-C work
         loop = asyncio.get_running_loop()
+        
+        def signal_handler(signum):
+            self.logger.warning("Received signal %s – shutting down…", signum)
+            asyncio.create_task(self._on_signal(signum))
 
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(
-                sig, lambda s=sig: asyncio.create_task(self._on_signal(s))
-            )
+            loop.add_signal_handler(sig, lambda s=sig: signal_handler(s))
 
         try:
             await self.setup_bot()
             await self.start_bot()  # blocks until disconnect / error
-        except KeyboardInterrupt:
-            self.logger.info("Interrupted by user")
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            self.logger.info("Interrupted by user or signal")
+        except Exception as e:
+            self.logger.error(f"Bot crashed: {e}", exc_info=True)
         finally:
             await self.shutdown_bot()
 
     async def _on_signal(self, signum: signal.Signals) -> None:  # noqa: D401
         """Handle POSIX signals by shutting down the bot."""
         self.logger.warning("Received %s – shutting down…", signum.name)
-        await self.shutdown_bot()
+        if self.bot and not self.bot.is_closed():
+            await self.bot.close()
+        # Cancel all running tasks to force exit
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        for task in tasks:
+            task.cancel()
+        self.logger.info("All tasks cancelled, exiting...")
 
 
 # ---------------------------------------------------------------------- #

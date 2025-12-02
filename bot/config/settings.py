@@ -26,11 +26,14 @@ DEFAULT_ACTIVITY_NAME = "with discord.py"
 DEFAULT_ACTIVITY_TYPE = "listening"  # playing, watching, listening, streaming
 
 # Redis Config
-REDIS_ENABLED = os.getenv("REDIS_ENABLED", False)
-REDDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDDIS_DB = int(os.getenv("REDIS_DB", 0))
-REDDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+# Treat REDIS_ENABLED as a boolean flag. Default to False for safety.
+REDIS_ENABLED = os.getenv("REDIS_ENABLED", "False").lower() == "true"
+
+# Use localhost/127.0.0.1 as the default host for non-containerized dev runs.
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_DB = int(os.getenv("REDIS_DB", 0))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
 REDIS_KEY_PREFIX = os.getenv("REDIS_KEY_PREFIX", "darkbot:")
 
 # Discord API limits

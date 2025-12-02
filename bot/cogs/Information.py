@@ -89,6 +89,58 @@ class Information(commands.Cog):
         await ctx.send(embed=embed)
         self.logger.info(f"Command list sent to {ctx.author} in {ctx.guild}")
 
+    @commands.command(name="help", help="Shows help for a command or lists all commands.")
+    async def help_command(self, ctx, *, command_name: str = None):
+        """
+        Display help for a specific command or list all commands.
+        
+        Usage: 
+            !help - Shows all commands
+            !help <command> - Shows detailed help for a command
+        """
+        if command_name is None:
+            # Show all commands - delegate to robot_commands
+            await self.robot_commands(ctx)
+            return
+        
+        # Show help for specific command
+        cmd = self.bot.get_command(command_name)
+        if cmd is None:
+            await ctx.send(f"❌ Command `{command_name}` not found.")
+            return
+        
+        embed = discord.Embed(
+            title=f"→ Help: {cmd.name}",
+            color=self.bot.colors["info"],
+            timestamp=datetime.utcnow(),
+        )
+        
+        # Command description
+        if cmd.help:
+            embed.description = cmd.help
+        elif cmd.brief:
+            embed.description = cmd.brief
+        else:
+            embed.description = "No description available."
+        
+        # Usage
+        usage = f"{ctx.prefix}{cmd.name}"
+        if cmd.signature:
+            usage += f" {cmd.signature}"
+        embed.add_field(name="• Usage", value=f"`{usage}`", inline=False)
+        
+        # Aliases
+        if cmd.aliases:
+            aliases = ", ".join(f"`{alias}`" for alias in cmd.aliases)
+            embed.add_field(name="• Aliases", value=aliases, inline=False)
+        
+        # Cog
+        if cmd.cog_name:
+            embed.add_field(name="• Category", value=cmd.cog_name, inline=True)
+        
+        await ctx.send(embed=embed)
+        self.logger.info(f"Help for '{command_name}' shown to {ctx.author}")
+
     @commands.command(
         name="redisget",
         help="Fetch a specific Redis stat by key. Example: !redisget errors",

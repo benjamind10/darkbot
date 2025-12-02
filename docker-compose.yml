@@ -7,6 +7,7 @@ services:
       - ./bot:/usr/local/share/bot
     working_dir: /usr/local/share/bot
     command: python main.py
+    restart: unless-stopped
     networks:
       - app-network
     logging:
@@ -15,7 +16,26 @@ services:
     depends_on:
       - db
       - redis
-      # - lavalink-app
+      - lavalink
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:latest
+    container_name: lavalink
+    restart: unless-stopped
+    environment:
+      - _JAVA_OPTIONS=-Xmx2G
+      - SERVER_PORT=2333
+      - LAVALINK_SERVER_PASSWORD=youshallnotpass
+    volumes:
+      - ./application.yml:/opt/Lavalink/application.yml:ro
+      - ./logs:/opt/Lavalink/logs
+    ports:
+      - "2333:2333"
+    networks:
+      - app-network
+    logging:
+      options:
+        max-size: 10m
 
   db:
     image: postgres:16
