@@ -296,8 +296,21 @@ class Config:
         """Initialize database configuration."""
         # Prefer DATABASE_URL if provided
         db_url = self._get_config("DATABASE_URL_DEFAULT", "database.url")
-        host = self._get_config("DB_HOST", "database.host", DATABASE_HOST)
-        port = self._get_int_config("DB_PORT", "database.port", DATABASE_PORT)
+        # Prefer DBHOST/DBPORT environment variables (short form) because
+        # some deployments / .env files use DBHOST/DBPORT instead of DB_HOST/DB_PORT.
+        # Fall back to DB_HOST/DB_PORT and the settings defaults if the short keys are missing.
+        host = os.getenv("DBHOST") or self._get_config(
+            "DB_HOST", "database.host", DATABASE_HOST
+        )
+
+        port_env = os.getenv("DBPORT")
+        if port_env is not None:
+            try:
+                port = int(port_env)
+            except (ValueError, TypeError):
+                port = DATABASE_PORT
+        else:
+            port = self._get_int_config("DB_PORT", "database.port", DATABASE_PORT)
         name = self._get_config("DB_NAME", "database.name", DATABASE_NAME)
         user = self._get_config("DB_USER", "database.user", DATABASE_USER)
         password = self._get_config("DB_PASS", "database.password", DATABASE_PASSWORD)

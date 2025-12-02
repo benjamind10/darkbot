@@ -7,6 +7,7 @@ create table users
         constraint unique_discorduser
             unique,
     bgguser      varchar,
+    bggprivate   boolean    default false,
     isenabled    boolean   default true,
     datemodified timestamp default CURRENT_TIMESTAMP
 );
@@ -123,11 +124,32 @@ as
 $$
 BEGIN
     RETURN QUERY
-    SELECT users.id, users.bgguser FROM users WHERE users.bgguser IS NOT NULL;
+    SELECT users.id, users.bgguser FROM users WHERE users.bgguser IS NOT NULL AND coalesce(users.bggprivate, FALSE) = FALSE;
 END;
 $$;
 
 alter function get_all_bggusers() owner to postgres;
+
+create function set_bgg_private(user_id integer, is_private boolean) returns text
+    language plpgsql
+as
+$$
+BEGIN
+    UPDATE users
+    SET bggprivate = is_private, datemodified = CURRENT_TIMESTAMP
+    WHERE id = user_id;
+
+    IF FOUND THEN
+        RETURN 'bggprivate updated';
+    ELSE
+        RETURN 'user not found';
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RETURN 'Error updating bggprivate: ' || SQLERRM;
+END;
+$$;
+
+alter function set_bgg_private(integer, boolean) owner to postgres;
 
 create function upsert_boardgame(p_userid integer, p_name character varying, p_bggid integer, p_avgrating double precision, p_own boolean, p_prevowned boolean, p_fortrade boolean, p_want boolean, p_wanttoplay boolean, p_wanttobuy boolean, p_wishlist boolean, p_preordered boolean, p_minplayers integer, p_maxplayers integer, p_minplaytime integer, p_numplays integer) returns text
     language plpgsql
