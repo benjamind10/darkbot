@@ -1,115 +1,178 @@
+"""
+Utility Cog
+===========
+
+Handles various utility commands like cryptocurrency prices, currency conversion,
+weather, translations, IP lookup, polls, reminders, and more.
+"""
+
 import asyncio
 import datetime
 import os
 import random
-import smtplib
-from email.message import EmailMessage
-import aiogoogletrans
-import aiohttp
-import asyncurban
 import discord
-import ipinfo
-import requests
-import strgen
-from bitlyshortener import Shortener
 from discord.ext import commands
-from dotenv import load_dotenv
-from forex_python.bitcoin import BtcConverter
-from forex_python.converter import CurrencyRates
-# from mcstatus import MinecraftServer
 
-from logging_files.utility_logging import logger
-from utils.color_converting import *
-from utils.default import uptime
+# Optional imports with graceful fallback
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    AIOHTTP_AVAILABLE = False
+
+try:
+    import asyncurban
+    ASYNCURBAN_AVAILABLE = True
+except ImportError:
+    ASYNCURBAN_AVAILABLE = False
+
+try:
+    import aiogoogletrans
+    TRANSLATOR_AVAILABLE = True
+except ImportError:
+    TRANSLATOR_AVAILABLE = False
+
+try:
+    from forex_python.bitcoin import BtcConverter
+    from forex_python.converter import CurrencyRates
+    FOREX_AVAILABLE = True
+except ImportError:
+    FOREX_AVAILABLE = False
+
+try:
+    import ipinfo
+    IPINFO_AVAILABLE = True
+except ImportError:
+    IPINFO_AVAILABLE = False
+
+from utils.color_converting import rgb_to_cmyk, rgb_to_hsv, rgb_to_hsl
 from utils.decimal_formatting import truncate
-
-load_dotenv()
-
-COINCAP_TOKEN = os.getenv("API_COINCAP")
-KSOFT_API = os.getenv("KSOFT_APT")
-IP_INFO = os.getenv("IP_INFO")
 
 
 class Utility(commands.Cog):
+    """Utility commands for various helpful functions."""
 
     def __init__(self, bot):
         self.bot = bot
-        self.u = asyncurban.UrbanDictionary()
-        self.t = aiogoogletrans.Translator
+        self.logger = bot.logger
+        self.redis = bot.redis_manager
         self.bot_start_time = datetime.datetime.now()
+        
+        # Initialize optional services
+        if ASYNCURBAN_AVAILABLE:
+            self.u = asyncurban.UrbanDictionary()
+        if TRANSLATOR_AVAILABLE:
+            self.t = aiogoogletrans.Translator
+        
+        # Get API keys from environment
+        self.ip_info_token = os.getenv("IP_INFO")
+        self.openweather_api_key = os.getenv("KSOFT_API")
+
+    # ========== Cryptocurrency Commands ==========
 
     @commands.command(aliases=["btc"])
     async def bitcoin(self, ctx, currency="USD"):
+        """
+        Get current Bitcoin price in specified currency.
+        
+        Usage: !bitcoin [currency]
+        Example: !bitcoin CAD
+        """
+        if not FOREX_AVAILABLE:
+            await ctx.send("❌ forex-python library not installed.")
+            return
+
         try:
             b = BtcConverter()
             amount = round(b.get_latest_price(currency), 2)
-        except:
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ BTC to Currency",
+                description=f"• One Bitcoin is: `{amount}` {currency}"
+            )
+            await ctx.send(embed=embed)
+            self.logger.info(f"Utility | Sent Bitcoin: {ctx.author}")
+        except Exception as e:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Currency error!",
-                description="• Not a valid currency type!"
-                            "\n• Example: `!bitcoin CAD`"
+                description=f"• Not a valid currency type!\n• Example: `!bitcoin CAD`"
             )
             await ctx.send(embed=embed)
-        embed = discord.Embed(
-            color=self.bot.embed_color,
-            title="→ BTC to Currency",
-            description=f"• One Bitcoin is: `{amount}` {currency}"
-        )
-        await ctx.send(embed=embed)
-
-        logger.info(f"Utility | Sent Bitcoin: {ctx.author}")
+            self.logger.error(f"Utility | Bitcoin error: {e}")
 
     @commands.command(aliases=["ltc"])
     async def litecoin(self, ctx):
-        async with aiohttp.ClientSession() as cs:
-            async with cs.get("https://api.coincap.io/v2/rates/litecoin") as r:
-                res = await r.json()
-                litecoin_price = res['data']['rateUsd']
-                embed = discord.Embed(
-                    color=self.bot.embed_color,
-                    title="→ Current Litecoin Price",
-                    description=f"• One Litecoin is: `{litecoin_price[:-14]}` USD"
-                )
+        """
+        Get current Litecoin price in USD.
+        
+        Usage: !litecoin
+        """
+        if not AIOHTTP_AVAILABLE:
+            await ctx.send("❌ aiohttp library not installed.")
+            return
 
-                await ctx.send(embed=embed)
+        try:
+            async with aiohttp.ClientSession() as cs:
+                async with cs.get("https://api.coincap.io/v2/rates/litecoin") as r:
+                    res = await r.json()
+                    litecoin_price = res['data']['rateUsd']
+                    embed = discord.Embed(
+                        color=self.bot.embed_color,
+                        title="→ Current Litecoin Price",
+                        description=f"• One Litecoin is: `{litecoin_price[:-14]}` USD"
+                    )
+                    await ctx.send(embed=embed)
+                    self.logger.info(f"Utility | Sent Litecoin: {ctx.author}")
+        except Exception as e:
+            await ctx.send("❌ Failed to fetch Litecoin price.")
+            self.logger.error(f"Utility | Litecoin error: {e}")
 
-                logger.info(f"Utility | Sent Litecoin: {ctx.author}")
+    # ========== Currency Conversion ==========
 
     @commands.command(aliases=["convert"])
     async def currency(self, ctx, amount, currency1, currency2):
+        """
+        Convert between different currencies.
+        
+        Usage: !currency <amount> <from_currency> <to_currency>
+        Example: !currency 10 USD CAD
+        """
+        if not FOREX_AVAILABLE:
+            await ctx.send("❌ forex-python library not installed.")
+            return
+
         try:
             c = CurrencyRates()
-            amount = float(amount)
-        except:
+            amount_float = float(amount)
+            converted = float(c.convert(currency1, currency2, amount_float))
+            
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Currency Converting",
+                description=f"• {amount_float} {currency1} is about {truncate(converted, 2)} {currency2}!"
+            )
+            await ctx.send(embed=embed)
+            self.logger.info(f"Utility | Sent Currency: {ctx.author}")
+        except ValueError:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Money Error!",
                 description="• Not a valid amount of money!"
             )
             await ctx.send(embed=embed)
-        try:
-            amount2 = float(c.convert(currency1, currency2, amount))
-        except:
+        except Exception as e:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Currency Error!",
-                description="• Not a valid currency type!"
-                            "\n• Example: `!currency 10 USD CAD`"
+                description=f"• Not a valid currency type!\n• Example: `!currency 10 USD CAD`"
             )
             await ctx.send(embed=embed)
-        embed = discord.Embed(
-            color=self.bot.embed_color,
-            title="→ Currency Converting",
-            description=f"• {amount} {currency1} is about {truncate(amount2, 2)} {currency2}!"
-        )
-
-        await ctx.send(embed=embed)
-
-        logger.info(f"Utility | Sent Currency: {ctx.author}")
+            self.logger.error(f"Utility | Currency conversion error: {e}")
 
     @currency.error
     async def currency_error(self, ctx, error):
+        """Handle errors for currency command."""
         if isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -120,49 +183,60 @@ class Utility(commands.Cog):
 
     @commands.command(aliases=["tobtc"])
     async def currency_to_bitcoin(self, ctx, amount, currency="USD"):
+        """
+        Convert currency to Bitcoin.
+        
+        Usage: !tobtc <amount> [currency]
+        Example: !tobtc 100 USD
+        """
+        if not FOREX_AVAILABLE:
+            await ctx.send("❌ forex-python library not installed.")
+            return
+
         try:
             b = BtcConverter()
-            amount = int(amount)
-        except:
+            amount_int = int(amount)
+            btc = round(b.convert_to_btc(amount_int, currency), 4)
+            
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Currency To Bitcoin!",
+                description=f"• {amount_int} {currency} is around {btc} Bitcoin!"
+            )
+            await ctx.send(embed=embed)
+            self.logger.info(f"Utility | Sent Currency_To_btc: {ctx.author}")
+        except ValueError:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Money Error!",
                 description="• Not a valid amount of money!"
             )
             await ctx.send(embed=embed)
-        try:
-            btc = round(b.convert_to_btc(amount, currency), 4)
-        except:
+        except Exception as e:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Currency Error!",
-                description="• Not a valid currency!"
-                            "\n• Example: `!tobtc 10 CAD`"
-                            "\n• Pro Tip: `If you use USD currency, you do not have to specify the currency in the command.`"
+                description=f"• Not a valid currency!\n• Example: `!tobtc 10 CAD`"
             )
             await ctx.send(embed=embed)
-        embed = discord.Embed(
-            color=self.bot.embed_color,
-            title="→ Currency To Bitcoin!",
-            description=f"• {amount} {currency} is around {btc} Bitcoin!"
-        )
-
-        await ctx.send(embed=embed)
-
-        logger.info(f"Utility | Sent Currency_To_btc: {ctx.author}")
+            self.logger.error(f"Utility | Currency to BTC error: {e}")
 
     @currency_to_bitcoin.error
     async def currency_to_bitcoin_error(self, ctx, error):
+        """Handle errors for currency_to_bitcoin command."""
         if isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
-                description="• Please put in a valid option! Example: `!tobtc 10 CAD`"
-                            "\n• Pro Tip: `If you use USD currency, you do not have to specify the currency in the command.`")
+                description="• Please put in a valid option! Example: `!tobtc 10 CAD`\n• Pro Tip: If you use USD currency, you do not have to specify the currency."
+            )
             await ctx.send(embed=embed)
+
+    # ========== Urban Dictionary ==========
 
     @commands.group(invoke_without_command=True)
     async def word(self, ctx):
+        """Urban Dictionary word lookup."""
         embed = discord.Embed(
             color=self.bot.embed_color,
             title="→ Invalid Argument!",
@@ -172,39 +246,65 @@ class Utility(commands.Cog):
 
     @word.command()
     async def random(self, ctx):
-        word = await self.u.get_random()
-        embed = discord.Embed(
-            color=self.bot.embed_color,
-            title="→ Random Word",
-            description=f"Word: `{word}`"
-                        f"\n Definition: `{word.definition}`"
-        )
+        """Get a random Urban Dictionary word."""
+        if not ASYNCURBAN_AVAILABLE:
+            await ctx.send("❌ asyncurban library not installed.")
+            return
 
-        await ctx.send(embed=embed)
-
-        logger.info(f"Utility | Sent Word Random: {ctx.author}")
+        try:
+            word = await self.u.get_random()
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Random Word",
+                description=f"Word: `{word}`\nDefinition: `{word.definition}`"
+            )
+            await ctx.send(embed=embed)
+            self.logger.info(f"Utility | Sent Word Random: {ctx.author}")
+        except Exception as e:
+            await ctx.send("❌ Failed to fetch random word.")
+            self.logger.error(f"Utility | Random word error: {e}")
 
     @word.command()
     async def search(self, ctx, *, query):
-        word = await self.u.get_word(query)
-        embed = discord.Embed(
-            color=self.bot.embed_color,
-            title="→ Searched word",
-            description=f"Word: `{word}`"
-                        f"\n Definition: `{word.definition}`"
-        )
+        """Search for a word in Urban Dictionary."""
+        if not ASYNCURBAN_AVAILABLE:
+            await ctx.send("❌ asyncurban library not installed.")
+            return
 
-        await ctx.send(embed=embed)
+        try:
+            word = await self.u.get_word(query)
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Searched word",
+                description=f"Word: `{word}`\nDefinition: `{word.definition}`"
+            )
+            await ctx.send(embed=embed)
+            self.logger.info(f"Utility | Sent Word Search: {ctx.author} | Searched: {query}")
+        except Exception as e:
+            await ctx.send(f"❌ Couldn't find word: {query}")
+            self.logger.error(f"Utility | Word search error: {e}")
 
-        logger.info(f"Utility | Sent Word Search: {ctx.author} | Searched: {query}")
+    # ========== IP Lookup ==========
 
     @commands.command(aliases=["ip"])
     async def ip_lookup(self, ctx, ip):
+        """
+        Look up information about an IP address.
+        
+        Usage: !ip <ip_address>
+        Example: !ip 8.8.8.8
+        """
+        if not IPINFO_AVAILABLE:
+            await ctx.send("❌ ipinfo library not installed.")
+            return
+
+        if not self.ip_info_token:
+            await ctx.send("❌ IP_INFO token not configured.")
+            return
+
         try:
-            token = IP_INFO
-            handler = ipinfo.getHandler(token)
-            ip_address = ip
-            details = handler.getDetails(ip_address)
+            handler = ipinfo.getHandler(self.ip_info_token)
+            details = handler.getDetails(ip)
             info = details.all
 
             embed = discord.Embed(
@@ -212,48 +312,36 @@ class Utility(commands.Cog):
                 title="→ IP Address Lookup"
             )
             embed.set_footer(text="— Note: Locations and Latitude & Longitude may not be 100% accurate.")
-            embed.add_field(name="• IP Address:", value=f"`{info['ip']}`")
-
-            if not len(info["latitude"]) and not len(info["longitude"]):
-                embed.add_field(name="• Latitude & Longitude", value="`Latitude & Longitude not found!`")
+            embed.add_field(name="• IP Address:", value=f"`{info.get('ip', 'N/A')}`")
+            
+            lat = info.get('latitude', '')
+            lon = info.get('longitude', '')
+            if lat and lon:
+                embed.add_field(name="• Latitude & Longitude", value=f"`{lat}, {lon}`")
             else:
-                embed.add_field(name="• Latitude & Longitude", value=f"`{info['latitude']}, {info['longitude']}`")
-            if not len(info["city"]):
-                embed.add_field(name="• City:", value="`City not found!`")
-            else:
-                embed.add_field(name="• City:", value=f"`{info['city']}`")
-            if not len(info["region"]):
-                embed.add_field(name="• Region / State:", value="`Region / State not found!`")
-            else:
-                embed.add_field(name="• Region / State:", value=f"`{info['region']}`")
-            if not len(info["country_name"]):
-                embed.add_field(name="• Country", value="`Country not found!`")
-            else:
-                embed.add_field(name="• Country:", value=f"`{info['country_name']}`")
-            try:
-                embed.add_field(name="• Postal code:", value=f"`{info['postal']}`")
-            except KeyError:
-                embed.add_field(name="• Postal code:", value="`Postal code not found!`")
-            if not len(info["org"]):
-                embed.add_field(name="• ISP-Name:", value="`ISP-Name not found!`")
-            else:
-                embed.add_field(name="• ISP-Name:", value=f"`{info['org']}`")
+                embed.add_field(name="• Latitude & Longitude", value="`Not found`")
+            
+            embed.add_field(name="• City:", value=f"`{info.get('city', 'Not found')}`")
+            embed.add_field(name="• Region / State:", value=f"`{info.get('region', 'Not found')}`")
+            embed.add_field(name="• Country:", value=f"`{info.get('country_name', 'Not found')}`")
+            embed.add_field(name="• Postal code:", value=f"`{info.get('postal', 'Not found')}`")
+            embed.add_field(name="• ISP-Name:", value=f"`{info.get('org', 'Not found')}`")
 
             await ctx.send(embed=embed)
+            self.logger.info(f"Utility | Sent IP: {ctx.author} | IP Address: {ip}")
 
-            logger.info(f"Utility | Sent IP: {ctx.author} | IP Address: {ip}")
-
-        except Exception:
+        except Exception as e:
             embed_error = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid IP Address!",
                 description="• The IP address you entered is not valid."
             )
-
-            await ctx.send(embed=embed_error)
+            await ctx.send(embed_error)
+            self.logger.error(f"Utility | IP lookup error: {e}")
 
     @ip_lookup.error
     async def ip_lookup_error(self, ctx, error):
+        """Handle errors for ip_lookup command."""
         if isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -262,25 +350,33 @@ class Utility(commands.Cog):
             )
             await ctx.send(embed=embed)
 
+    # ========== Poll Command ==========
+
     @commands.command()
     async def poll(self, ctx, channel: discord.TextChannel, *, question):
+        """
+        Create a poll in a specific channel.
+        
+        Usage: !poll <#channel> <question>
+        """
         sender = ctx.author
         embed = discord.Embed(
             color=self.bot.embed_color,
             title="→ Quick Poll 📊"
         )
         embed.add_field(name="• Question", inline=False, value=question)
-        embed.set_footer(text=f"— Poll from {sender}", icon_url=ctx.author.avatar_url)
+        embed.set_footer(text=f"— Poll from {sender}", icon_url=ctx.author.display_avatar.url)
+        
         await ctx.message.delete()
-
         message = await channel.send(embed=embed)
         await message.add_reaction("👍")
         await message.add_reaction("👎")
-
-        logger.info(f"Utility | Sent Poll: {ctx.author}")
+        
+        self.logger.info(f"Utility | Sent Poll: {ctx.author}")
 
     @poll.error
     async def poll_error(self, ctx, error):
+        """Handle errors for poll command."""
         if isinstance(error, commands.BadArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -296,14 +392,17 @@ class Utility(commands.Cog):
             )
             await ctx.send(embed=embed)
 
+    # ========== Color Commands ==========
+
     @commands.command(aliases=["randomcolor"])
     async def random_color(self, ctx):
+        """Generate a random color with various color space conversions."""
         r = lambda: random.randint(0, 255)
         hex_color = f'{f"{r():x}":0>2}{f"{r():x}":0>2}{f"{r():x}":0>2}'
         rgb = tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
 
         embed = discord.Embed(
-            color=(discord.Color(int(f"0x{hex_color}", 16))),
+            color=discord.Color(int(f"0x{hex_color}", 16)),
             title="→ Random Color"
         )
         embed.set_thumbnail(url="https://www.script-tutorials.com/demos/315/images/colorwheel1.png")
@@ -316,153 +415,86 @@ class Utility(commands.Cog):
         embed.add_field(name="• COLOR accuracy:", inline=True, value=f"`{random.randint(96, 99)}%`")
 
         await ctx.send(embed=embed)
+        self.logger.info(f"Utility | Sent Random Color: {ctx.author}")
 
-        logger.info(f"Utility | Sent Random Color: {ctx.author}")
+    # ========== Reminder Command ==========
 
     @commands.command()
     async def remind(self, ctx, time, time_measurement, *, reminder):
-        if str(time_measurement) == "s":
-            if float(time) <= 1:
-                embed = discord.Embed(
-                    color=self.bot.embed_color,
-                    title=f"→ Reminder Set For {time} Second!",
-                    description=f"• Reminder: `{reminder}`"
-                )
-
-                await ctx.send(embed=embed)
-            else:
-                embed = discord.Embed(
-                    color=self.bot.embed_color,
-                    title=f"→ Reminder Set For {time} Seconds!",
-                    description=f"• Reminder: `{reminder}`"
-                )
-
-                await ctx.send(embed=embed)
-
-            embed2 = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Time Is Up!",
-                description=f"• Reminder set: `{reminder}`"
-                            f"\n• Time set for: `{time} Second(s)`"
-            )
-
-            await asyncio.sleep(float(time))
-            await ctx.send(embed=embed2)
-
-            ping = await ctx.send(ctx.author.mention)
-            await ping.delete()
-
-            logger.info(
-                f"Utility | Sent Remind: {ctx.author} | Time: {time} | Time Measurement: {time_measurement} | Reminder: {reminder}")
-
-        elif str(time_measurement) == "m":
-            if float(time) <= 1:
-                embed = discord.Embed(
-                    color=self.bot.embed_color,
-                    title=f"→ Reminder Set For {time} Minute!",
-                    description=f"• Reminder: `{reminder}`"
-                )
-
-                await ctx.send(embed=embed)
-            else:
-                embed = discord.Embed(
-                    color=self.bot.embed_color,
-                    title=f"→ Reminder Set For {time} Minutes!",
-                    description=f"• Reminder: `{reminder}`"
-                )
-
-                await ctx.send(embed=embed)
-
-            embed3 = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Time Is Up!",
-                description=f"• Reminder set: `{reminder}`"
-                            f"\n• Time set for: `{time} Minute(s)`"
-            )
-
-            seconds_to_minutes = float(time) * 60
-
-            await asyncio.sleep(seconds_to_minutes)
-            await ctx.send(embed=embed3)
-
-            ping = await ctx.send(ctx.author.mention)
-            await ping.delete()
-
-            logger.info(
-                f"Utility | Sent Remind: {ctx.author} | Time: {time} | Time Measurement: {time_measurement} | Reminder: {reminder}")
-
-        elif str(time_measurement) == "h":
-            if float(time) <= 1:
-                embed = discord.Embed(
-                    color=self.bot.embed_color,
-                    title=f"→ Reminder Set For {time} Hour!",
-                    description=f"• Reminder: `{reminder}`"
-                )
-
-                await ctx.send(embed=embed)
-            else:
-                embed = discord.Embed(
-                    color=self.bot.embed_color,
-                    title=f"→ Reminder Set For {time} Hours!",
-                    description=f"• Reminder: `{reminder}`"
-                )
-
-                await ctx.send(embed=embed)
-
-            embed4 = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Time Is Up!",
-                description=f"• Reminder set: `{reminder}`"
-                            f"\n• Time set for: `{time} Hour(s)`"
-            )
-
-            seconds_to_hours = (10 * 360) * float(time)
-
-            await asyncio.sleep(seconds_to_hours)
-            await ctx.send(embed=embed4)
-
-            ping = await ctx.send(ctx.author.mention)
-            await ping.delete()
-
-            logger.info(
-                f"Utility | Sent Remind: {ctx.author} | Time: {time} | Time Measurement: {time_measurement} | Reminder: {reminder}")
+        """
+        Set a reminder.
+        
+        Usage: !remind <time> <s/m/h> <reminder>
+        Example: !remind 20 m Check the oven
+        """
+        time_float = float(time)
+        time_unit = time_measurement.lower()
+        
+        if time_unit == "s":
+            sleep_seconds = time_float
+            unit_name = "Second" if time_float <= 1 else "Seconds"
+        elif time_unit == "m":
+            sleep_seconds = time_float * 60
+            unit_name = "Minute" if time_float <= 1 else "Minutes"
+        elif time_unit == "h":
+            sleep_seconds = time_float * 3600
+            unit_name = "Hour" if time_float <= 1 else "Hours"
         else:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `!remind <time> <time measurement> "
-                            "<reminder>` "
-                            "\n• Units of time: `s = seconds`, `m = minutes`, `h = hours`"
-                            "\n• Real world example: `!remind 20 m this reminder will go off in 20 minutes.`"
+                description="• Please put a valid option! Example: `!remind <time> <time measurement> <reminder>`\n• Units of time: `s = seconds`, `m = minutes`, `h = hours`\n• Real world example: `!remind 20 m this reminder will go off in 20 minutes.`"
             )
-
             await ctx.send(embed=embed)
+            return
+
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title=f"→ Reminder Set For {time} {unit_name}!",
+            description=f"• Reminder: `{reminder}`"
+        )
+        await ctx.send(embed=embed)
+
+        await asyncio.sleep(sleep_seconds)
+
+        embed2 = discord.Embed(
+            color=self.bot.embed_color,
+            title="→ Time Is Up!",
+            description=f"• Reminder set: `{reminder}`\n• Time set for: `{time} {unit_name}`"
+        )
+        await ctx.send(embed2)
+        
+        ping = await ctx.send(ctx.author.mention)
+        await ping.delete()
+
+        self.logger.info(f"Utility | Sent Remind: {ctx.author} | Time: {time} | Unit: {time_unit} | Reminder: {reminder}")
 
     @remind.error
     async def remind_error(self, ctx, error):
+        """Handle errors for remind command."""
         if isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `!remind <time> <time measurement> "
-                            "<reminder>` "
-                            "\n• Units of time: `s = seconds`, `m = minutes`, `h = hours`"
-                            "\n• Real world example: `!remind 20 m this reminder will go off in 20 minutes.`"
+                description="• Please put a valid option! Example: `!remind <time> <time measurement> <reminder>`\n• Units of time: `s = seconds`, `m = minutes`, `h = hours`\n• Real world example: `!remind 20 m this reminder will go off in 20 minutes.`"
             )
             await ctx.send(embed=embed)
 
+    # ========== Temperature Conversion ==========
+
     @commands.group(aliases=["temp"], invoke_without_command=True)
     async def temperature(self, ctx):
+        """Temperature conversion commands."""
         embed = discord.Embed(
             color=self.bot.embed_color,
             title="→ Invalid Argument!",
             description="• Please put in a valid option! Example: `!temperature <fahrenheit / celsius> <number>`"
         )
-
         await ctx.send(embed=embed)
 
     @temperature.command(aliases=["fahrenheit"])
     async def fahrenheit_to_celsius(self, ctx, fahrenheit):
+        """Convert Fahrenheit to Celsius."""
         celsius = (int(fahrenheit) - 32) * 5 / 9
         embed = discord.Embed(
             color=self.bot.embed_color,
@@ -470,74 +502,99 @@ class Utility(commands.Cog):
             description=f"• Celsius Temperature: `{int(celsius)}`"
         )
         await ctx.send(embed=embed)
-
-        logger.info(f"Utility | Sent Temperatures: {ctx.author}")
+        self.logger.info(f"Utility | Sent Temperatures: {ctx.author}")
 
     @temperature.command(aliases=["celsius"])
     async def celsius_to_fahrenheit(self, ctx, celsius):
+        """Convert Celsius to Fahrenheit."""
         fahrenheit = (int(celsius) * 9 / 5) + 32
         embed = discord.Embed(
             color=self.bot.embed_color,
             title="→ Celsius To Fahrenheit",
             description=f"• Fahrenheit Temperature: `{int(fahrenheit)}`"
         )
-
         await ctx.send(embed=embed)
+        self.logger.info(f"Utility | Sent Temperatures: {ctx.author}")
 
-        logger.info(f"Utility | Sent Temperatures: {ctx.author}")
+    # ========== Translation ==========
 
     @commands.command(aliases=["gt", "trans"])
     async def translate(self, ctx, lang, *, sentence):
-        data = await self.t.translate(sentence, dest=lang)
-        translated = data.src.upper()
-        translation = data.text
-        language = lang.upper()
-        embed = discord.Embed(
-            color=self.bot.embed_color,
-            title="→ Translation",
-            description=f"• Input Language: `{translated}`"
-                        f"\n• Translated Language: `{language}`"
-                        f"\n• Translated Text: `{translation}`"
-        )
+        """
+        Translate text to another language.
+        
+        Usage: !translate <language_code> <text>
+        Example: !translate es Hello world
+        """
+        if not TRANSLATOR_AVAILABLE:
+            await ctx.send("❌ aiogoogletrans library not installed.")
+            return
 
-        await ctx.send(embed=embed)
-
-        logger.info(f"Utility | Sent Translate: {ctx.author} | Language: {lang} | Sentence: {sentence}")
+        try:
+            translator = self.t()
+            data = await translator.translate(sentence, dest=lang)
+            translated_from = data.src.upper()
+            translation = data.text
+            language = lang.upper()
+            
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Translation",
+                description=f"• Input Language: `{translated_from}`\n• Translated Language: `{language}`\n• Translated Text: `{translation}`"
+            )
+            await ctx.send(embed=embed)
+            self.logger.info(f"Utility | Sent Translate: {ctx.author} | Language: {lang} | Sentence: {sentence}")
+        except Exception as e:
+            await ctx.send("❌ Translation failed.")
+            self.logger.error(f"Utility | Translation error: {e}")
 
     @translate.error
     async def translate_error(self, ctx, error):
+        """Handle errors for translate command."""
         if isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `!translate <language> <message>`"
-                            "\n• Real world example: `translate english Hola`"
+                description="• Please put a valid option! Example: `!translate <language> <message>`\n• Real world example: `!translate en Hola`"
             )
             await ctx.send(embed=embed)
 
+    # ========== Weather ==========
+
     @commands.command()
     async def weather(self, ctx, *, location: str):
+        """
+        Get weather information for a location.
+        
+        Usage: !weather <city or zip code>
+        Example: !weather New York
+        """
+        if not AIOHTTP_AVAILABLE:
+            await ctx.send("❌ aiohttp library not installed.")
+            return
+
+        if not self.openweather_api_key:
+            await ctx.send("❌ OpenWeather API key not configured (KSOFT_API).")
+            return
+
         try:
-            OPENWEATHER_API_KEY = KSOFT_API
-            # Assume location is a city name for simplicity; you might want to handle other types of location input
             async with aiohttp.ClientSession() as cs:
                 async with cs.get(
-                        "https://api.openweathermap.org/data/2.5/weather",
-                        params={"q": location, "appid": OPENWEATHER_API_KEY, "units": "imperial"}
+                    "https://api.openweathermap.org/data/2.5/weather",
+                    params={"q": location, "appid": self.openweather_api_key, "units": "imperial"}
                 ) as r:
                     res = await r.json()
                     if r.status != 200:
                         raise Exception(f"Failed to retrieve weather data: {res.get('message', 'Unknown error')}")
-
-                    # Extract data from the response
+                    
+                    # Extract data
                     temp_f = res["main"]["temp"]
                     temp_c = (temp_f - 32) * 5 / 9
                     humidity = res["main"]["humidity"]
                     wind_speed = res["wind"]["speed"]
                     cloud_coverage = res["clouds"]["all"]
-                    # ... extract other data as needed
 
-                    # Create and send the embed
+                    # Create embed
                     embed = discord.Embed(
                         color=self.bot.embed_color,
                         title="→ Weather Command"
@@ -548,34 +605,30 @@ class Utility(commands.Cog):
                     embed.add_field(name="• Wind:", value=f"{wind_speed} MPH")
                     embed.add_field(name="• Cloud coverage:", value=f"{cloud_coverage}%")
                     embed.add_field(name="• Location:", value=res['name'])
-                    # sunrise_time = datetime.utcfromtimestamp(res['sys']['sunrise']).strftime('%Y-%m-%d %H:%M:%S')
-                    # sunset_time = datetime.utcfromtimestamp(res['sys']['sunset']).strftime('%Y-%m-%d %H:%M:%S')
-                    # embed.add_field(name="• Sunrise time:", value=sunrise_time or 'Sunrise information not available')
-                    # embed.add_field(name="• Sunset time:", value=sunset_time or 'Sunset information not available')
-
+                    
                     await ctx.send(embed=embed)
-
-                    logger.info(f"Utility | Sent Weather: {ctx.author}")
+                    self.logger.info(f"Utility | Sent Weather: {ctx.author}")
         except Exception as e:
-            print(f"There was an error: {str(e)}")
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid City / Zip code",
                 description=f"• The city or zip code you put is not valid. Error: {e}"
             )
             await ctx.send(embed=embed)
+            self.logger.error(f"Utility | Weather error: {e}")
 
     @weather.error
     async def weather_error(self, ctx, error):
+        """Handle errors for weather command."""
         if isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `!weather <city>`"
-                            "\n• You can also use a zip code! Example: `!weather <zip-code>`"
+                description="• Please put a valid option! Example: `!weather <city>`\n• You can also use a zip code! Example: `!weather <zip-code>`"
             )
             await ctx.send(embed=embed)
 
 
 async def setup(bot):
+    """Load the Utility cog."""
     await bot.add_cog(Utility(bot))

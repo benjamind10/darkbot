@@ -6,7 +6,8 @@ services:
     volumes:
       - ./bot:/usr/local/share/bot
     working_dir: /usr/local/share/bot
-    command: python bot.py
+    command: python main.py
+    restart: unless-stopped
     networks:
       - app-network
     logging:
@@ -14,12 +15,31 @@ services:
         max-size: 10m
     depends_on:
       - db
-      # - lavalink-app
+      - redis
+      - lavalink
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:latest
+    container_name: lavalink
+    restart: unless-stopped
+    environment:
+      - _JAVA_OPTIONS=-Xmx2G
+      - SERVER_PORT=2333
+      - LAVALINK_SERVER_PASSWORD=youshallnotpass
+    volumes:
+      - ./application.yml:/opt/Lavalink/application.yml:ro
+      - ./logs:/opt/Lavalink/logs
+    ports:
+      - "2333:2333"
+    networks:
+      - app-network
+    logging:
+      options:
+        max-size: 10m
 
   db:
     image: postgres:16
     environment:
-      POSTGRES_DB: darkbot
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASS}
     volumes:
@@ -32,9 +52,29 @@ services:
       options:
         max-size: 10m
 
+
+  redis:
+    image: redis:6-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    environment:
+      REDIS_ENABLED: "true"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
+    volumes:
+      - redisdata:/data
+    networks:
+      - app-network
+    logging:
+      options:
+        max-size: 10m
+
 networks:
   app-network:
     driver: bridge
 
 volumes:
   pgdata:
+  redisdata:

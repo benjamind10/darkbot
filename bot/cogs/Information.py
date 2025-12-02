@@ -1,608 +1,326 @@
-import asyncio
-import re
+"""
+Information Cog
+===============
+
+Displays general statistics and informational commands about the bot.
+"""
+
 import time
-import discord
 import platform
-import distro
-import psutil
-import aiohttp
+import discord
 from discord.ext import commands
 from datetime import datetime, timedelta
-from logging_files.information_logging import logger
+import asyncio
+import psutil
+import distro
 
 
 class Information(commands.Cog):
+    """
+    Cog for displaying general statistics and informational commands about the bot.
+    """
+
     def __init__(self, bot):
+        """
+        Initialize the Information cog.
+
+        Args:
+            bot: The instance of the DarkBot.
+        """
         self.bot = bot
-        self.bot_start_time = time.time()
-
-        self.keywords = ["Worldstone", "Chaos Sanctuary"]
-        self.last_announced = None
-        self.channel_id = 1379906383255834786
-        self.api_headers = {
-            "D2R-Contact": "benjamind10@pm.me",
-            "D2R-Platform": "Discord",
-            "D2R-Repo": "https://github.com/benjamind10/darkbot.git",
-        }
-        self.last_zone_poll = None
-        self.scraping_task = bot.loop.create_task(self.poll_terror_zone_api())
-        self.hourly_task = None
-
-    def cog_unload(self):
-        self.scraping_task.cancel()
-        if self.hourly_task:
-            self.hourly_task.cancel()
-
-    def matches_keyword(self, zone_name: str) -> bool:
-        normalized = re.sub(r"\W+", "", zone_name.lower())
-        return any(
-            re.sub(r"\W+", "", keyword.lower()) in normalized
-            for keyword in self.keywords
-        )
-
-    async def poll_terror_zone_api(self):
-        await self.bot.wait_until_ready()
-        while not self.bot.is_closed():
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        "https://d2runewizard.com/api/terror-zone",
-                        headers=self.api_headers,
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            current_zone = (
-                                data.get("currentTerrorZone", {})
-                                .get("zone", "")
-                                .strip()
-                            )
-
-                            logger.info(
-                                f"Scraper | Fetched current zone: {current_zone}"
-                            )
-                            if (
-                                self.matches_keyword(current_zone)
-                                and current_zone != self.last_announced
-                            ):
-                                self.last_announced = current_zone
-                                channel = self.bot.get_channel(self.channel_id)
-                                if channel:
-                                    await channel.send(
-                                        f"🔥 **{current_zone}** is now the active Terror Zone!"
-                                    )
-                                    logger.info(
-                                        f"Scraper | Notification sent for: {current_zone}"
-                                    )
-                        else:
-                            logger.warning(
-                                f"Scraper | API returned status {response.status}"
-                            )
-            except Exception as e:
-                logger.error(f"Scraper | Exception during API poll: {e}")
-            await asyncio.sleep(300)
-
-    async def world_stone_reminders(self, next_zone):
-        logger.info(f"Reminder | {next_zone} is coming up, waiting before reminders...")
-
-        await asyncio.sleep(30)  # Short delay to avoid false early detection
-
-        for i in range(5):
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        "https://d2runewizard.com/api/terror-zone",
-                        headers=self.api_headers,
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            current_zone = (
-                                data.get("currentTerrorZone", {})
-                                .get("zone", "")
-                                .strip()
-                            )
-
-                            logger.info(f"[REMINDER] Loop {i+1} check: {current_zone}")
-
-                            if (
-                                current_zone.lower() == next_zone.lower()
-                                or self.matches_keyword(current_zone)
-                            ):
-                                logger.info(
-                                    "Reminder | Tracked zone is now active. Stopping reminders."
-                                )
-                                return
-
-                            channel = self.bot.get_channel(self.channel_id)
-                            if channel:
-                                await channel.send(
-                                    f"⚠️ Reminder: **{next_zone}** is coming up soon. Be ready!"
-                                )
-                                logger.info(
-                                    f"Reminder | Sent reminder {i+1} for: {next_zone}"
-                                )
-            except Exception as e:
-                logger.error(f"Reminder | Exception in reminder loop: {e}")
-
-            await asyncio.sleep(600)  # Wait 10 mins before next reminder
-
-    async def start_hourly_tz_updates(self):
-        await self.bot.wait_until_ready()
-        while not self.bot.is_closed():
-            now = datetime.utcnow()
-            next_poll_time = (now + timedelta(hours=1)).replace(
-                minute=10, second=0, microsecond=0
-            )
-            wait_seconds = (next_poll_time - now).total_seconds()
-            logger.info(
-                f"[TZUPDATES] Sleeping {wait_seconds:.0f}s until {next_poll_time.isoformat()}"
-            )
-            await asyncio.sleep(wait_seconds)
-
-            async def fetch_and_post_tz_update():
-                try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(
-                            "https://d2runewizard.com/api/terror-zone",
-                            headers=self.api_headers,
-                        ) as response:
-                            if response.status == 200:
-                                data = await response.json()
-
-                                current = data.get("currentTerrorZone", {}).get(
-                                    "zone", "Unknown"
-                                )
-                                current_act = data.get("currentTerrorZone", {}).get(
-                                    "act", "Unknown"
-                                )
-                                next_zone = data.get("nextTerrorZone", {}).get(
-                                    "zone", "Unknown"
-                                )
-                                next_act = data.get("nextTerrorZone", {}).get(
-                                    "act", "Unknown"
-                                )
-
-                                is_stale = current == self.last_announced
-
-                                channel = self.bot.get_channel(self.channel_id)
-                                if not channel:
-                                    logger.warning("TZUPDATES | Channel not found.")
-                                    return False, current, is_stale
-
-                                embed = discord.Embed(
-                                    color=self.bot.embed_color,
-                                    title="⏰ Hourly Terror Zone Update",
-                                    description=(
-                                        f"**Current TZ:** {current} ({current_act})\n"
-                                        f"**Next TZ:** {next_zone} ({next_act})"
-                                    ),
-                                )
-                                await channel.send(embed=embed)
-                                logger.info(
-                                    f"[TZUPDATES] Sent hourly update: {current} -> {next_zone}"
-                                )
-
-                                if self.matches_keyword(current):
-                                    await channel.send(
-                                        f"🔥 **{current}** is now the active Terror Zone!"
-                                    )
-                                    logger.info(
-                                        f"[TZUPDATES] Alert: {current} is active now."
-                                    )
-
-                                if self.matches_keyword(next_zone):
-                                    logger.info(
-                                        f"[TZUPDATES] {next_zone} is coming next. Starting reminders."
-                                    )
-                                    self.bot.loop.create_task(
-                                        self.world_stone_reminders(next_zone)
-                                    )
-
-                                self.last_announced = current
-                                return True, current, is_stale
-                            else:
-                                logger.warning(
-                                    f"[TZUPDATES] API error: {response.status}"
-                                )
-                                return False, None, False
-                except Exception as e:
-                    logger.error(f"[TZUPDATES] fetch_and_post_tz_update() error: {e}")
-                    return False, None, False
-
-            # Fetch API data
-            success, current_zone, is_stale = await fetch_and_post_tz_update()
-
-            # If the zone hasn't changed from last poll, retry in 90s
-            should_retry = False
-            if self.last_zone_poll == current_zone:
-                logger.warning(
-                    f"[TZUPDATES] Zone still '{current_zone}' from last poll — retrying in 90s..."
-                )
-                should_retry = True
-
-            # Update last poll value
-            self.last_zone_poll = current_zone
-
-            if should_retry:
-                await asyncio.sleep(90)
-                await fetch_and_post_tz_update()
+        self.logger = bot.logger
+        self.redis = bot.redis_manager
 
     @commands.command(
-        name="tzupdates", help="Start hourly TZ update messages in notifier channel."
+        name="botstats", help="Displays general statistics about the bot."
     )
-    @commands.is_owner()
-    async def tzupdates(self, ctx):
-        if self.hourly_task and not self.hourly_task.done():
-            self.hourly_task.cancel()
-            await ctx.send("⏹️ Hourly Terror Zone updates stopped.")
-            logger.info("Hourly Update | Task stopped.")
-        else:
-            self.hourly_task = self.bot.loop.create_task(self.start_hourly_tz_updates())
-            await ctx.send("✅ Hourly Terror Zone updates started.")
-            logger.info("Hourly Update | Task started.")
+    async def botstats(self, ctx):
+        """
+        Show a summary of in-memory and Redis-backed statistics.
 
-    @commands.command()
-    @commands.is_owner()
-    async def testreminder(self, ctx):
-        await self.world_stone_reminders("Test Zone")
-
-    @commands.command(name="currenttz", help="Check the current and next Terror Zone")
-    async def current_tz(self, ctx):
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://d2runewizard.com/api/terror-zone", headers=self.api_headers
-                ) as response:
-                    if response.status != 200:
-                        await ctx.send("⚠️ Failed to fetch terror zone data.")
-                        logger.warning(f"currenttz | API returned {response.status}")
-                        return
-
-                    data = await response.json()
-                    logger.info(f"RAW API DATA: {data}")
-
-                    current = data.get("currentTerrorZone", {}).get("zone", "Unknown")
-                    current_act = data.get("currentTerrorZone", {}).get(
-                        "act", "Unknown"
-                    )
-                    next_zone = data.get("nextTerrorZone", {}).get("zone", "Unknown")
-                    next_act = data.get("nextTerrorZone", {}).get("act", "Unknown")
-
-                    embed = discord.Embed(
-                        color=self.bot.embed_color,
-                        title="🔥 Terror Zone Info",
-                        description=(
-                            f"**Current TZ:** {current} ({current_act})\n"
-                            f"**Next TZ:** {next_zone} ({next_act})"
-                        ),
-                    )
-                    await ctx.send(embed=embed)
-                    logger.info(
-                        f"currenttz | Current: {current} | Next: {next_zone} ({next_act})"
-                    )
-
-        except Exception as e:
-            logger.error(f"currenttz | Error: {e}")
-            await ctx.send("❌ An error occurred while fetching TZ info.")
-
-    @commands.command(aliases=["commands", "cmds"])
-    async def robot_commands(self, ctx):
-        try:
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ All available bot commands!",
-                description="— "
-                "\n➤ Shows info about all available bot commands!"
-                "\n➤ Capitalization does not matter for the bot prefix." + "\n—",
-            )
-            embed.set_thumbnail(url="https://i.imgur.com/BUlgakY.png")
-            information = "!commands"
-
+        Fields include uptime, guild count, user count, cogs loaded,
+        commands used, messages seen, and errors logged.
+        """
+        stats = await self.bot.get_stats()
+        embed = discord.Embed(
+            title="📊 Bot Statistics",
+            color=self.bot.embed_color,
+            timestamp=datetime.utcnow(),
+        )
+        for name, value in stats.items():
             embed.add_field(
-                name="• Information Commands!", inline=False, value=information
+                name=name.replace("_", " ").title(), value=value, inline=True
             )
-            print(ctx.author.guild_permissions)
-            print(ctx.channel.permissions_for(ctx.author))
-            await ctx.send(embed=embed)
+        await ctx.send(embed=embed)
+        self.logger.info(f"Bot statistics sent to {ctx.author} in {ctx.guild}")
 
-            logger.info(f"Information | Sent Commands: {ctx.author}")
-        except Exception as e:
-            print(f"There was an error: {e}")
+    @commands.command(
+        aliases=["commands", "cmds"], help="Shows all available commands."
+    )
+    async def robot_commands(self, ctx):
+        """
+        List every command grouped by its cog.
 
-    @commands.command()
-    async def info(self, ctx):
+        Uses the current prefix to render each command name.
+        """
+        embed = discord.Embed(
+            title="→ All Available Bot Commands!",
+            color=self.bot.colors["info"],
+            description=(
+                "—\n"
+                "➤ Shows info about all available bot commands!\n"
+                "➤ Capitalization does not matter for the bot prefix.\n"
+                "➤ Use `!help <command>` for more details.\n"
+                "—"
+            ),
+        )
+        embed.set_thumbnail(url="https://i.imgur.com/BUlgakY.png")
+        prefix = ctx.prefix
+        for cog_name, _ in self.bot.cogs.items():
+            cmds = [
+                f"`{prefix}{cmd.name}`"
+                for cmd in self.bot.commands
+                if cmd.cog_name == cog_name and not cmd.hidden
+            ]
+            if cmds:
+                embed.add_field(
+                    name=f"• {cog_name} Commands", value=" ".join(cmds), inline=False
+                )
+        await ctx.send(embed=embed)
+        self.logger.info(f"Command list sent to {ctx.author} in {ctx.guild}")
+
+    @commands.command(name="help", help="Shows help for a command or lists all commands.")
+    async def help_command(self, ctx, *, command_name: str = None):
+        """
+        Display help for a specific command or list all commands.
+        
+        Usage: 
+            !help - Shows all commands
+            !help <command> - Shows detailed help for a command
+        """
+        if command_name is None:
+            # Show all commands - delegate to robot_commands
+            await self.robot_commands(ctx)
+            return
+        
+        # Show help for specific command
+        cmd = self.bot.get_command(command_name)
+        if cmd is None:
+            await ctx.send(f"❌ Command `{command_name}` not found.")
+            return
+        
+        embed = discord.Embed(
+            title=f"→ Help: {cmd.name}",
+            color=self.bot.colors["info"],
+            timestamp=datetime.utcnow(),
+        )
+        
+        # Command description
+        if cmd.help:
+            embed.description = cmd.help
+        elif cmd.brief:
+            embed.description = cmd.brief
+        else:
+            embed.description = "No description available."
+        
+        # Usage
+        usage = f"{ctx.prefix}{cmd.name}"
+        if cmd.signature:
+            usage += f" {cmd.signature}"
+        embed.add_field(name="• Usage", value=f"`{usage}`", inline=False)
+        
+        # Aliases
+        if cmd.aliases:
+            aliases = ", ".join(f"`{alias}`" for alias in cmd.aliases)
+            embed.add_field(name="• Aliases", value=aliases, inline=False)
+        
+        # Cog
+        if cmd.cog_name:
+            embed.add_field(name="• Category", value=cmd.cog_name, inline=True)
+        
+        await ctx.send(embed=embed)
+        self.logger.info(f"Help for '{command_name}' shown to {ctx.author}")
+
+    @commands.command(
+        name="redisget",
+        help="Fetch a specific Redis stat by key. Example: !redisget errors",
+    )
+    async def redisget(self, ctx, key: str):
+        """
+        Retrieve a single Redis-backed statistic by its key.
+
+        Returns an embed showing the key and its integer value.
+        """
+        if not self.redis or not self.redis.redis:
+            await ctx.send("❌ Redis is not connected.")
+            return
         try:
-            users = str(len(self.bot.users))
-            guilds = str(len(self.bot.guilds))
-            cpu = str(psutil.cpu_percent())
-            ram = str(psutil.virtual_memory()[3] / 1000000000)
-            ram_round = ram[:3]
-            disk = str(psutil.disk_usage("/")[1] / 1000000000)
-            disk_round = disk[:4]
-            boot_time = str(psutil.boot_time() / 100000000)
-            boot_time_round = boot_time[:4]
-            linux_distro = distro.os_release_info()
-            # get_news = self.bot.cursor.execute("SELECT rowid, * FROM bot_information")
-            # news = get_news.fetchall()[0][3]
+            value = await self.redis.get_command_usage(key)
+            if value is None:
+                await ctx.send(f"❓ Redis key `{key}` does not exist or has no value.")
+            else:
+                embed = discord.Embed(
+                    title="📦 Redis Data Lookup",
+                    description=f"**Key:** `{key}`\n**Value:** `{value}`",
+                    color=self.bot.colors["info"],
+                    timestamp=datetime.utcnow(),
+                )
+                await ctx.send(embed=embed)
+                self.logger.info(
+                    f"Fetched Redis key '{key}' for {ctx.author} in {ctx.guild}"
+                )
+        except Exception as e:
+            await ctx.send("⚠️ Failed to fetch Redis key.")
+            self.logger.exception(f"Error fetching Redis key '{key}': {e}")
+
+    @commands.command(help="System & bot info overview.")
+    async def info(self, ctx):
+        """
+        Show detailed system and bot information.
+
+        Includes OS, CPU/RAM/Disk usage, uptime, member/guild count,
+        and library versions.
+        """
+        try:
+            distro_info = distro.os_release_info().get("pretty_name", "Unknown OS")
+            cpu = psutil.cpu_percent()
+            ram = psutil.virtual_memory().used / (1024**3)
+            disk = psutil.disk_usage("/").used / (1024**3)
+            uptime_td = self.bot.uptime
+            users = len(self.bot.users)
+            guilds = len(self.bot.guilds)
 
             embed = discord.Embed(
+                title="→ DarkBot System Info",
                 color=self.bot.embed_color,
-                title=f"→ DarkBot",
-                description=f"— " f"\n ➤ To view my commands run, `!commands`" + "\n—",
+                timestamp=datetime.utcnow(),
+                description="—\n➤ To view my commands run `!commands`\n—",
             )
             embed.set_thumbnail(url="https://bit.ly/2JGhA94")
+            embed.add_field(name="• Operating System", value=distro_info, inline=True)
+            embed.add_field(name="• CPU Usage", value=f"{cpu:.1f}%", inline=True)
+            embed.add_field(name="• RAM Used", value=f"{ram:.2f} GB", inline=True)
+            embed.add_field(name="• Disk Used", value=f"{disk:.2f} GB", inline=True)
             embed.add_field(
-                name=f"• OPERATING System:",
-                inline=True,
-                value=f":computer: — {linux_distro['pretty_name']}",
+                name="• Bot Uptime", value=str(uptime_td).split(".")[0], inline=True
+            )
+            embed.add_field(name="• Member Count", value=str(users), inline=True)
+            embed.add_field(name="• Guild Count", value=str(guilds), inline=True)
+            embed.add_field(
+                name="• discord.py Version", value=discord.__version__, inline=True
             )
             embed.add_field(
-                name=f"• CPU Usage:",
-                inline=True,
-                value=f":heavy_plus_sign: — {cpu} Percent used",
+                name="• Python Version", value=platform.python_version(), inline=True
             )
-            embed.add_field(
-                name=f"• RAM Usage:",
-                inline=True,
-                value=f":closed_book:  —  {ram_round}  / 4  Gigabytes used",
-            )
-            embed.add_field(
-                name=f"• DISK Usage:",
-                inline=True,
-                value=f":white_circle: — {disk_round} / 40 Gigabytes",
-            )
-            embed.add_field(
-                name=f"• BOOT Time: ",
-                inline=True,
-                value=f":boot: —  {boot_time_round} seconds",
-            )
-            embed.add_field(
-                name=f"• MEMBER Count:",
-                inline=True,
-                value=f":bust_in_silhouette: —  {users} users",
-            )
-            embed.add_field(
-                name=f"• GUILD Count:",
-                inline=True,
-                value=f":house: — {guilds} connected guilds",
-            )
-            embed.add_field(
-                name=f"• LIBRARY Version:",
-                inline=True,
-                value=f":gear: — discord.py version {discord.__version__}",
-            )
-            embed.add_field(
-                name=f"• PYTHON Version:",
-                inline=True,
-                value=f":snake:  — Python version {platform.python_version()}",
-            )
-            embed.set_footer(
-                text=f"\n\nMade by Shiva187"
-            )  # icon_url=f"\n\nhttps://i.imgur.com/TiUqRH8.gif")
+            embed.set_footer(text="Made by Shiva187")
 
             await ctx.send(embed=embed)
-
-            logger.info(f"Information | Sent stats: {ctx.author}")
+            self.logger.info(f"info command run by {ctx.author}")
         except Exception as e:
-            print(f"There was an error: {e}")
+            await ctx.send("⚠️ Failed to gather system info.")
+            self.logger.exception(f"Error in info command: {e}")
 
-    @commands.command()
+    @commands.command(help="Sends the bot invite link.")
     async def invite(self, ctx):
-        url = "(http://bit.ly/2Zm5XyP)"
+        """
+        DM the user with an invite link for the bot.
+        """
+        url = "http://bit.ly/2Zm5XyP"
         embed = discord.Embed(
-            color=self.bot.embed_color,
             title="→ Invite Me To Your Server!",
-            description=f"• [**Click Here**]{url}",
+            description=f"• [**Click Here**]({url})",
+            color=self.bot.embed_color,
         )
-        await ctx.message.add_reaction(self.bot.get_emoji(648198008076238862))
-
+        await ctx.message.add_reaction("🤖")
         await ctx.author.send(embed=embed)
+        self.logger.info(f"invite sent to {ctx.author}")
 
-        logger.info(f"Information | Sent Invite: {ctx.author}")
-
-    @commands.command()
+    @commands.command(help="Check the bot's websocket & API latency.")
     async def ping(self, ctx):
+        """
+        Measure and display the bot's WS and REST latencies.
+        """
         before = time.monotonic()
-        pong = int(round(self.bot.latency * 1000, 1))
-
-        message = await ctx.send("• **Pong** — :ping_pong:")
-
-        ping = (time.monotonic() - before) * 1000
-        await message.delete(delay=1)
-        await asyncio.sleep(1)
-
+        ws_ping = int(self.bot.latency * 1000)
+        msg = await ctx.send("Pinging...")
+        rest_ping = int((time.monotonic() - before) * 1000)
+        await msg.delete()
         embed = discord.Embed(
+            title="→ Ping",
             color=self.bot.embed_color,
-            title="→ Ping Command",
+            timestamp=datetime.utcnow(),
         )
-        embed.add_field(name="• WS:", value=f"{pong}ms")
-        embed.add_field(name="• REST:", value=f"{int(ping)}ms")
+        embed.add_field(name="• WS Latency", value=f"{ws_ping} ms", inline=True)
+        embed.add_field(name="• REST Latency", value=f"{rest_ping} ms", inline=True)
         await ctx.send(embed=embed)
+        self.logger.info(f"Ping responded to {ctx.author}")
 
-        logger.info(f"Information | Sent Ping: {ctx.author}")
-
-    @commands.command()
+    @commands.command(help="Command to check the bot's and system's uptime.")
     async def uptime(self, ctx):
-        """Command to check the bot's and system's uptime."""
-        try:
-            # Bot Uptime
-            current_time = time.time()
-            bot_difference = int(round(current_time - self.bot_start_time))
-            bot_uptime_duration = str(timedelta(seconds=bot_difference))
+        """
+        Display both the bot's uptime and the system's uptime.
+        """
+        now = time.time()
+        bot_secs = int(
+            now - self.bot.start_time.timestamp()
+            if hasattr(self.bot.start_time, "timestamp")
+            else now - self.bot.start_time
+        )
+        bot_up = str(timedelta(seconds=bot_secs))
+        sys_secs = int(now - psutil.boot_time())
+        sys_up = str(timedelta(seconds=sys_secs))
+        embed = discord.Embed(
+            title="→ Uptime",
+            color=self.bot.embed_color,
+            timestamp=datetime.utcnow(),
+        )
+        embed.add_field(name="• Bot Uptime", value=bot_up, inline=False)
+        embed.add_field(name="• System Uptime", value=sys_up, inline=False)
+        await ctx.send(embed=embed)
+        self.logger.info(f"Uptime checked by {ctx.author}")
 
-            # System Uptime
-            boot_time_timestamp = psutil.boot_time()
-            boot_time = datetime.fromtimestamp(boot_time_timestamp)
-            system_uptime_duration = str(
-                timedelta(seconds=int(round(current_time - boot_time_timestamp)))
-            )
-
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Uptime",
-            )
-            embed.add_field(
-                name="Bot Uptime",
-                value=f"→ I have been running for: {bot_uptime_duration}",
-                inline=False,
-            )
-            embed.add_field(
-                name="System Uptime",
-                value=f"→ System has been running for: {system_uptime_duration}",
-                inline=False,
-            )
-
-            await ctx.send(embed=embed)
-
-            logger.info(f"Information | Uptime checked: {ctx.author}")
-        except Exception as e:
-            print(f"There was an error: {e}")
-
-    @commands.command(aliases=["userinfo"])
+    @commands.command(aliases=["userinfo"], help="Show information about a member.")
     async def whois(self, ctx, member: discord.Member):
-        embed = discord.Embed(
-            color=self.bot.embed_color,
-            title=f"→ Userinfo For {member}",
-            description="— "
-            "\n➤ Shows all information about a user. "
-            "\n➤ The information will be listed below!"
-            "\n —",
-        )
-
-        status = {
-            "online": "<:online:648195346186502145>",
-            "idle": "<:idle:648195345800757260>",
-            "offline": "<:offline:648195346127912970>",
-            "dnd": "<:dnd:648195345985175554>",
+        """
+        Display detailed information about a guild member.
+        """
+        status_icons = {
+            "online": "🟢",
+            "idle": "🌙",
+            "dnd": "⛔",
+            "offline": "⚪",
         }
-
-        roles = [role for role in member.roles]
-        roles = " ".join([f"`{role.name}`" for role in roles])
-
-        embed.set_thumbnail(
-            url=member.avatar_url_as(size=1024, format=None, static_format="png")
+        roles = ", ".join(
+            role.name for role in member.roles if role.name != "@everyone"
         )
-        embed.add_field(name="• Account name: ", value=str(member))
-        embed.add_field(name="• Discord ID: ", value=str(member.id))
-        embed.add_field(name="• Nickname: ", value=member.nick or "No nickname!")
-        embed.add_field(
-            name="• Account created at: ",
-            value=member.created_at.strftime("%A %d, %B %Y."),
-        )
-        embed.add_field(
-            name="• Account joined at: ",
-            value=member.joined_at.strftime("%A %d, %B %Y"),
-        )
-
-        # - TODO: See why this is returning "None" even though there is an if statement to check this
-        if member.activity is None:
-            embed.add_field(name="• Activity: ", value="No activity!")
-        else:
-            embed.add_field(name="• Activity: ", value=member.activity.name)
-        if member.bot is True:
-            embed.add_field(
-                name="• Discord bot? ",
-                value="<:bot_tag:648198074094583831> = <:tick_yes:648198008076238862>",
-            )
-        else:
-            embed.add_field(
-                name="• Discord bot?",
-                value="<:bot_tag:648198074094583831> = <:tick_no:648198035435945985>",
-            )
-        if member.is_on_mobile() is True:
-            embed.add_field(name="• On mobile? ", value=":iphone:")
-        else:
-            embed.add_field(name="• On mobile? ", value=":no_mobile_phones:")
-
-        embed.add_field(name="• Status: ", value=status[member.status.name])
-        embed.add_field(name="• Top role: ", value=f"`{member.top_role.name}`")
-        embed.add_field(name="• Roles: ", inline=False, value=roles)
-
-        await ctx.send(embed=embed)
-
-        logger.info(f"Information | Sent Whois: {ctx.author}")
-
-    @whois.error
-    async def whois_error(self, ctx, error):
-        if isinstance(error, commands.BadArgument):
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Invalid Member!",
-                description="• Please mention a valid member! Example: `l!whois @user`",
-            )
-            await ctx.send(embed=embed)
-        elif isinstance(error, commands.MissingRequiredArgument):
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `l!whois @user`",
-            )
-            await ctx.send(embed=embed)
-
-    @commands.command()
-    async def status(self, ctx, online_status):
-        if str(online_status).lower() == "dnd":
-            await self.bot.change_presence(status=discord.Status.dnd)
-        elif str(online_status).lower() == "idle":
-            await self.bot.change_presence(status=discord.Status.idle)
-        elif str(online_status).lower() == "offline":
-            await self.bot.change_presence(status=discord.Status.offline)
-        else:
-            await self.bot.change_presence(status=discord.Status.online)
-
         embed = discord.Embed(
+            title=f"→ User Info: {member}",
             color=self.bot.embed_color,
-            title="→ Online Status Changed!",
-            description=f"• My status has been updated to: `{online_status.lower()}`",
+            timestamp=datetime.utcnow(),
         )
-
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(name="• Username", value=str(member), inline=True)
+        embed.add_field(name="• ID", value=member.id, inline=True)
+        embed.add_field(name="• Nickname", value=member.nick or "None", inline=True)
+        embed.add_field(
+            name="• Created At",
+            value=member.created_at.strftime("%Y-%m-%d"),
+            inline=True,
+        )
+        embed.add_field(
+            name="• Joined At", value=member.joined_at.strftime("%Y-%m-%d"), inline=True
+        )
+        embed.add_field(
+            name="• Status",
+            value=status_icons.get(member.status.name, member.status.name),
+            inline=True,
+        )
+        embed.add_field(name="• Top Role", value=member.top_role.name, inline=True)
+        embed.add_field(name="• Roles", value=roles or "None", inline=False)
         await ctx.send(embed=embed)
-
-        logger.info(
-            f"Owner | Sent Status: {ctx.author} | Online Status: {online_status}"
-        )
-
-    @status.error
-    async def change_status_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `l!status <online status>`",
-            )
-            await ctx.send(embed=embed)
-
-    @commands.is_owner()
-    @commands.command()
-    async def name(self, ctx, name):
-        await self.bot.user.edit(username=name)
-
-        embed = discord.Embed(
-            color=self.bot.embed_color,
-            title="→ Bot Name Changed!",
-            description=f"• My name has been updated to: `{name}`",
-        )
-
-        await ctx.send(embed=embed)
-
-        logger.info(f"Owner | Sent Name: {ctx.author} | Name: {name}")
-
-    @name.error
-    async def name_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `l!name <name>`",
-            )
-            await ctx.send(embed=embed)
-        elif isinstance(error, commands.CommandError):
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Unknown Error Has Occurred ",
-                description=f"```python" f"{error}" f"```",
-            )
-            await ctx.send(embed=embed)
+        self.logger.info(f"whois run for {member} by {ctx.author}")
 
 
 async def setup(bot):
+    """Register the Information cog with the bot."""
     await bot.add_cog(Information(bot))
