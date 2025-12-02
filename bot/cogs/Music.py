@@ -36,11 +36,15 @@ class Music(commands.Cog):
             return
             
         try:
-            # Connect to local Lavalink node (Docker)
+            # Connect to Lavalink node (use 'lavalink' service name in Docker, localhost for local dev)
+            import os
+            lavalink_host = os.getenv('LAVALINK_SERVER', 'http://lavalink:2333')
+            lavalink_pass = os.getenv('LAVALINK_PASS', 'youshallnotpass')
+            
             nodes = [
                 wavelink.Node(
-                    uri="http://localhost:2333",
-                    password="youshallnotpass",
+                    uri=lavalink_host,
+                    password=lavalink_pass,
                     identifier="LOCAL"
                 )
             ]
