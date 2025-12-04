@@ -279,7 +279,7 @@ class Config:
         self.youtube_email = self._get_config("YOUTUBE_EMAIL", "youtube_email")
         self.youtube_password = self._get_config("YOUTUBE_PASS", "youtube_password")
         self.lavalink_password = self._get_config("LAVALINK_PASS", "lavalink_password")
-        self.lavalink_server = self._get_config("LAVALILNK_SERVER", "lavalink_server")
+        self.lavalink_server = self._get_config("LAVALINK_SERVER", "lavalink_server")
         self.spotify_client_id = self._get_config(
             "SPOTIFY_CLIENT_ID", "spotify_client_id"
         )
@@ -292,7 +292,7 @@ class Config:
         )  # Alias
         self.api_coincap = self._get_config("API_COINCAP", "api_coincap")
         self.ip_info = self._get_config("IP_INFO", "ip_info")
-        self.ksoft_api = self._get_config("KSOFT_APT", "ksoft_api")
+        self.ksoft_api = self._get_config("KSOFT_API", "ksoft_api")
 
     def _initialize_database_config(self) -> DatabaseConfig:
         """Initialize database configuration."""
@@ -358,7 +358,7 @@ class Config:
         return LavalinkConfig(
             enabled=self._get_bool_config("LAVALINK_ENABLED", "lavalink.enabled", True),
             host=self._get_config(
-                "LAVALILNK_SERVER", "lavalink.host", LAVALINK_DEFAULT_HOST
+                "LAVALINK_SERVER", "lavalink.host", LAVALINK_DEFAULT_HOST
             ),
             port=self._get_int_config(
                 "LAVALINK_PORT", "lavalink.port", LAVALINK_DEFAULT_PORT

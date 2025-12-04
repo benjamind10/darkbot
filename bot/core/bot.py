@@ -80,6 +80,12 @@ class DarkBot(commands.Bot):
         # Initialize event manager AFTER bot is initialized
         self.event_manager = EventManager(self)
 
+        # Quick environment check - warn about missing API tokens
+        try:
+            self._log_missing_env_tokens()
+        except Exception:
+            # Don't crash on diagnostics
+            self.logger.debug("Environment diagnostics failed", exc_info=True)
         # Validate configuration
         self._validate_config()
 
@@ -137,6 +143,11 @@ class DarkBot(commands.Bot):
         """
         self.logger.info("Setting up DarkBot...")
 
+        # Print a concise diagnostics summary to make token issues visible early
+        try:
+            self._log_missing_env_tokens()
+        except Exception:
+            self.logger.debug("Environment diagnostics failed", exc_info=True)
         # Initialize Redis
         redis_success = await self.redis_manager.initialize()
         if redis_success:
@@ -153,6 +164,32 @@ class DarkBot(commands.Bot):
         await self.setup_database()
 
         self.logger.info("DarkBot setup complete")
+
+    def _log_missing_env_tokens(self) -> None:
+        """Log warnings for any API tokens or important env variables that are missing.
+
+        This gives clearer feedback at startup which keys to check in .env or deployment.
+        """
+        import os
+
+        checks = {
+            "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
+            "LAVALINK_PASS": os.getenv("LAVALINK_PASS"),
+            "LAVALINK_SERVER": os.getenv("LAVALINK_SERVER"),
+            "SPOTIFY_API / CLIENTS": os.getenv("SPOTIFY_API") or (
+                os.getenv("SPOTIFY_CLIENT_ID") and os.getenv("SPOTIFY_CLIENT_SECRET")
+            ),
+            "CHATGPT_SECRET": os.getenv("CHATGPT_SECRET"),
+            "KSOFT_API": os.getenv("KSOFT_API"),
+            "IP_INFO": os.getenv("IP_INFO"),
+            "YOUTUBE_API_KEY": os.getenv("YOUTUBE_API_KEY"),
+        }
+
+        missing = [k for k, v in checks.items() if not v]
+        if missing:
+            self.logger.warning("Missing API tokens / env keys: %s", ", ".join(missing))
+        else:
+            self.logger.info("All expected API env keys appear present")
 
     async def load_cogs(self):
         """Load all cogs from the cogs directory."""

@@ -75,7 +75,7 @@ MUSIC_FFMPEG_OPTIONS = {
 }
 
 # Lavalink configuration
-LAVALINK_DEFAULT_HOST = os.getenv("LAVALILNK_SERVER", "lavalink-app")
+LAVALINK_DEFAULT_HOST = os.getenv("LAVALINK_SERVER", "lavalink-app")
 LAVALINK_DEFAULT_PORT = 2333
 LAVALINK_DEFAULT_PASSWORD = os.getenv("LAVALINK_PASS", "youshallnotpass")
 LAVALINK_DEFAULT_REGION = "us"
@@ -99,14 +99,14 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 YOUTUBE_EMAIL = os.getenv("YOUTUBE_EMAIL")
 YOUTUBE_PASSWORD = os.getenv("YOUTUBE_PASS")
 LAVALINK_PASSWORD = os.getenv("LAVALINK_PASS")
-LAVALINK_SERVER = os.getenv("LAVALILNK_SERVER", "lavalink-app")
+LAVALINK_SERVER = os.getenv("LAVALINK_SERVER", "lavalink-app")
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 CHATGPT_SECRET = os.getenv("CHATGPT_SECRET")
 OPENAI_API_KEY = os.getenv("CHATGPT_SECRET")  # Alias for OpenAI API key
 API_COINCAP = os.getenv("API_COINCAP")
 IP_INFO = os.getenv("IP_INFO")
-KSOFT_API = os.getenv("KSOFT_APT")
+KSOFT_API = os.getenv("KSOFT_API")
 
 # Permission levels
 PERMISSION_LEVELS = {
