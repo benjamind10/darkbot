@@ -18,6 +18,8 @@ COPY ./bot/requirements.txt .
 
 # Install the Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+# Ensure redis asyncio client is installed (explicit, to avoid cached-broken builds)
+RUN pip install --no-cache-dir redis==5.0.1
 RUN pip install aiogoogletrans asyncurban ipinfo strgen forex-python bitlyshortener
 
 # At runtime, this will be the default command, but it's overridden by the docker-compose.yml command

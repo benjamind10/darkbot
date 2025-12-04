@@ -53,7 +53,7 @@ services:
     networks:
       - app-network
     ports:
-      - "5432:5432"
+      - "5431:5432"
     logging:
       options:
         max-size: 10m
@@ -63,7 +63,7 @@ services:
     image: redis:6-alpine
     container_name: redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     environment:
       REDIS_ENABLED: "true"
       REDIS_HOST: "redis"
