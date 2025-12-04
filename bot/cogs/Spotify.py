@@ -181,30 +181,7 @@ class Spotify(commands.Cog):
         if not self.spotify_token:
             await ctx.send("❌ Spotify API token not configured (SPOTIFY_API or SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET).")
             return
-                """Perform client credentials flow to obtain a Spotify access token.
 
-                Returns token string on success, None on failure.
-                """
-                if not REQUESTS_AVAILABLE:
-                    return None
-
-                import base64
-                auth = f"{self.spotify_client_id}:{self.spotify_client_secret}"
-                b64 = base64.b64encode(auth.encode()).decode()
-                headers = {
-                    "Authorization": f"Basic {b64}",
-                    "Content-Type": "application/x-www-form-urlencoded",
-                }
-                data = {"grant_type": "client_credentials"}
-                resp = requests.post("https://accounts.spotify.com/api/token", headers=headers, data=data, timeout=10)
-                if resp.status_code == 200:
-                    j = resp.json()
-                    token = j.get("access_token")
-                    expires = j.get("expires_in")
-                    return token
-
-                self.logger.error(f"Spotify | token request failed: {resp.status_code} {resp.text}")
-                return None
         try:
             url = f"{self.spotify_api_url}/search"
             params = {
