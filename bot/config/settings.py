@@ -22,7 +22,7 @@ LOGS_DIR.mkdir(exist_ok=True)
 # Bot configuration
 DEFAULT_PREFIX = "!"
 DEFAULT_DESCRIPTION = "DarkBot - A powerful Discord bot"
-DEFAULT_ACTIVITY_NAME = "with discord.py"
+DEFAULT_ACTIVITY_NAME = "!help for commands"
 DEFAULT_ACTIVITY_TYPE = "listening"  # playing, watching, listening, streaming
 
 # Redis Config
