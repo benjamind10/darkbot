@@ -207,8 +207,8 @@ class Events(commands.Cog):
                 )
 
             # Event image/cover
-            if event.cover:
-                embed.set_image(url=event.cover.url)
+            if event.cover_image:
+                embed.set_image(url=event.cover_image)
 
             # Event URL
             embed.add_field(
@@ -326,8 +326,8 @@ class Events(commands.Cog):
             if next_event.user_count:
                 embed.add_field(name="👥 Interested", value=f"{next_event.user_count} users", inline=True)
 
-            if next_event.cover:
-                embed.set_thumbnail(url=next_event.cover.url)
+            if next_event.cover_image:
+                embed.set_thumbnail(url=next_event.cover_image)
 
             embed.add_field(
                 name="🔗 Link",
