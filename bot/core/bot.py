@@ -60,6 +60,7 @@ class DarkBot(commands.Bot):
         intents.message_content = True
         intents.members = True
         intents.guilds = True
+        intents.guild_scheduled_events = True  # Required for !events command
 
         # Initialize bot with configuration
         super().__init__(
