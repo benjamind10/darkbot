@@ -101,9 +101,12 @@ class Events(commands.Cog):
                 # Status indicator
                 status_emoji = "🔴 LIVE" if event.status == discord.EventStatus.active else "🟢"
                 
+                # Format start time as human-readable
+                start_time_str = event.start_time.strftime("%B %d, %Y at %I:%M %p %Z")
+                
                 embed.add_field(
                     name=f"{status_emoji} {event.name}",
-                    value=f"🕒 {discord.utils.format_dt(event.start_time, 'F')} ({time_str})\n"
+                    value=f"🕒 {start_time_str} ({time_str})\n"
                           f"{location}"
                           f"{interested_count}\n"
                           f"*Use `!event {event.id}` for details*",
@@ -158,17 +161,29 @@ class Events(commands.Cog):
             )
 
             # Start time
+            start_time_str = event.start_time.strftime("%B %d, %Y at %I:%M %p %Z")
+            time_until = event.start_time - datetime.now(event.start_time.tzinfo)
+            
+            if time_until.days > 0:
+                relative_str = f"in {time_until.days} day{'s' if time_until.days != 1 else ''}"
+            elif time_until.seconds // 3600 > 0:
+                hours = time_until.seconds // 3600
+                relative_str = f"in {hours} hour{'s' if hours != 1 else ''}"
+            else:
+                relative_str = "starting soon"
+            
             embed.add_field(
                 name="🕒 Starts",
-                value=f"{discord.utils.format_dt(event.start_time, 'F')}\n{discord.utils.format_dt(event.start_time, 'R')}",
+                value=f"{start_time_str}\n({relative_str})",
                 inline=False
             )
 
             # End time (if set)
             if event.end_time:
+                end_time_str = event.end_time.strftime("%B %d, %Y at %I:%M %p %Z")
                 embed.add_field(
                     name="🏁 Ends",
-                    value=f"{discord.utils.format_dt(event.end_time, 'F')}\n{discord.utils.format_dt(event.end_time, 'R')}",
+                    value=end_time_str,
                     inline=False
                 )
 
@@ -277,7 +292,8 @@ class Events(commands.Cog):
             if len(users) > 50:
                 embed.set_footer(text=f"Showing first 50 of {len(users)} interested users")
             else:
-                embed.set_footer(text=f"Event starts {discord.utils.format_dt(event.start_time, 'R')}")
+                start_time_str = event.start_time.strftime("%B %d, %Y at %I:%M %p %Z")
+                embed.set_footer(text=f"Event starts: {start_time_str}")
 
             await ctx.send(embed=embed)
             self.logger.info(f"Events | Listed {len(users)} users for event {event.id}")
@@ -312,9 +328,20 @@ class Events(commands.Cog):
                 color=discord.Color.green()
             )
 
+            start_time_str = next_event.start_time.strftime("%B %d, %Y at %I:%M %p %Z")
+            time_until = next_event.start_time - datetime.now(next_event.start_time.tzinfo)
+            
+            if time_until.days > 0:
+                relative_str = f"in {time_until.days} day{'s' if time_until.days != 1 else ''}"
+            elif time_until.seconds // 3600 > 0:
+                hours = time_until.seconds // 3600
+                relative_str = f"in {hours} hour{'s' if hours != 1 else ''}"
+            else:
+                relative_str = "starting soon"
+            
             embed.add_field(
                 name="🕒 When",
-                value=f"{discord.utils.format_dt(next_event.start_time, 'F')}\n{discord.utils.format_dt(next_event.start_time, 'R')}",
+                value=f"{start_time_str}\n({relative_str})",
                 inline=False
             )
 
