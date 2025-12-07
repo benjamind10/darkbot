@@ -49,6 +49,7 @@ class Events(commands.Cog):
     # ==================== Discord Event Commands ====================
 
     @commands.hybrid_command(name="events", aliases=["eventlist", "upcoming"])
+    @commands.guild_only()
     async def list_events(self, ctx):
         """List all upcoming Discord scheduled events in this server."""
         try:
@@ -120,6 +121,7 @@ class Events(commands.Cog):
             await ctx.send("❌ Error retrieving events. Please try again later.")
 
     @commands.hybrid_command(name="event", aliases=["eventinfo"])
+    @commands.guild_only()
     async def event_details(self, ctx, event_id: str):
         """
         Get detailed information about a specific Discord scheduled event.
@@ -139,8 +141,7 @@ class Events(commands.Cog):
             embed = discord.Embed(
                 title=f"📅 {event.name}",
                 description=event.description or "*No description provided*",
-                color=discord.Color.green() if event.status == discord.EventStatus.scheduled else discord.Color.gold(),
-                timestamp=event.created_at
+                color=discord.Color.green() if event.status == discord.EventStatus.scheduled else discord.Color.gold()
             )
 
             # Status
@@ -228,6 +229,7 @@ class Events(commands.Cog):
             await ctx.send("❌ Error retrieving event details.")
 
     @commands.hybrid_command(name="eventusers", aliases=["eventrsvp", "eventattendees"])
+    @commands.guild_only()
     async def event_users(self, ctx, event_id: str):
         """
         List all users interested in a Discord scheduled event.
@@ -287,6 +289,7 @@ class Events(commands.Cog):
             await ctx.send("❌ Error retrieving event users.")
 
     @commands.hybrid_command(name="nextevent")
+    @commands.guild_only()
     async def next_event(self, ctx):
         """Show the next upcoming Discord scheduled event."""
         try:
