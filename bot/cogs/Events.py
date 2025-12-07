@@ -9,6 +9,7 @@ Also handles Discord bot events like guild joins and removals.
 import discord
 from discord.ext import commands
 from datetime import datetime
+import pytz
 
 
 class Events(commands.Cog):
@@ -101,8 +102,10 @@ class Events(commands.Cog):
                 # Status indicator
                 status_emoji = "🔴 LIVE" if event.status == discord.EventStatus.active else "🟢"
                 
-                # Format start time as human-readable
-                start_time_str = event.start_time.strftime("%B %d, %Y at %I:%M %p %Z")
+                # Format start time as human-readable in Eastern Time
+                et_tz = pytz.timezone('America/New_York')
+                start_time_et = event.start_time.astimezone(et_tz)
+                start_time_str = start_time_et.strftime("%B %d, %Y at %I:%M %p %Z")
                 
                 embed.add_field(
                     name=f"{status_emoji} {event.name}",
@@ -161,7 +164,9 @@ class Events(commands.Cog):
             )
 
             # Start time
-            start_time_str = event.start_time.strftime("%B %d, %Y at %I:%M %p %Z")
+            et_tz = pytz.timezone('America/New_York')
+            start_time_et = event.start_time.astimezone(et_tz)
+            start_time_str = start_time_et.strftime("%B %d, %Y at %I:%M %p %Z")
             time_until = event.start_time - datetime.now(event.start_time.tzinfo)
             
             if time_until.days > 0:
@@ -180,7 +185,9 @@ class Events(commands.Cog):
 
             # End time (if set)
             if event.end_time:
-                end_time_str = event.end_time.strftime("%B %d, %Y at %I:%M %p %Z")
+                et_tz = pytz.timezone('America/New_York')
+                end_time_et = event.end_time.astimezone(et_tz)
+                end_time_str = end_time_et.strftime("%B %d, %Y at %I:%M %p %Z")
                 embed.add_field(
                     name="🏁 Ends",
                     value=end_time_str,
@@ -292,7 +299,9 @@ class Events(commands.Cog):
             if len(users) > 50:
                 embed.set_footer(text=f"Showing first 50 of {len(users)} interested users")
             else:
-                start_time_str = event.start_time.strftime("%B %d, %Y at %I:%M %p %Z")
+                et_tz = pytz.timezone('America/New_York')
+                start_time_et = event.start_time.astimezone(et_tz)
+                start_time_str = start_time_et.strftime("%B %d, %Y at %I:%M %p %Z")
                 embed.set_footer(text=f"Event starts: {start_time_str}")
 
             await ctx.send(embed=embed)
@@ -328,7 +337,9 @@ class Events(commands.Cog):
                 color=discord.Color.green()
             )
 
-            start_time_str = next_event.start_time.strftime("%B %d, %Y at %I:%M %p %Z")
+            et_tz = pytz.timezone('America/New_York')
+            start_time_et = next_event.start_time.astimezone(et_tz)
+            start_time_str = start_time_et.strftime("%B %d, %Y at %I:%M %p %Z")
             time_until = next_event.start_time - datetime.now(next_event.start_time.tzinfo)
             
             if time_until.days > 0:
