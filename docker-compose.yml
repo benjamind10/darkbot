@@ -22,12 +22,12 @@ services:
     image: ghcr.io/lavalink-devs/lavalink:latest
     container_name: lavalink
     restart: unless-stopped
+    env_file:
+      - ./bot/.env
     environment:
       - _JAVA_OPTIONS=-Xmx2G
       - SERVER_PORT=2333
       - LAVALINK_SERVER_PASSWORD=youshallnotpass
-      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
-      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
     volumes:
       - ./application.yml:/opt/Lavalink/application.yml:ro
       - ./logs:/opt/Lavalink/logs
@@ -47,6 +47,8 @@ services:
 
   db:
     image: postgres:16
+    env_file:
+      - ./bot/.env
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASS}
