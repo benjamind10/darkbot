@@ -56,7 +56,7 @@ class Database(commands.Cog):
 
     @commands.hybrid_command(
         name="adduser",
-        help="Adds a new user or updates an existing one. Usage: !adduser <name> <discord_user_id> <bgg_user> <is_enabled>",
+        help="Adds a new user or updates an existing one.",
     )
     async def add_user(
         self,

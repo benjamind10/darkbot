@@ -223,7 +223,8 @@ class ModLog(commands.Cog):
                 target = ctx.guild.get_member(case['target_id']) or f"User ID: {case['target_id']}"
 
                 value = f"**Type:** {case['action_type']}\n"
-                value += f"**Moderator:** {moderator.mention if moderator else f'ID: {case['moderator_id']}'}\n"
+                mod_id = case['moderator_id']
+                value += f"**Moderator:** {moderator.mention if moderator else f'ID: {mod_id}'}\n"
                 value += f"**Target:** {target.mention if isinstance(target, discord.Member) else target}\n"
                 value += f"**Reason:** {case['reason'] or 'No reason provided'}\n"
                 value += f"**Date:** {case['created_at'].strftime('%Y-%m-%d %H:%M UTC')}"
