@@ -49,6 +49,18 @@ class Owner(commands.Cog):
         await ctx.send(f"✅ Username changed to `{new_name}`.")
         self.logger.info(f"Username changed to {new_name} by {ctx.author}")
 
+    @commands.hybrid_command(help="Sync slash commands to this server (owner only).")
+    @commands.is_owner()
+    async def sync(self, ctx):
+        """
+        Sync slash commands to the current guild for immediate availability.
+        Usage: !sync
+        """
+        self.bot.tree.copy_global_to(guild=ctx.guild)
+        synced = await self.bot.tree.sync(guild=ctx.guild)
+        await ctx.send(f"✅ Synced {len(synced)} slash command(s) to this server.")
+        self.logger.info(f"Synced {len(synced)} commands to {ctx.guild.name} by {ctx.author}")
+
     @commands.hybrid_command(help="Change the bot's playing message (owner only).")
     @commands.is_owner()
     async def playing(self, ctx, *, message: str):
