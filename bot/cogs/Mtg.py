@@ -50,7 +50,7 @@ class Mtg(commands.Cog):
             self.logger.error(f"MTG | Error fetching card '{card_name}': {e}")
         return None
 
-    @commands.command(name="card", help="Get details about a Magic: The Gathering card.")
+    @commands.hybrid_command(name="card", help="Get details about a Magic: The Gathering card.")
     async def card(self, ctx, *, card_name):
         """
         Fetch and display MTG card details.
@@ -89,7 +89,7 @@ class Mtg(commands.Cog):
         else:
             await ctx.send("❌ Couldn't find the card.")
 
-    @commands.command(name="searchcards", help="Search for MTG cards by type and color.")
+    @commands.hybrid_command(name="searchcards", help="Search for MTG cards by type and color.")
     async def search_cards(self, ctx, card_type: str, card_color: str):
         """
         Search for cards by type and color.

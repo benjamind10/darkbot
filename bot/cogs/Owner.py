@@ -17,7 +17,7 @@ class Owner(commands.Cog):
         self.logger = bot.logger
         self.redis = bot.redis_manager
 
-    @commands.command(help="Change the bot's presence status (owner only).")
+    @commands.hybrid_command(help="Change the bot's presence status (owner only).")
     @commands.is_owner()
     async def status(self, ctx, new_status: str):
         """
@@ -38,7 +38,7 @@ class Owner(commands.Cog):
         else:
             await ctx.send("❌ Invalid status. Choose: online, idle, dnd, offline.")
 
-    @commands.command(help="Change the bot's username (owner only).")
+    @commands.hybrid_command(help="Change the bot's username (owner only).")
     @commands.is_owner()
     async def name(self, ctx, *, new_name: str):
         """
@@ -49,7 +49,7 @@ class Owner(commands.Cog):
         await ctx.send(f"✅ Username changed to `{new_name}`.")
         self.logger.info(f"Username changed to {new_name} by {ctx.author}")
 
-    @commands.command(help="Change the bot's playing message (owner only).")
+    @commands.hybrid_command(help="Change the bot's playing message (owner only).")
     @commands.is_owner()
     async def playing(self, ctx, *, message: str):
         """

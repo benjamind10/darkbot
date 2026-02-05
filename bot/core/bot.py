@@ -164,6 +164,13 @@ class DarkBot(commands.Bot):
         # Initialize database connection
         await self.setup_database()
 
+        # Sync slash commands to Discord
+        try:
+            synced = await self.tree.sync()
+            self.logger.info(f"Synced {len(synced)} slash command(s) to Discord")
+        except Exception as e:
+            self.logger.error(f"Failed to sync slash commands: {e}")
+
         self.logger.info("DarkBot setup complete")
 
     def _log_missing_env_tokens(self) -> None:

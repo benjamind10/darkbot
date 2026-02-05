@@ -4,7 +4,7 @@ server:
 
 lavalink:
   plugins:
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.16.0"
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.17.0"
       snapshot: false
     - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.3.0"
       snapshot: false
@@ -64,6 +64,13 @@ plugins:
     allowSearch: true
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
+    clients:
+      - TVHTML5EMBEDDED
+      - TV
+      - WEB
+      - ANDROID_VR
+    oauth:
+      enabled: true
   lavasrc:
     providers:
       - "ytsearch:\"%ISRC%\""

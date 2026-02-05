@@ -62,7 +62,7 @@ class BoardGames(commands.Cog):
             await ctx.send(embed=embed)
             self.bot.logger.info(f"Sent page {i+1} of {len(pages)} for {title}")
 
-    @commands.command(
+    @commands.hybrid_command(
         name="bgsearch", help="Search BGG for board games. Example: !bgsearch Catan"
     )
     async def search_boardgame(self, ctx, *, search_query: str):
@@ -110,7 +110,7 @@ class BoardGames(commands.Cog):
                     )
                     await ctx.send("Failed to retrieve search results from BGG.")
 
-    @commands.command(
+    @commands.hybrid_command(
         name="bginfo", help="Get BGG board game details by ID. Example: !bginfo 12345"
     )
     async def boardgame_info(self, ctx, game_id: str):
@@ -182,7 +182,7 @@ class BoardGames(commands.Cog):
                         f"BGG info fetch failed for {game_id}, status: {response.status}"
                     )
 
-    @commands.command(
+    @commands.hybrid_command(
         name="bggcollection", help="Fetch a BGG user's collection by username."
     )
     async def bgg_collection(self, ctx, username: str):
@@ -240,7 +240,7 @@ class BoardGames(commands.Cog):
                 )
                 await ctx.send("An error occurred during fetch.")
 
-    @commands.command(
+    @commands.hybrid_command(
         name="manualbggupdate", help="Trigger manual BGG update for all users."
     )
     async def manual_bgg_update(self, ctx):

@@ -32,7 +32,7 @@ class ChatGPT(commands.Cog):
         else:
             self.logger.warning("openai package not installed - ChatGPT commands disabled")
 
-    @commands.command(name="askgpt", help="Ask ChatGPT a question and get a response.")
+    @commands.hybrid_command(name="askgpt", help="Ask ChatGPT a question and get a response.")
     async def askgpt(self, ctx, *, question: str):
         """
         Ask ChatGPT a question and get an AI-generated response.

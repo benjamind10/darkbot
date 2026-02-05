@@ -113,7 +113,7 @@ class Spotify(commands.Cog):
         player.autoplay = wavelink.AutoPlayMode.enabled
         return player
 
-    @commands.command(name="spsearch", help="Search for a track on Spotify.")
+    @commands.hybrid_command(name="spsearch", help="Search for a track on Spotify.")
     async def spsearch(self, ctx, *, query: str):
         """
         Search Spotify for a track and display information.
@@ -176,7 +176,7 @@ class Spotify(commands.Cog):
             await ctx.send("An error occurred while searching Spotify.")
             self.logger.error(f"Spotify | Search error: {e}")
 
-    @commands.command(name="spplay", help="Search Spotify and play a track.")
+    @commands.hybrid_command(name="spplay", help="Search Spotify and play a track.")
     async def spplay(self, ctx, *, query: str):
         """
         Search Spotify for a track and play it via Wavelink/Lavalink.

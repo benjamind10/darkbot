@@ -96,7 +96,7 @@ class Music(commands.Cog):
         if channel:
             await channel.send(embed=embed)
 
-    @commands.command(name="play", aliases=["p"], help="Play a song from YouTube, Spotify, or other sources.")
+    @commands.hybrid_command(name="play", aliases=["p"], help="Play a song from YouTube, Spotify, or other sources.")
     async def play(self, ctx: commands.Context, *, query: str):
         """
         Play a song or add it to the queue.
@@ -165,7 +165,7 @@ class Music(commands.Cog):
             await ctx.send(f"❌ An error occurred: {e}")
             self.logger.error(f"Music | Play error: {e}", exc_info=True)
 
-    @commands.command(name="pause", help="Pause the currently playing track.")
+    @commands.hybrid_command(name="pause", help="Pause the currently playing track.")
     async def pause(self, ctx: commands.Context):
         """Pause the current track."""
         if not WAVELINK_AVAILABLE:
@@ -184,7 +184,7 @@ class Music(commands.Cog):
         else:
             await ctx.send("▶️ Resumed playback.")
 
-    @commands.command(name="skip", aliases=["next"], help="Skip the current track.")
+    @commands.hybrid_command(name="skip", aliases=["next"], help="Skip the current track.")
     async def skip(self, ctx: commands.Context):
         """Skip to the next track in the queue."""
         if not WAVELINK_AVAILABLE:
@@ -199,7 +199,7 @@ class Music(commands.Cog):
         await player.skip(force=True)
         await ctx.send("⏭️ Skipped to next track.")
 
-    @commands.command(name="stop", help="Stop playback and clear the queue.")
+    @commands.hybrid_command(name="stop", help="Stop playback and clear the queue.")
     async def stop(self, ctx: commands.Context):
         """Stop playback and disconnect."""
         if not WAVELINK_AVAILABLE:
@@ -214,7 +214,7 @@ class Music(commands.Cog):
         await player.disconnect()
         await ctx.send("⏹️ Stopped playback and disconnected.")
 
-    @commands.command(name="queue", aliases=["q"], help="Show the current queue.")
+    @commands.hybrid_command(name="queue", aliases=["q"], help="Show the current queue.")
     async def queue(self, ctx: commands.Context):
         """Display the current queue."""
         if not WAVELINK_AVAILABLE:
@@ -262,7 +262,7 @@ class Music(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name="nowplaying", aliases=["np"], help="Show the currently playing track.")
+    @commands.hybrid_command(name="nowplaying", aliases=["np"], help="Show the currently playing track.")
     async def nowplaying(self, ctx: commands.Context):
         """Display information about the current track."""
         if not WAVELINK_AVAILABLE:
@@ -304,7 +304,7 @@ class Music(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name="volume", aliases=["vol"], help="Set the player volume (0-100).")
+    @commands.hybrid_command(name="volume", aliases=["vol"], help="Set the player volume (0-100).")
     async def volume(self, ctx: commands.Context, volume: int):
         """
         Set the player volume.
@@ -327,7 +327,7 @@ class Music(commands.Cog):
         await player.set_volume(volume)
         await ctx.send(f"🔊 Set volume to {volume}%")
 
-    @commands.command(name="disconnect", aliases=["dc", "leave"], help="Disconnect the bot from voice.")
+    @commands.hybrid_command(name="disconnect", aliases=["dc", "leave"], help="Disconnect the bot from voice.")
     async def disconnect(self, ctx: commands.Context):
         """Disconnect from the voice channel."""
         if not WAVELINK_AVAILABLE:
@@ -342,7 +342,7 @@ class Music(commands.Cog):
         await player.disconnect()
         await ctx.send("👋 Disconnected from voice channel.")
 
-    @commands.command(name="clear", help="Clear the queue.")
+    @commands.hybrid_command(name="clear", help="Clear the queue.")
     async def clear(self, ctx: commands.Context):
         """Clear all tracks from the queue."""
         if not WAVELINK_AVAILABLE:
@@ -357,7 +357,7 @@ class Music(commands.Cog):
         player.queue.clear()
         await ctx.send("🗑️ Cleared the queue.")
 
-    @commands.command(name="shuffle", help="Shuffle the queue.")
+    @commands.hybrid_command(name="shuffle", help="Shuffle the queue.")
     async def shuffle(self, ctx: commands.Context):
         """Shuffle the current queue."""
         if not WAVELINK_AVAILABLE:

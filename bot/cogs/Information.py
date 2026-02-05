@@ -31,7 +31,7 @@ class Information(commands.Cog):
         self.logger = bot.logger
         self.redis = bot.redis_manager
 
-    @commands.command(
+    @commands.hybrid_command(
         name="botstats", help="Displays general statistics about the bot."
     )
     async def botstats(self, ctx):
@@ -54,7 +54,7 @@ class Information(commands.Cog):
         await ctx.send(embed=embed)
         self.logger.info(f"Bot statistics sent to {ctx.author} in {ctx.guild}")
 
-    @commands.command(
+    @commands.hybrid_command(
         aliases=["commands", "cmds"], help="Shows all available commands."
     )
     async def robot_commands(self, ctx):
@@ -89,7 +89,7 @@ class Information(commands.Cog):
         await ctx.send(embed=embed)
         self.logger.info(f"Command list sent to {ctx.author} in {ctx.guild}")
 
-    @commands.command(name="help", help="Shows help for a command or lists all commands.")
+    @commands.hybrid_command(name="help", help="Shows help for a command or lists all commands.")
     async def help_command(self, ctx, *, command_name: str = None):
         """
         Display help for a specific command or list all commands.
@@ -141,7 +141,7 @@ class Information(commands.Cog):
         await ctx.send(embed=embed)
         self.logger.info(f"Help for '{command_name}' shown to {ctx.author}")
 
-    @commands.command(
+    @commands.hybrid_command(
         name="redisget",
         help="Fetch a specific Redis stat by key. Example: !redisget errors",
     )
@@ -173,7 +173,7 @@ class Information(commands.Cog):
             await ctx.send("⚠️ Failed to fetch Redis key.")
             self.logger.exception(f"Error fetching Redis key '{key}': {e}")
 
-    @commands.command(help="System & bot info overview.")
+    @commands.hybrid_command(help="System & bot info overview.")
     async def info(self, ctx):
         """
         Show detailed system and bot information.
@@ -220,7 +220,7 @@ class Information(commands.Cog):
             await ctx.send("⚠️ Failed to gather system info.")
             self.logger.exception(f"Error in info command: {e}")
 
-    @commands.command(help="Sends the bot invite link.")
+    @commands.hybrid_command(help="Sends the bot invite link.")
     async def invite(self, ctx):
         """
         DM the user with an invite link for the bot.
@@ -235,7 +235,7 @@ class Information(commands.Cog):
         await ctx.author.send(embed=embed)
         self.logger.info(f"invite sent to {ctx.author}")
 
-    @commands.command(help="Check the bot's websocket & API latency.")
+    @commands.hybrid_command(help="Check the bot's websocket & API latency.")
     async def ping(self, ctx):
         """
         Measure and display the bot's WS and REST latencies.
@@ -255,7 +255,7 @@ class Information(commands.Cog):
         await ctx.send(embed=embed)
         self.logger.info(f"Ping responded to {ctx.author}")
 
-    @commands.command(help="Command to check the bot's and system's uptime.")
+    @commands.hybrid_command(help="Command to check the bot's and system's uptime.")
     async def uptime(self, ctx):
         """
         Display both the bot's uptime and the system's uptime.
@@ -279,7 +279,7 @@ class Information(commands.Cog):
         await ctx.send(embed=embed)
         self.logger.info(f"Uptime checked by {ctx.author}")
 
-    @commands.command(aliases=["userinfo"], help="Show information about a member.")
+    @commands.hybrid_command(aliases=["userinfo"], help="Show information about a member.")
     async def whois(self, ctx, member: discord.Member):
         """
         Display detailed information about a guild member.

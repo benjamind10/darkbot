@@ -70,7 +70,7 @@ class Utility(commands.Cog):
 
     # ========== Cryptocurrency Commands ==========
 
-    @commands.command(aliases=["btc"])
+    @commands.hybrid_command(aliases=["btc"])
     async def bitcoin(self, ctx, currency="USD"):
         """
         Get current Bitcoin price in specified currency.
@@ -101,7 +101,7 @@ class Utility(commands.Cog):
             await ctx.send(embed=embed)
             self.logger.error(f"Utility | Bitcoin error: {e}")
 
-    @commands.command(aliases=["ltc"])
+    @commands.hybrid_command(aliases=["ltc"])
     async def litecoin(self, ctx):
         """
         Get current Litecoin price in USD.
@@ -130,7 +130,7 @@ class Utility(commands.Cog):
 
     # ========== Currency Conversion ==========
 
-    @commands.command(aliases=["convert"])
+    @commands.hybrid_command(aliases=["convert"])
     async def currency(self, ctx, amount, currency1, currency2):
         """
         Convert between different currencies.
@@ -181,7 +181,7 @@ class Utility(commands.Cog):
             )
             await ctx.send(embed=embed)
 
-    @commands.command(aliases=["tobtc"])
+    @commands.hybrid_command(aliases=["tobtc"])
     async def currency_to_bitcoin(self, ctx, amount, currency="USD"):
         """
         Convert currency to Bitcoin.
@@ -286,7 +286,7 @@ class Utility(commands.Cog):
 
     # ========== IP Lookup ==========
 
-    @commands.command(aliases=["ip"])
+    @commands.hybrid_command(aliases=["ip"])
     async def ip_lookup(self, ctx, ip):
         """
         Look up information about an IP address.
@@ -352,7 +352,7 @@ class Utility(commands.Cog):
 
     # ========== Poll Command ==========
 
-    @commands.command()
+    @commands.hybrid_command()
     async def poll(self, ctx, channel: discord.TextChannel, *, question):
         """
         Create a poll in a specific channel.
@@ -394,7 +394,7 @@ class Utility(commands.Cog):
 
     # ========== Color Commands ==========
 
-    @commands.command(aliases=["randomcolor"])
+    @commands.hybrid_command(aliases=["randomcolor"])
     async def random_color(self, ctx):
         """Generate a random color with various color space conversions."""
         r = lambda: random.randint(0, 255)
@@ -419,7 +419,7 @@ class Utility(commands.Cog):
 
     # ========== Reminder Command ==========
 
-    @commands.command()
+    @commands.hybrid_command()
     async def remind(self, ctx, time, time_measurement, *, reminder):
         """
         Set a reminder.
@@ -518,7 +518,7 @@ class Utility(commands.Cog):
 
     # ========== Translation ==========
 
-    @commands.command(aliases=["gt", "trans"])
+    @commands.hybrid_command(aliases=["gt", "trans"])
     async def translate(self, ctx, lang, *, sentence):
         """
         Translate text to another language.
@@ -561,7 +561,7 @@ class Utility(commands.Cog):
 
     # ========== Weather ==========
 
-    @commands.command()
+    @commands.hybrid_command()
     async def weather(self, ctx, *, location: str):
         """
         Get weather information for a location.

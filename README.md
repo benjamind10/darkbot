@@ -1,57 +1,87 @@
 # DarkBot
 
-DarkBot is a versatile Discord bot designed to enhance server interaction and management. Whether you're looking to moderate your server, play music, or fetch useful information, DarkBot has got you covered.
+A feature-rich Discord bot built with [discord.py](https://discordpy.readthedocs.io/) 2.3.2. Supports both slash commands (`/command`) and prefix commands (`!command`).
 
 ## Features
-- Moderation: Keep your server in check with a variety of moderation features.
-- Music Playback: Enrich your server experience with music playback capabilities.
-- Information Retrieval: Fetch useful information directly through Discord.
-- And much more awaiting to be explored!
 
-## Getting Started
+- **Music** - Play from YouTube, Spotify, SoundCloud, and more via Lavalink/Wavelink
+- **Moderation** - Ban, kick, warn, purge, role management with full audit logging
+- **ModLog** - Automatic logging of message deletes/edits, joins/leaves, bans/kicks to a designated channel
+- **Events** - Create server events with RSVP tracking and capacity limits
+- **Board Games** - BoardGameGeek collection and search integration
+- **Magic: The Gathering** - Card lookup via Scryfall
+- **Spotify** - Search and playback controls
+- **ChatGPT** - AI chat integration
+- **Utility** - Cryptocurrency prices, weather, translation, polls, reminders, and more
+- **Info** - Bot stats, ping, uptime, user info
 
-These instructions will help you get a copy of DarkBot up and running on your machine.
+## Quick Start
 
 ### Prerequisites
 
-- Ensure you have [Docker](https://www.docker.com/get-started) installed on your machine.
+- [Docker](https://www.docker.com/get-started) and Docker Compose
 
 ### Setup
 
-1. **Clone the Repository:**
-    ```bash
-    git clone https://github.com/benjamind10/darkbot.git
-    cd darkbot
-    ```
+```bash
+git clone https://github.com/benjamind10/darkbot.git
+cd darkbot
 
-2. **Environment Configuration:**
-   - You'll need to set up two `.env` files: one in the project root directory and another in the `bot` folder.
-   - Examples are provided in each respective folder to guide you through setting up your `.env` files correctly.
+# Configure environment
+cp bot/.env.example bot/.env
+# Edit bot/.env with your Discord token and other credentials
 
-3. **Docker-Compose:**
-   - With Docker installed and the `.env` files set up, you can start the bot using the following command:
-     ```bash
-     docker-compose up -d
-     ```
-4. **Logging Setup:**
-    - DarkBot utilizes logging to help keep track of events and potentially troubleshoot issues. To set up logging:
-    - Create a `logs` folder in the project root directory:
-   ```bash
-     mkdir logs
-     cd logs
-     touch information.log owner.log music.log moderation.log
-    ```
+# Start all services
+docker-compose up -d
 
-Now, DarkBot should be up and running on your machine, ready to be invited to your server!
+# Apply database schemas
+docker-compose exec db psql -U postgres -d darkbot < darkbot.sql
+docker-compose exec db psql -U postgres -d darkbot < events_schema.sql
+docker-compose exec db psql -U postgres -d darkbot < modlog_schema.sql
+
+# Check logs
+docker-compose logs -f python-app
+```
+
+### Local Development
+
+```bash
+python bot/main.py
+```
+
+## Services
+
+| Service | Description |
+|---------|-------------|
+| `python-app` | The bot (Python 3.10) |
+| `lavalink` | Music audio server |
+| `db` | PostgreSQL 16 |
+| `redis` | Redis 6 (caching/cooldowns) |
+
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Configuration](docs/configuration.md) | Environment variables, feature flags, database schemas |
+| [Deployment](docs/deployment.md) | Docker setup, monitoring, backups |
+| [Music](docs/music.md) | Music system, Lavalink setup, YouTube plugin |
+| [ModLog](docs/modlog.md) | Moderation logging, case system, setup |
+| [Events](docs/events.md) | Event creation, RSVP system |
+| [Testing](docs/testing.md) | Running tests, manual testing, troubleshooting |
+
+## Testing
+
+```bash
+pytest              # all tests
+pytest -v           # verbose
+pyright             # type checking
+```
 
 ## Contributing
 
-Feel free to fork the project, open a PR, or submit issues if you have any suggestions or find bugs.
+Fork the project, open a PR, or submit issues for suggestions and bugs.
 
 ## Contact
 
 - Discord: Shiva187#4664
 - Email: benjamind10@pm.me
-
-Explore, enjoy, and contribute to the development of DarkBot!
-

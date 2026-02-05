@@ -217,51 +217,229 @@ class EventManager:
             f"Member joined {member.guild.name}: {member} (ID: {member.id})"
         )
 
+        # Log to modlog if configured
+        try:
+            modlog_cog = self.bot.get_cog('ModLog')
+            if modlog_cog:
+                embed = discord.Embed(
+                    title="📥 Member Joined",
+                    color=discord.Color.green(),
+                    timestamp=datetime.utcnow()
+                )
+                embed.add_field(name="User", value=f"{member.mention} ({member})", inline=True)
+                embed.add_field(name="User ID", value=str(member.id), inline=True)
+                embed.add_field(name="Account Created", value=discord.utils.format_dt(member.created_at, 'R'), inline=True)
+                embed.add_field(name="Member Count", value=str(member.guild.member_count), inline=True)
+                embed.set_thumbnail(url=member.display_avatar.url)
+
+                await modlog_cog.log_to_modlog(member.guild, embed)
+        except Exception as e:
+            self.logger.error(f"Error logging member join to modlog: {e}")
+
         # TODO: Check for auto-role assignment
         # TODO: Send welcome message if configured
-        # TODO: Log to modlog if configured
 
     async def on_member_remove(self, member: discord.Member):
         """Handle member leave events."""
         self.logger.info(f"Member left {member.guild.name}: {member} (ID: {member.id})")
 
+        # Log to modlog if configured
+        try:
+            modlog_cog = self.bot.get_cog('ModLog')
+            if modlog_cog:
+                # Check if this was a kick via audit log
+                was_kicked = False
+                moderator = None
+
+                try:
+                    async for entry in member.guild.audit_logs(limit=5, action=discord.AuditLogAction.kick):
+                        if entry.target.id == member.id and (datetime.utcnow() - entry.created_at).total_seconds() < 5:
+                            was_kicked = True
+                            moderator = entry.user
+                            break
+                except:
+                    pass
+
+                if was_kicked:
+                    embed = discord.Embed(
+                        title="👢 Member Kicked",
+                        color=discord.Color.orange(),
+                        timestamp=datetime.utcnow()
+                    )
+                    if moderator:
+                        embed.add_field(name="Moderator", value=moderator.mention, inline=True)
+                else:
+                    embed = discord.Embed(
+                        title="📤 Member Left",
+                        color=discord.Color.light_gray(),
+                        timestamp=datetime.utcnow()
+                    )
+
+                embed.add_field(name="User", value=f"{member.mention} ({member})", inline=True)
+                embed.add_field(name="User ID", value=str(member.id), inline=True)
+                embed.add_field(name="Member Count", value=str(member.guild.member_count), inline=True)
+                embed.set_thumbnail(url=member.display_avatar.url)
+
+                await modlog_cog.log_to_modlog(member.guild, embed)
+        except Exception as e:
+            self.logger.error(f"Error logging member remove to modlog: {e}")
+
         # TODO: Send goodbye message if configured
-        # TODO: Log to modlog if configured
 
     async def on_message_delete(self, message: discord.Message):
         """Handle message deletion events."""
-        if message.author.bot:
+        if message.author.bot or not message.guild:
             return
 
         self.logger.debug(
             f"Message deleted in {message.guild.name}: {message.content[:50]}..."
         )
 
-        # TODO: Log to modlog if configured
+        # Log to modlog if configured
+        try:
+            modlog_cog = self.bot.get_cog('ModLog')
+            if modlog_cog:
+                embed = discord.Embed(
+                    title="🗑️ Message Deleted",
+                    color=discord.Color.red(),
+                    timestamp=datetime.utcnow()
+                )
+                embed.add_field(name="Author", value=message.author.mention, inline=True)
+                embed.add_field(name="Channel", value=message.channel.mention, inline=True)
+                embed.add_field(name="Message ID", value=str(message.id), inline=True)
+
+                if message.content:
+                    content = message.content if len(message.content) <= 1024 else message.content[:1021] + "..."
+                    embed.add_field(name="Content", value=content, inline=False)
+
+                if message.attachments:
+                    embed.add_field(
+                        name="Attachments",
+                        value="\n".join([a.filename for a in message.attachments]),
+                        inline=False
+                    )
+
+                embed.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
+                await modlog_cog.log_to_modlog(message.guild, embed)
+        except Exception as e:
+            self.logger.error(f"Error logging message delete to modlog: {e}")
+
         # TODO: Store in message cache for snipe commands
 
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
         """Handle message edit events."""
-        if before.author.bot or before.content == after.content:
+        if before.author.bot or before.content == after.content or not before.guild:
             return
 
         self.logger.debug(f"Message edited in {before.guild.name}: {before.author}")
 
-        # TODO: Log to modlog if configured
+        # Log to modlog if configured
+        try:
+            modlog_cog = self.bot.get_cog('ModLog')
+            if modlog_cog:
+                embed = discord.Embed(
+                    title="✏️ Message Edited",
+                    color=discord.Color.gold(),
+                    timestamp=datetime.utcnow()
+                )
+                embed.add_field(name="Author", value=before.author.mention, inline=True)
+                embed.add_field(name="Channel", value=before.channel.mention, inline=True)
+                embed.add_field(name="Message ID", value=str(before.id), inline=True)
+
+                # Truncate content if too long
+                before_content = before.content if len(before.content) <= 1024 else before.content[:1021] + "..."
+                after_content = after.content if len(after.content) <= 1024 else after.content[:1021] + "..."
+
+                if before_content:
+                    embed.add_field(name="Before", value=before_content, inline=False)
+                if after_content:
+                    embed.add_field(name="After", value=after_content, inline=False)
+
+                embed.add_field(name="Jump to Message", value=f"[Click here]({after.jump_url})", inline=False)
+                embed.set_author(name=str(before.author), icon_url=before.author.display_avatar.url)
+                await modlog_cog.log_to_modlog(before.guild, embed)
+        except Exception as e:
+            self.logger.error(f"Error logging message edit to modlog: {e}")
+
         # TODO: Store in message cache for edit snipe commands
 
     async def on_member_ban(self, guild: discord.Guild, user: discord.User):
         """Handle member ban events."""
         self.logger.info(f"Member banned from {guild.name}: {user} (ID: {user.id})")
 
-        # TODO: Log to modlog if configured
+        # Log to modlog if configured
+        try:
+            modlog_cog = self.bot.get_cog('ModLog')
+            if modlog_cog:
+                # Try to get ban reason from audit log
+                reason = "No reason provided"
+                moderator = None
+
+                try:
+                    async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.ban):
+                        if entry.target.id == user.id:
+                            reason = entry.reason or "No reason provided"
+                            moderator = entry.user
+                            break
+                except:
+                    pass
+
+                embed = discord.Embed(
+                    title="🔨 Member Banned",
+                    color=discord.Color.red(),
+                    timestamp=datetime.utcnow()
+                )
+                embed.add_field(name="User", value=f"{user.mention} ({user})", inline=True)
+                embed.add_field(name="User ID", value=str(user.id), inline=True)
+
+                if moderator:
+                    embed.add_field(name="Moderator", value=moderator.mention, inline=True)
+
+                embed.add_field(name="Reason", value=reason, inline=False)
+                embed.set_thumbnail(url=user.display_avatar.url)
+
+                await modlog_cog.log_to_modlog(guild, embed)
+        except Exception as e:
+            self.logger.error(f"Error logging ban to modlog: {e}")
+
         # TODO: Update moderation case database
 
     async def on_member_unban(self, guild: discord.Guild, user: discord.User):
         """Handle member unban events."""
         self.logger.info(f"Member unbanned from {guild.name}: {user} (ID: {user.id})")
 
-        # TODO: Log to modlog if configured
+        # Log to modlog if configured
+        try:
+            modlog_cog = self.bot.get_cog('ModLog')
+            if modlog_cog:
+                # Try to get unban info from audit log
+                moderator = None
+
+                try:
+                    async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.unban):
+                        if entry.target.id == user.id:
+                            moderator = entry.user
+                            break
+                except:
+                    pass
+
+                embed = discord.Embed(
+                    title="✅ Member Unbanned",
+                    color=discord.Color.green(),
+                    timestamp=datetime.utcnow()
+                )
+                embed.add_field(name="User", value=f"{user.mention} ({user})", inline=True)
+                embed.add_field(name="User ID", value=str(user.id), inline=True)
+
+                if moderator:
+                    embed.add_field(name="Moderator", value=moderator.mention, inline=True)
+
+                embed.set_thumbnail(url=user.display_avatar.url)
+
+                await modlog_cog.log_to_modlog(guild, embed)
+        except Exception as e:
+            self.logger.error(f"Error logging unban to modlog: {e}")
+
         # TODO: Update moderation case database
 
     def get_event_stats(self) -> Dict[str, int]:

@@ -20,7 +20,7 @@ class Moderation(commands.Cog):
 
     # ========== Role Management Commands ==========
 
-    @commands.command(aliases=["addrole"])
+    @commands.hybrid_command(aliases=["addrole"])
     @commands.has_permissions(manage_roles=True)
     @commands.bot_has_permissions(manage_roles=True)
     async def add_role(self, ctx, role: discord.Role, member: discord.Member):
@@ -88,7 +88,7 @@ class Moderation(commands.Cog):
             )
             await ctx.send(embed=embed)
 
-    @commands.command(aliases=["removerole", "delrole"])
+    @commands.hybrid_command(aliases=["removerole", "delrole"])
     @commands.has_permissions(manage_roles=True)
     @commands.bot_has_permissions(manage_roles=True)
     async def remove_role(self, ctx, role: discord.Role, member: discord.Member):
@@ -158,7 +158,7 @@ class Moderation(commands.Cog):
 
     # ========== Ban Commands ==========
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.has_permissions(ban_members=True)
     @commands.bot_has_permissions(ban_members=True)
     async def ban(self, ctx, member: discord.Member, *, reason="No reason provided!"):
@@ -242,7 +242,7 @@ class Moderation(commands.Cog):
             )
             await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.has_permissions(ban_members=True)
     @commands.bot_has_permissions(ban_members=True)
     async def forceban(self, ctx, *, id: int):
@@ -293,7 +293,7 @@ class Moderation(commands.Cog):
             )
             await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.has_permissions(ban_members=True)
     @commands.bot_has_permissions(ban_members=True)
     async def unban(self, ctx, *, id: int):
@@ -346,7 +346,7 @@ class Moderation(commands.Cog):
 
     # ========== Kick Commands ==========
 
-    @commands.command(pass_context=True)
+    @commands.hybrid_command()
     @commands.has_permissions(kick_members=True)
     @commands.bot_has_permissions(kick_members=True)
     async def kick(self, ctx, member: discord.Member, *, reason="No reason provided!"):
@@ -434,7 +434,7 @@ class Moderation(commands.Cog):
 
     # ========== Warning Commands ==========
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.has_permissions(manage_messages=True)
     @commands.bot_has_permissions(manage_messages=True)
     async def warn(self, ctx, member: discord.Member, *, reason="No reason provided!"):
@@ -508,7 +508,7 @@ class Moderation(commands.Cog):
 
     # ========== Message Management ==========
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.has_permissions(manage_messages=True)
     @commands.bot_has_permissions(manage_messages=True)
     async def purge(self, ctx, amount: int):
@@ -555,7 +555,7 @@ class Moderation(commands.Cog):
 
     # ========== Voice Channel Management ==========
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.has_permissions(move_members=True)
     async def dc_voice(self, ctx, member: discord.Member):
         """

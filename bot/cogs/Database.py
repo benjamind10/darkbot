@@ -18,7 +18,7 @@ class Database(commands.Cog):
         if cursor:
             cursor.close()
 
-    @commands.command(name="listusers", help="Lists all users from the database.")
+    @commands.hybrid_command(name="listusers", help="Lists all users from the database.")
     async def list_users(self, ctx):
         """
         Retrieves and lists all enabled users in the database.
@@ -54,7 +54,7 @@ class Database(commands.Cog):
         finally:
             await self.close_db(cursor)
 
-    @commands.command(
+    @commands.hybrid_command(
         name="adduser",
         help="Adds a new user or updates an existing one. Usage: !adduser <name> <discord_user_id> <bgg_user> <is_enabled>",
     )
@@ -102,7 +102,7 @@ class Database(commands.Cog):
         finally:
             await self.close_db(cursor)
 
-    @commands.command(
+    @commands.hybrid_command(
         name="disableuser",
         help="Disables a user by their ID. Usage: !disableuser <user_id>",
     )
@@ -132,7 +132,7 @@ class Database(commands.Cog):
         finally:
             await self.close_db(cursor)
 
-    @commands.command(
+    @commands.hybrid_command(
         name="enableuser",
         help="Enables a user by their ID. Usage: !enableuser <user_id>",
     )
@@ -167,7 +167,7 @@ class Database(commands.Cog):
         for i in range(0, len(games), size):
             yield games[i : i + size]
 
-    @commands.command(
+    @commands.hybrid_command(
         name="listboardgames",
         help="Lists all board games starting with a specified letter. Optionally filter by username.",
     )
@@ -244,7 +244,7 @@ class Database(commands.Cog):
         finally:
             await self.close_db(cursor)
 
-    @commands.command(
+    @commands.hybrid_command(
         name="executesql", help="Executes a custom SQL query. Owner only."
     )
     @commands.is_owner()
@@ -310,7 +310,7 @@ class Database(commands.Cog):
             await ctx.send(embed=embed)
             page_number += 1
 
-    @commands.command(aliases=["bgcount"])
+    @commands.hybrid_command(aliases=["bgcount"])
     async def boardgame_count(self, ctx):
         """
         Counts how many unique board games are marked as owned in the database.
