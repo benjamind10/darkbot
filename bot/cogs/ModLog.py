@@ -25,7 +25,18 @@ class ModLog(commands.Cog):
         """Get guild configuration from database."""
         try:
             with self.bot.db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
-                cursor.callproc('get_or_create_guild_config', [guild_id])
+                cursor.execute(
+                    "INSERT INTO guild_config (guild_id) VALUES (%s) "
+                    "ON CONFLICT (guild_id) DO NOTHING",
+                    (guild_id,)
+                )
+                self.bot.db_conn.commit()
+                cursor.execute(
+                    "SELECT guild_id, modlog_channel_id, welcome_channel_id, "
+                    "welcome_message, goodbye_message, auto_role_id, prefix "
+                    "FROM guild_config WHERE guild_id = %s",
+                    (guild_id,)
+                )
                 result = cursor.fetchone()
                 if result:
                     return dict(result)

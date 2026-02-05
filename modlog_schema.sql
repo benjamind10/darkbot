@@ -105,6 +105,7 @@ RETURNS TABLE (
     auto_role_id BIGINT,
     prefix VARCHAR(10)
 ) AS $$
+#variable_conflict use_column
 BEGIN
     -- Insert if not exists
     INSERT INTO guild_config (guild_id)
