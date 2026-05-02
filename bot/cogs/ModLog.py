@@ -9,8 +9,8 @@ Handles logging of moderation actions, message deletes/edits to a designated cha
 from datetime import datetime
 
 import discord
-import psycopg2.extras
 from discord.ext import commands
+from psycopg.rows import dict_row
 
 
 class ModLog(commands.Cog):
@@ -24,23 +24,21 @@ class ModLog(commands.Cog):
     async def get_guild_config(self, guild_id: int) -> dict | None:
         """Get guild configuration from database."""
         try:
-            with self.bot.db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
-                cursor.execute(
-                    "INSERT INTO guild_config (guild_id) VALUES (%s) "
-                    "ON CONFLICT (guild_id) DO NOTHING",
-                    (guild_id,),
-                )
-                self.bot.db_conn.commit()
-                cursor.execute(
-                    "SELECT guild_id, modlog_channel_id, welcome_channel_id, "
-                    "welcome_message, goodbye_message, auto_role_id, prefix "
-                    "FROM guild_config WHERE guild_id = %s",
-                    (guild_id,),
-                )
-                result = cursor.fetchone()
-                if result:
-                    return dict(result)
-                return None
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor(row_factory=dict_row) as cursor:
+                    await cursor.execute(
+                        "INSERT INTO guild_config (guild_id) VALUES (%s) "
+                        "ON CONFLICT (guild_id) DO NOTHING",
+                        (guild_id,),
+                    )
+                    await cursor.execute(
+                        "SELECT guild_id, modlog_channel_id, welcome_channel_id, "
+                        "welcome_message, goodbye_message, auto_role_id, prefix "
+                        "FROM guild_config WHERE guild_id = %s",
+                        (guild_id,),
+                    )
+                    result = await cursor.fetchone()
+                    return dict(result) if result else None
         except Exception as e:
             self.logger.error(f"ModLog | Error fetching guild config: {e}")
             return None
@@ -84,13 +82,13 @@ class ModLog(commands.Cog):
             channel: The channel to use for moderation logs
         """
         try:
-            with self.bot.db_conn.cursor() as cursor:
-                cursor.execute(
-                    "INSERT INTO guild_config (guild_id, modlog_channel_id) VALUES (%s, %s) "
-                    "ON CONFLICT (guild_id) DO UPDATE SET modlog_channel_id = %s",
-                    (ctx.guild.id, channel.id, channel.id),
-                )
-                self.bot.db_conn.commit()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        "INSERT INTO guild_config (guild_id, modlog_channel_id) VALUES (%s, %s) "
+                        "ON CONFLICT (guild_id) DO UPDATE SET modlog_channel_id = %s",
+                        (ctx.guild.id, channel.id, channel.id),
+                    )
 
             embed = discord.Embed(
                 title="✅ Modlog Channel Set",
@@ -108,12 +106,12 @@ class ModLog(commands.Cog):
     async def modlog_disable(self, ctx):
         """Disable moderation logging for this server."""
         try:
-            with self.bot.db_conn.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE guild_config SET modlog_channel_id = NULL WHERE guild_id = %s",
-                    (ctx.guild.id,),
-                )
-                self.bot.db_conn.commit()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        "UPDATE guild_config SET modlog_channel_id = NULL WHERE guild_id = %s",
+                        (ctx.guild.id,),
+                    )
 
             embed = discord.Embed(
                 title="✅ Modlog Disabled",
@@ -185,23 +183,24 @@ class ModLog(commands.Cog):
             member: The member to view cases for (optional)
         """
         try:
-            with self.bot.db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
-                if member:
-                    cursor.execute(
-                        "SELECT * FROM moderation_logs WHERE guild_id = %s AND target_id = %s "
-                        "ORDER BY case_id DESC LIMIT 10",
-                        (ctx.guild.id, member.id),
-                    )
-                    title = f"📋 Recent Cases for {member}"
-                else:
-                    cursor.execute(
-                        "SELECT * FROM moderation_logs WHERE guild_id = %s "
-                        "ORDER BY case_id DESC LIMIT 10",
-                        (ctx.guild.id,),
-                    )
-                    title = "📋 Recent Moderation Cases"
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor(row_factory=dict_row) as cursor:
+                    if member:
+                        await cursor.execute(
+                            "SELECT * FROM moderation_logs WHERE guild_id = %s AND target_id = %s "
+                            "ORDER BY case_id DESC LIMIT 10",
+                            (ctx.guild.id, member.id),
+                        )
+                        title = f"📋 Recent Cases for {member}"
+                    else:
+                        await cursor.execute(
+                            "SELECT * FROM moderation_logs WHERE guild_id = %s "
+                            "ORDER BY case_id DESC LIMIT 10",
+                            (ctx.guild.id,),
+                        )
+                        title = "📋 Recent Moderation Cases"
 
-                cases = cursor.fetchall()
+                    cases = await cursor.fetchall()
 
             if not cases:
                 await ctx.send("No moderation cases found.")

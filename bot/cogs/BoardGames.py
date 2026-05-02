@@ -7,7 +7,6 @@ Handles board game related commands, including integration with BoardGameGeek (B
 
 import xml.etree.ElementTree as ET
 
-import aiohttp
 import discord
 from discord.ext import commands
 from utils import boardgames as bg_utils
@@ -75,7 +74,7 @@ class BoardGames(commands.Cog):
         search_url = f"{self.BASE_URL}search?search={search_query}"
         self.bot.logger.info(f"BGG search query: {search_query}")
 
-        async with aiohttp.ClientSession() as session, session.get(search_url) as response:
+        async with self.bot.http_session.get(search_url) as response:
             if response.status == 200:
                 xml_data = await response.text()
                 root = ET.fromstring(xml_data)
@@ -120,7 +119,7 @@ class BoardGames(commands.Cog):
         self.bot.logger.info(f"Fetching BGG info for ID: {game_id}")
         info_url = f"{self.BASE_URL}boardgame/{game_id}?stats=1"
 
-        async with aiohttp.ClientSession() as session, session.get(info_url) as response:
+        async with self.bot.http_session.get(info_url) as response:
             if response.status == 200:
                 xml_data = await response.text()
                 root = ET.fromstring(xml_data)
@@ -181,9 +180,8 @@ class BoardGames(commands.Cog):
         collection_url = f"{self.BASE_URL}collection/{username}?own=1&stats=1"
         self.bot.logger.info(f"Fetching BGG collection for: {username}")
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                response = await session.get(collection_url)
+        try:
+            async with self.bot.http_session.get(collection_url) as response:
                 if response.status == 200:
                     xml_data = await response.text()
                     root = ET.fromstring(xml_data)
@@ -217,9 +215,9 @@ class BoardGames(commands.Cog):
                     self.bot.logger.error(
                         f"Failed fetch for BGG {username}, status: {response.status}"
                     )
-            except Exception as e:
-                self.bot.logger.exception(f"Error fetching BGG collection for {username}: {e}")
-                await ctx.send("An error occurred during fetch.")
+        except Exception as e:
+            self.bot.logger.exception(f"Error fetching BGG collection for {username}: {e}")
+            await ctx.send("An error occurred during fetch.")
 
     @commands.hybrid_command(
         name="manualbggupdate", help="Trigger manual BGG update for all users."
@@ -231,7 +229,8 @@ class BoardGames(commands.Cog):
         await ctx.send("Starting manual update of BGG collections. Please wait...")
         try:
             await bg_utils.process_bgg_users(
-                self.bot.db_conn,
+                self.bot.db_pool,
+                self.bot.http_session,
                 self.bot.logger,
                 cookie_value=self.bot.config.services.bgg_cookie,
             )

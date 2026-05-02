@@ -373,7 +373,7 @@ class Config:
         elif not db_url:
             db_url = f"postgresql://{DATABASE_USER}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-        # Create params dict for psycopg2
+        # Create params dict for legacy callers; pool uses url
         params = {
             "dbname": name,
             "user": user,

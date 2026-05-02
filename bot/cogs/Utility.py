@@ -15,13 +15,6 @@ from discord.ext import commands
 
 # Optional imports with graceful fallback
 try:
-    import aiohttp
-
-    AIOHTTP_AVAILABLE = True
-except ImportError:
-    AIOHTTP_AVAILABLE = False
-
-try:
     import asyncurban
 
     ASYNCURBAN_AVAILABLE = True
@@ -88,7 +81,8 @@ class Utility(commands.Cog):
 
         try:
             b = BtcConverter()
-            amount = round(b.get_latest_price(currency), 2)
+            price = await asyncio.to_thread(b.get_latest_price, currency)
+            amount = round(price, 2)
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ BTC to Currency",
@@ -112,22 +106,17 @@ class Utility(commands.Cog):
 
         Usage: !litecoin
         """
-        if not AIOHTTP_AVAILABLE:
-            await ctx.send("❌ aiohttp library not installed.")
-            return
-
         try:
-            async with aiohttp.ClientSession() as cs:
-                async with cs.get("https://api.coincap.io/v2/rates/litecoin") as r:
-                    res = await r.json()
-                    litecoin_price = res["data"]["rateUsd"]
-                    embed = discord.Embed(
-                        color=self.bot.embed_color,
-                        title="→ Current Litecoin Price",
-                        description=f"• One Litecoin is: `{litecoin_price[:-14]}` USD",
-                    )
-                    await ctx.send(embed=embed)
-                    self.logger.info(f"Utility | Sent Litecoin: {ctx.author}")
+            async with self.bot.http_session.get("https://api.coincap.io/v2/rates/litecoin") as r:
+                res = await r.json()
+                litecoin_price = res["data"]["rateUsd"]
+                embed = discord.Embed(
+                    color=self.bot.embed_color,
+                    title="→ Current Litecoin Price",
+                    description=f"• One Litecoin is: `{litecoin_price[:-14]}` USD",
+                )
+                await ctx.send(embed=embed)
+                self.logger.info(f"Utility | Sent Litecoin: {ctx.author}")
         except Exception as e:
             await ctx.send("❌ Failed to fetch Litecoin price.")
             self.logger.error(f"Utility | Litecoin error: {e}")
@@ -149,7 +138,9 @@ class Utility(commands.Cog):
         try:
             c = CurrencyRates()
             amount_float = float(amount)
-            converted = float(c.convert(currency1, currency2, amount_float))
+            converted = float(
+                await asyncio.to_thread(c.convert, currency1, currency2, amount_float)
+            )
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -200,7 +191,8 @@ class Utility(commands.Cog):
         try:
             b = BtcConverter()
             amount_int = int(amount)
-            btc = round(b.convert_to_btc(amount_int, currency), 4)
+            btc_value = await asyncio.to_thread(b.convert_to_btc, amount_int, currency)
+            btc = round(btc_value, 4)
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -308,7 +300,7 @@ class Utility(commands.Cog):
 
         try:
             handler = ipinfo.getHandler(self.ip_info_token)
-            details = handler.getDetails(ip)
+            details = await asyncio.to_thread(handler.getDetails, ip)
             info = details.all
 
             embed = discord.Embed(color=self.bot.embed_color, title="→ IP Address Lookup")
@@ -581,46 +573,39 @@ class Utility(commands.Cog):
         Usage: !weather <city or zip code>
         Example: !weather New York
         """
-        if not AIOHTTP_AVAILABLE:
-            await ctx.send("❌ aiohttp library not installed.")
-            return
-
         if not self.openweather_api_key:
             await ctx.send("❌ OpenWeather API key not configured (KSOFT_API).")
             return
 
         try:
-            async with aiohttp.ClientSession() as cs:
-                async with cs.get(
-                    "https://api.openweathermap.org/data/2.5/weather",
-                    params={"q": location, "appid": self.openweather_api_key, "units": "imperial"},
-                ) as r:
-                    res = await r.json()
-                    if r.status != 200:
-                        raise Exception(
-                            f"Failed to retrieve weather data: {res.get('message', 'Unknown error')}"
-                        )
-
-                    # Extract data
-                    temp_f = res["main"]["temp"]
-                    temp_c = (temp_f - 32) * 5 / 9
-                    humidity = res["main"]["humidity"]
-                    wind_speed = res["wind"]["speed"]
-                    cloud_coverage = res["clouds"]["all"]
-
-                    # Create embed
-                    embed = discord.Embed(color=self.bot.embed_color, title="→ Weather Command")
-                    embed.set_thumbnail(
-                        url=f"http://openweathermap.org/img/w/{res['weather'][0]['icon']}.png"
+            async with self.bot.http_session.get(
+                "https://api.openweathermap.org/data/2.5/weather",
+                params={"q": location, "appid": self.openweather_api_key, "units": "imperial"},
+            ) as r:
+                res = await r.json()
+                if r.status != 200:
+                    raise Exception(
+                        f"Failed to retrieve weather data: {res.get('message', 'Unknown error')}"
                     )
-                    embed.add_field(name="• Temperature:", value=f"{temp_f}℉ — ({temp_c:.2f}℃)")
-                    embed.add_field(name="• Humidity:", value=f"{humidity}%")
-                    embed.add_field(name="• Wind:", value=f"{wind_speed} MPH")
-                    embed.add_field(name="• Cloud coverage:", value=f"{cloud_coverage}%")
-                    embed.add_field(name="• Location:", value=res["name"])
 
-                    await ctx.send(embed=embed)
-                    self.logger.info(f"Utility | Sent Weather: {ctx.author}")
+                temp_f = res["main"]["temp"]
+                temp_c = (temp_f - 32) * 5 / 9
+                humidity = res["main"]["humidity"]
+                wind_speed = res["wind"]["speed"]
+                cloud_coverage = res["clouds"]["all"]
+
+                embed = discord.Embed(color=self.bot.embed_color, title="→ Weather Command")
+                embed.set_thumbnail(
+                    url=f"http://openweathermap.org/img/w/{res['weather'][0]['icon']}.png"
+                )
+                embed.add_field(name="• Temperature:", value=f"{temp_f}℉ — ({temp_c:.2f}℃)")
+                embed.add_field(name="• Humidity:", value=f"{humidity}%")
+                embed.add_field(name="• Wind:", value=f"{wind_speed} MPH")
+                embed.add_field(name="• Cloud coverage:", value=f"{cloud_coverage}%")
+                embed.add_field(name="• Location:", value=res["name"])
+
+                await ctx.send(embed=embed)
+                self.logger.info(f"Utility | Sent Weather: {ctx.author}")
         except Exception as e:
             embed = discord.Embed(
                 color=self.bot.embed_color,

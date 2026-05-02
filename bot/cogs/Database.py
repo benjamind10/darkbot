@@ -13,22 +13,17 @@ class Database(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def close_db(self, cursor):
-        """Utility function to close database cursor."""
-        if cursor:
-            cursor.close()
-
     @commands.hybrid_command(name="listusers", help="Lists all users from the database.")
     async def list_users(self, ctx):
         """
         Retrieves and lists all enabled users in the database.
         Displays user ID, name, Discord ID, BGG username, and enabled status.
         """
-        cursor = None
         try:
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute("SELECT * FROM get_enabled_users();")
-            users = cursor.fetchall()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT * FROM get_enabled_users();")
+                    users = await cursor.fetchall()
 
             if not users:
                 await ctx.send("No users found.")
@@ -51,8 +46,6 @@ class Database(commands.Cog):
         except Exception as e:
             await ctx.send("Failed to fetch users.")
             self.bot.logger.error(f"Failed to fetch users: {e}")
-        finally:
-            await self.close_db(cursor)
 
     @commands.hybrid_command(
         name="adduser",
@@ -75,16 +68,15 @@ class Database(commands.Cog):
             bgg_user (str): BGG username.
             is_enabled (bool): Whether the user is active.
         """
-        cursor = None
         try:
             discord_user_int = int(discord_user)
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute(
-                "SELECT upsert_user(%s, %s, %s, %s)",
-                (name, discord_user_int, bgg_user, is_enabled),
-            )
-            result = cursor.fetchone()
-            self.bot.db_conn.commit()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        "SELECT upsert_user(%s, %s, %s, %s)",
+                        (name, discord_user_int, bgg_user, is_enabled),
+                    )
+                    result = await cursor.fetchone()
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -99,8 +91,6 @@ class Database(commands.Cog):
         except Exception as e:
             await ctx.send(f"An error occurred: {e}")
             self.bot.logger.error(f"An error occurred during user upsert: {e}")
-        finally:
-            await self.close_db(cursor)
 
     @commands.hybrid_command(
         name="disableuser",
@@ -113,11 +103,10 @@ class Database(commands.Cog):
         Args:
             user_id (int): The internal DB user ID.
         """
-        cursor = None
         try:
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute("SELECT disable_user(%s)", (user_id,))
-            self.bot.db_conn.commit()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT disable_user(%s)", (user_id,))
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -129,8 +118,6 @@ class Database(commands.Cog):
         except Exception as e:
             await ctx.send(f"Failed to disable user: {e}")
             self.bot.logger.error(f"Failed to disable user: {e}")
-        finally:
-            await self.close_db(cursor)
 
     @commands.hybrid_command(
         name="enableuser",
@@ -143,12 +130,11 @@ class Database(commands.Cog):
         Args:
             user_id (int): The internal DB user ID.
         """
-        cursor = None
         try:
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute("SELECT enable_user(%s)", (user_id,))
-            cursor.fetchone()
-            self.bot.db_conn.commit()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT enable_user(%s)", (user_id,))
+                    await cursor.fetchone()
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -159,8 +145,6 @@ class Database(commands.Cog):
         except Exception as e:
             await ctx.send(f"Failed to enable user: {e}")
             self.bot.logger.error(f"Failed to enable user: {e}")
-        finally:
-            await self.close_db(cursor)
 
     def chunk_games(self, games, size=25):
         """Yield successive chunks from games."""
@@ -184,25 +168,27 @@ class Database(commands.Cog):
             self.bot.logger.warning(f"Invalid input for list_board_games command: '{letter}'")
             return
 
-        cursor = None
         try:
-            cursor = self.bot.db_conn.cursor()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    if username:
+                        self.bot.logger.debug(
+                            f"Executing database query for games starting with '{letter}' owned by '{username}'."
+                        )
+                        await cursor.execute(
+                            "SELECT * FROM get_boardgames_starting_with_and_owned_by(%s, %s)",
+                            (letter, username),
+                        )
+                    else:
+                        self.bot.logger.debug(
+                            f"Executing database query for games starting with '{letter}'."
+                        )
+                        await cursor.execute(
+                            "SELECT * FROM get_boardgames_starting_with(%s)", (letter,)
+                        )
 
-            if username:
-                self.bot.logger.debug(
-                    f"Executing database query for games starting with '{letter}' owned by '{username}'."
-                )
-                cursor.execute(
-                    "SELECT * FROM get_boardgames_starting_with_and_owned_by(%s, %s)",
-                    (letter, username),
-                )
-            else:
-                self.bot.logger.debug(
-                    f"Executing database query for games starting with '{letter}'."
-                )
-                cursor.execute("SELECT * FROM get_boardgames_starting_with(%s)", (letter,))
+                    games = await cursor.fetchall()
 
-            games = cursor.fetchall()
             total_games = len(games)
             self.bot.logger.info(f"Number of games fetched: {total_games}")
 
@@ -237,8 +223,6 @@ class Database(commands.Cog):
             self.bot.logger.error(
                 f"Exception occurred while fetching games starting with '{letter}': {e}"
             )
-        finally:
-            await self.close_db(cursor)
 
     @commands.hybrid_command(name="executesql", help="Executes a custom SQL query. Owner only.")
     @commands.is_owner()
@@ -255,27 +239,24 @@ class Database(commands.Cog):
             await ctx.send("This command does not support destructive operations.")
             return
 
-        cursor = None
         try:
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute(query)
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(query)
 
-            if cursor.description:
-                results = cursor.fetchall()
-                message = "\n".join([str(result) for result in results])
-                if len(message) > 1900:
-                    message = message[:1900] + "..."
-                await ctx.send(f"Query executed successfully:\n{message}")
-            else:
-                self.bot.db_conn.commit()
-                await ctx.send("Query executed successfully with no return.")
+                    if cursor.description:
+                        results = await cursor.fetchall()
+                        message = "\n".join([str(result) for result in results])
+                        if len(message) > 1900:
+                            message = message[:1900] + "..."
+                        await ctx.send(f"Query executed successfully:\n{message}")
+                    else:
+                        await ctx.send("Query executed successfully with no return.")
 
             self.bot.logger.info(f"SQL executed by owner: {query}")
         except Exception as e:
             await ctx.send(f"Failed to execute query: {e}")
             self.bot.logger.error(f"Exception occurred during SQL execution: {e}")
-        finally:
-            await self.close_db(cursor)
 
     async def send_paginated_embeds(self, ctx, games):
         """
@@ -309,16 +290,13 @@ class Database(commands.Cog):
         """
         Counts how many unique board games are marked as owned in the database.
         """
-        cursor = None
         try:
-            if not self.bot.db_conn:
-                await ctx.send("Database connection not established.")
-                self.bot.logger.warning("No DB connection during bgcount.")
-                return
-
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute("SELECT COUNT(DISTINCT Name) FROM BoardGames WHERE own = true;")
-            record = cursor.fetchone()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        "SELECT COUNT(DISTINCT Name) FROM BoardGames WHERE own = true;"
+                    )
+                    record = await cursor.fetchone()
 
             if record:
                 await ctx.send(
@@ -331,9 +309,6 @@ class Database(commands.Cog):
         except Exception as e:
             await ctx.send(f"Error checking the database: {e}")
             self.bot.logger.error(f"DB error in boardgame_count: {e}")
-        finally:
-            if cursor:
-                cursor.close()
 
 
 async def setup(bot):

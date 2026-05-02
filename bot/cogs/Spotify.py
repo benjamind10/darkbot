@@ -10,15 +10,9 @@ for resolving Spotify URLs to playable audio via Wavelink.
 import time
 from typing import cast
 
+import aiohttp
 import discord
 from discord.ext import commands
-
-try:
-    import aiohttp
-
-    AIOHTTP_AVAILABLE = True
-except ImportError:
-    AIOHTTP_AVAILABLE = False
 
 try:
     import wavelink
@@ -60,28 +54,23 @@ class Spotify(commands.Cog):
         auth = aiohttp.BasicAuth(self.spotify_client_id, self.spotify_client_secret)
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url, data=data, auth=auth, timeout=aiohttp.ClientTimeout(total=10)
-                ) as resp:
-                    if resp.status != 200:
-                        self.logger.error(f"Spotify | Token request failed: {resp.status}")
-                        return None
-                    body = await resp.json()
-                    self._spotify_token = body["access_token"]
-                    self._spotify_token_expires = time.time() + body.get("expires_in", 3600)
-                    self.logger.info("Spotify | Obtained access token via client credentials")
-                    return self._spotify_token
+            async with self.bot.http_session.post(
+                url, data=data, auth=auth, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                if resp.status != 200:
+                    self.logger.error(f"Spotify | Token request failed: {resp.status}")
+                    return None
+                body = await resp.json()
+                self._spotify_token = body["access_token"]
+                self._spotify_token_expires = time.time() + body.get("expires_in", 3600)
+                self.logger.info("Spotify | Obtained access token via client credentials")
+                return self._spotify_token
         except Exception as e:
             self.logger.error(f"Spotify | Failed to fetch token: {e}")
             return None
 
     async def _get_token(self, ctx):
         """Get a valid Spotify token, sending an error message if unavailable."""
-        if not AIOHTTP_AVAILABLE:
-            await ctx.send("Missing `aiohttp` library.")
-            return None
-
         token = await self._fetch_spotify_token()
         if not token:
             await ctx.send(
@@ -137,15 +126,14 @@ class Spotify(commands.Cog):
             params = {"q": query, "type": "track", "limit": 1}
             headers = {"Authorization": f"Bearer {token}"}
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)
-                ) as resp:
-                    if resp.status != 200:
-                        await ctx.send("Failed to reach Spotify API. Please try again later.")
-                        self.logger.error(f"Spotify | API error: {resp.status}")
-                        return
-                    data = await resp.json()
+            async with self.bot.http_session.get(
+                url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                if resp.status != 200:
+                    await ctx.send("Failed to reach Spotify API. Please try again later.")
+                    self.logger.error(f"Spotify | API error: {resp.status}")
+                    return
+                data = await resp.json()
 
             tracks = data.get("tracks", {}).get("items", [])
             if not tracks:
@@ -207,14 +195,13 @@ class Spotify(commands.Cog):
             params = {"q": query, "type": "track", "limit": 1}
             headers = {"Authorization": f"Bearer {token}"}
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)
-                ) as resp:
-                    if resp.status != 200:
-                        await ctx.send("Failed to reach Spotify API. Please try again later.")
-                        return
-                    data = await resp.json()
+            async with self.bot.http_session.get(
+                url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                if resp.status != 200:
+                    await ctx.send("Failed to reach Spotify API. Please try again later.")
+                    return
+                data = await resp.json()
 
             tracks = data.get("tracks", {}).get("items", [])
             if not tracks:

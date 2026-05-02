@@ -32,8 +32,8 @@ from pathlib import Path
 # run from repo root or from within the bot/ directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# use package imports
-import psycopg2
+import aiohttp
+import psycopg
 from config.config import Config
 from utils.boardgames import fetch_bgg_collection
 
@@ -41,11 +41,16 @@ LOG = logging.getLogger("backfill_bgg_private")
 
 
 def _get_db_conn(config: Config):
-    return psycopg2.connect(**config.database.params)
+    return psycopg.connect(config.database.url)
 
 
 async def _check_user_and_mark(
-    db_conn, user_id, bgguser, cookie_value: str | None = None, dry_run: bool = True
+    db_conn,
+    session: aiohttp.ClientSession,
+    user_id,
+    bgguser,
+    cookie_value: str | None = None,
+    dry_run: bool = True,
 ):
     """Check single user; if 401/403 mark bggprivate
 
@@ -54,7 +59,7 @@ async def _check_user_and_mark(
     status = None
     try:
         body, status = await fetch_bgg_collection(
-            bgguser, LOG, cookie_value=cookie_value, max_attempts=1
+            bgguser, LOG, session, cookie_value=cookie_value, max_attempts=1
         )
     except Exception as e:
         LOG.exception("Unhandled error fetching for %s: %s", bgguser, e)
@@ -69,11 +74,8 @@ async def _check_user_and_mark(
 
         cur = db_conn.cursor()
         try:
-            # defensive rollback to clear any aborted transactions
-            try:
+            with suppress(Exception):
                 db_conn.rollback()
-            except Exception:
-                LOG.debug("rollback failed (ignored)")
 
             cur.execute(
                 "UPDATE users SET bggprivate = TRUE, datemodified = CURRENT_TIMESTAMP WHERE id = %s RETURNING datemodified;",
@@ -95,7 +97,6 @@ async def _check_user_and_mark(
         finally:
             cur.close()
 
-    # Not a 401/403 — nothing to do
     return (user_id, bgguser, status, False)
 
 
@@ -107,7 +108,6 @@ async def main(dry_run: bool):
     cur = db_conn.cursor()
 
     try:
-        # Fetch users who have a bgguser and are not marked private
         cur.execute(
             "SELECT id, bgguser FROM users WHERE bgguser IS NOT NULL AND coalesce(bggprivate, FALSE) = FALSE;"
         )
@@ -115,19 +115,19 @@ async def main(dry_run: bool):
 
         LOG.info("Found %d candidates", len(users))
 
-        tasks = []
-        for uid, bgguser in users:
-            tasks.append(
+        async with aiohttp.ClientSession() as session:
+            tasks = [
                 _check_user_and_mark(
                     db_conn,
+                    session,
                     uid,
                     bgguser,
                     cookie_value=config.services.bgg_cookie,
                     dry_run=dry_run,
                 )
-            )
-
-        results = await asyncio.gather(*tasks)
+                for uid, bgguser in users
+            ]
+            results = await asyncio.gather(*tasks)
 
         marked = [r for r in results if r[3]]
         LOG.info("Backfill complete — total candidates=%d marked=%d", len(users), len(marked))
