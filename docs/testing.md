@@ -6,9 +6,38 @@
 pytest                              # all tests
 pytest tests/test_boardgames.py     # single file
 pytest -v                           # verbose output
+pytest --collect-only               # inspect test and fixture discovery
 ```
 
-Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files live in `tests/`.
+Tests use pytest with pytest-asyncio and `asyncio_mode = "auto"` from `pyproject.toml`.
+HTTP mocking uses aioresponses. Test files live in `tests/`.
+
+## Test Fixtures
+
+Reusable fixtures live in `tests/conftest.py`:
+
+- `bot` provides a lightweight bot stub with `config`, `db_pool`, `http_session`, `redis`,
+  `redis_manager`, `logger`, and `embed_color`.
+- `mock_db_pool` provides async context-manager shaped `connection()` and `cursor()` mocks.
+- `mock_redis` provides async `get`, `set`, `ping`, and `close` mocks.
+- `mock_http_session` provides an aiohttp session plus an aioresponses registry.
+- `caplog` is pytest's standard logging capture fixture.
+
+Example HTTP test pattern:
+
+```python
+@pytest.mark.asyncio
+async def test_fetch_card_returns_first_card(bot, mock_http_session):
+    mock_http_session.mocked.get(
+        "https://api.magicthegathering.io/v1/cards?name=Lightning+Bolt",
+        payload={"cards": [{"name": "Lightning Bolt"}]},
+    )
+
+    card = await Mtg(bot).fetch_card("Lightning Bolt")
+
+    assert card is not None
+    assert card["name"] == "Lightning Bolt"
+```
 
 ## Type Checking
 
@@ -16,7 +45,7 @@ Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files
 pyright
 ```
 
-Configured via `pyrightconfig.json`.
+Configured via `pyproject.toml`.
 
 ## Manual Testing
 

@@ -30,6 +30,7 @@ pyright                             # type checking (configured in pyproject.tom
 ```
 
 Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files live in `tests/`.
+Reusable bot, DB pool, Redis, and aiohttp/aioresponses fixtures live in `tests/conftest.py`.
 
 ## Architecture
 
