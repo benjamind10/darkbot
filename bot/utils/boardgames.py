@@ -1,7 +1,8 @@
 import asyncio
-import aiohttp
 import os
 import xml.etree.ElementTree as ET
+
+import aiohttp
 
 BASE_URL = "https://api.geekdo.com/xmlapi/"
 
@@ -48,14 +49,6 @@ async def fetch_bgg_collection(username, logger, max_attempts: int = 3, backoff:
                 async with session.get(url, headers=headers) as response:
                     status = response.status
 
-                    # Helpful minimal context for logs
-                    context = {
-                        "username": username,
-                        "url": url,
-                        "status": status,
-                        "attempt": attempt,
-                    }
-
                     if status == 200:
                         logger.info("Successfully fetched collection for user: %s", username)
                         return (await response.text(), 200)
@@ -74,7 +67,7 @@ async def fetch_bgg_collection(username, logger, max_attempts: int = 3, backoff:
                     # Rate limited — look for Retry-After header
                     if status == 429:
                         ra = response.headers.get("Retry-After")
-                        delay = float(ra) if ra and ra.isnumeric() else backoff ** attempt
+                        delay = float(ra) if ra and ra.isnumeric() else backoff**attempt
                         logger.warning(
                             "Rate limited when fetching %s; attempt %d/%d. Retry after %s sec",
                             username,
@@ -105,7 +98,7 @@ async def fetch_bgg_collection(username, logger, max_attempts: int = 3, backoff:
 
                     # Server errors — retry with exponential backoff
                     if 500 <= status < 600:
-                        delay = backoff ** attempt
+                        delay = backoff**attempt
                         logger.warning(
                             "Server error %s for %s; attempt %d/%d. Retrying after %.1f sec",
                             status,
@@ -141,7 +134,7 @@ async def fetch_bgg_collection(username, logger, max_attempts: int = 3, backoff:
                 if getattr(cre, "status", None) in (401, 403):
                     return None
                 # otherwise back off and retry
-                await asyncio.sleep(backoff ** attempt)
+                await asyncio.sleep(backoff**attempt)
 
             except aiohttp.ClientError as e:
                 # Transport-level errors
@@ -152,7 +145,7 @@ async def fetch_bgg_collection(username, logger, max_attempts: int = 3, backoff:
                     max_attempts,
                     e,
                 )
-                await asyncio.sleep(backoff ** attempt)
+                await asyncio.sleep(backoff**attempt)
 
             except asyncio.CancelledError:
                 # propagate cancellation
@@ -166,7 +159,7 @@ async def fetch_bgg_collection(username, logger, max_attempts: int = 3, backoff:
                     max_attempts,
                     e,
                 )
-                await asyncio.sleep(backoff ** attempt)
+                await asyncio.sleep(backoff**attempt)
 
         logger.error(
             "Failed to retrieve BGG collection after %d attempts for user %s",
@@ -227,9 +220,7 @@ async def upsert_boardgame(db, logger, game_data):
         finally:
             cursor.close()
     except Exception as e:
-        logger.exception(
-            f"Exception occurred while upserting game {game_data['name']}: {e}"
-        )
+        logger.exception(f"Exception occurred while upserting game {game_data['name']}: {e}")
         raise
 
 
@@ -252,9 +243,7 @@ async def process_bgg_users(db, logger):
                 # If we hit an authorization error mark the DB user as private
                 if status in (401, 403):
                     try:
-                        logger.info(
-                            "Marking user id=%s as having a private BGG account", user_id
-                        )
+                        logger.info("Marking user id=%s as having a private BGG account", user_id)
 
                         # It's possible the connection is already in an error state
                         # (e.g. earlier exception left the transaction aborted). Do a
@@ -278,7 +267,11 @@ async def process_bgg_users(db, logger):
                             updated = cur.fetchone()
                             db.commit()
                             if updated:
-                                logger.info("Marked user id=%s private; datemodified=%s", user_id, updated[0])
+                                logger.info(
+                                    "Marked user id=%s private; datemodified=%s",
+                                    user_id,
+                                    updated[0],
+                                )
                         finally:
                             cur.close()
                     except Exception as mark_exc:  # pragma: no cover - best-effort marking
@@ -287,7 +280,9 @@ async def process_bgg_users(db, logger):
                             user_id,
                             mark_exc,
                         )
-                    logger.warning("No data returned for user %s — skipping (auth %s)", bgguser, status)
+                    logger.warning(
+                        "No data returned for user %s — skipping (auth %s)", bgguser, status
+                    )
                     continue
 
                 if not xml_data:
@@ -296,11 +291,11 @@ async def process_bgg_users(db, logger):
 
                 try:
                     root = ET.fromstring(xml_data)
-                except ET.ParseError as pe:
+                except ET.ParseError:
                     logger.exception(
                         "Failed to parse XML for %s — first 500 chars: %s",
                         bgguser,
-                        (xml_data or '')[:500],
+                        (xml_data or "")[:500],
                     )
                     continue
 
@@ -309,9 +304,7 @@ async def process_bgg_users(db, logger):
                     game_data = {
                         "userid": user_id,
                         "name": (
-                            item.find("name").text
-                            if item.find("name") is not None
-                            else "Unknown"
+                            item.find("name").text if item.find("name") is not None else "Unknown"
                         ),
                         "bggid": safe_convert(item.get("objectid"), 0),
                         "avgrating": safe_convert(
@@ -325,15 +318,9 @@ async def process_bgg_users(db, logger):
                         "wanttobuy": status.get("wanttobuy", "0") == "1",
                         "wishlist": status.get("wishlist", "0") == "1",
                         "preordered": status.get("preordered", "0") == "1",
-                        "minplayers": safe_convert(
-                            item.find("stats").get("minplayers"), 0
-                        ),
-                        "maxplayers": safe_convert(
-                            item.find("stats").get("maxplayers"), 0
-                        ),
-                        "minplaytime": safe_convert(
-                            item.find("stats").get("minplaytime"), 0
-                        ),
+                        "minplayers": safe_convert(item.find("stats").get("minplayers"), 0),
+                        "maxplayers": safe_convert(item.find("stats").get("maxplayers"), 0),
+                        "minplaytime": safe_convert(item.find("stats").get("minplaytime"), 0),
                         "numplays": safe_convert(item.find("numplays").text, 0),
                     }
 

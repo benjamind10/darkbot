@@ -147,7 +147,7 @@ class Database(commands.Cog):
         try:
             cursor = self.bot.db_conn.cursor()
             cursor.execute("SELECT enable_user(%s)", (user_id,))
-            result = cursor.fetchone()[0]
+            cursor.fetchone()
             self.bot.db_conn.commit()
 
             embed = discord.Embed(
@@ -181,9 +181,7 @@ class Database(commands.Cog):
         """
         if len(letter) != 1 or not letter.isalpha():
             await ctx.send("Please provide a single alphabetical letter.")
-            self.bot.logger.warning(
-                f"Invalid input for list_board_games command: '{letter}'"
-            )
+            self.bot.logger.warning(f"Invalid input for list_board_games command: '{letter}'")
             return
 
         cursor = None
@@ -202,9 +200,7 @@ class Database(commands.Cog):
                 self.bot.logger.debug(
                     f"Executing database query for games starting with '{letter}'."
                 )
-                cursor.execute(
-                    "SELECT * FROM get_boardgames_starting_with(%s)", (letter,)
-                )
+                cursor.execute("SELECT * FROM get_boardgames_starting_with(%s)", (letter,))
 
             games = cursor.fetchall()
             total_games = len(games)
@@ -223,7 +219,7 @@ class Database(commands.Cog):
                 embed = discord.Embed(
                     color=self.bot.embed_color,
                     title=f"Board Games Starting with '{letter.upper()}'",
-                    description=f"Displaying games {game_count+1} to {game_count+len(chunk)} out of {total_games}:",
+                    description=f"Displaying games {game_count + 1} to {game_count + len(chunk)} out of {total_games}:",
                 )
                 for game in chunk:
                     embed.add_field(
@@ -244,9 +240,7 @@ class Database(commands.Cog):
         finally:
             await self.close_db(cursor)
 
-    @commands.hybrid_command(
-        name="executesql", help="Executes a custom SQL query. Owner only."
-    )
+    @commands.hybrid_command(name="executesql", help="Executes a custom SQL query. Owner only.")
     @commands.is_owner()
     async def execute_sql(self, ctx, *, query: str):
         """
@@ -298,7 +292,7 @@ class Database(commands.Cog):
         for page in pages:
             embed = discord.Embed(
                 color=self.bot.embed_color,
-                title="Board Games Available for Trade (Page {})".format(page_number),
+                title=f"Board Games Available for Trade (Page {page_number})",
                 description="Here are the games listed for trade:",
             )
             for game in page:
@@ -323,9 +317,7 @@ class Database(commands.Cog):
                 return
 
             cursor = self.bot.db_conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(DISTINCT Name) FROM BoardGames WHERE own = true;"
-            )
+            cursor.execute("SELECT COUNT(DISTINCT Name) FROM BoardGames WHERE own = true;")
             record = cursor.fetchone()
 
             if record:

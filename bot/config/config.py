@@ -2,44 +2,44 @@
 DarkBot Configuration Management
 """
 
-import os
 import json
-from pathlib import Path
+import os
 import ssl
-from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
 from .settings import (
-    PROJECT_ROOT,
     CONFIG_DIR,
-    DEFAULT_PREFIX,
-    DEFAULT_DESCRIPTION,
+    DATABASE_HOST,
+    DATABASE_NAME,
+    DATABASE_PASSWORD,
+    DATABASE_PORT,
+    DATABASE_URL_DEFAULT,
+    DATABASE_USER,
     DEFAULT_ACTIVITY_NAME,
     DEFAULT_ACTIVITY_TYPE,
-    DATABASE_URL_DEFAULT,
-    DATABASE_HOST,
-    DATABASE_PORT,
-    DATABASE_NAME,
-    DATABASE_USER,
-    DATABASE_PASSWORD,
+    DEFAULT_DESCRIPTION,
+    DEFAULT_PREFIX,
     DISCORD_TOKEN,
-    OWNER_ID,
-    LAVALINK_DEFAULT_HOST,
-    LAVALINK_DEFAULT_PORT,
-    LAVALINK_DEFAULT_PASSWORD,
-    # COGS_TO_LOAD,
-    FEATURES,
     EMBED_COLORS,
     EMOJIS,
+    # COGS_TO_LOAD,
+    FEATURES,
+    LAVALINK_DEFAULT_HOST,
+    LAVALINK_DEFAULT_PASSWORD,
+    LAVALINK_DEFAULT_PORT,
+    OWNER_ID,
     PERMISSION_LEVELS,
-    REDIS_ENABLED,
-    REDIS_PORT,
+    PROJECT_ROOT,
     REDIS_DB,
-    REDIS_PASSWORD,
+    REDIS_ENABLED,
     REDIS_HOST,
     REDIS_KEY_PREFIX,
+    REDIS_PASSWORD,
+    REDIS_PORT,
 )
 
 
@@ -67,18 +67,18 @@ class RedisConfig:
     enabled: bool = REDIS_ENABLED
     host: str = REDIS_HOST
     port: int = REDIS_PORT
-    password: Optional[str] = REDIS_PASSWORD
+    password: str | None = REDIS_PASSWORD
     db: int = REDIS_DB
     decode_responses: bool = True
     socket_timeout: int = 5
     socket_connect_timeout: int = 5
     socket_keepalive: bool = True
-    socket_keepalive_options: Dict[str, int] = field(default_factory=dict)
+    socket_keepalive_options: dict[str, int] = field(default_factory=dict)
     connection_pool_max_connections: int = 10
     retry_on_timeout: bool = True
     health_check_interval: int = 30
     prefix: str = REDIS_KEY_PREFIX
-    ssl_context: Optional[ssl.SSLContext] = None
+    ssl_context: ssl.SSLContext | None = None
     # ssl: bool = False
     # ssl_cert_reqs: str = "required"
     # ssl_ca_certs: Optional[str] = None
@@ -95,7 +95,7 @@ class MusicConfig:
     max_volume: float = 1.0
     queue_limit: int = 100
     search_limit: int = 10
-    ffmpeg_options: Dict[str, str] = field(
+    ffmpeg_options: dict[str, str] = field(
         default_factory=lambda: {
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
             "options": "-vn",
@@ -121,7 +121,7 @@ class ModerationConfig:
 
     enabled: bool = True
     default_reason: str = "No reason provided"
-    log_channel_id: Optional[int] = None
+    log_channel_id: int | None = None
     max_warn_count: int = 3
     auto_timeout_duration: int = 600
 
@@ -142,7 +142,7 @@ class LoggingConfig:
 class Config:
     """Main configuration class for DarkBot."""
 
-    def __init__(self, config_file: Optional[str] = None):
+    def __init__(self, config_file: str | None = None):
         """Initialize configuration.
 
         Args:
@@ -172,7 +172,7 @@ class Config:
             config_path = CONFIG_DIR / config_path
 
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 self._file_config = json.load(f)
         except FileNotFoundError:
             print(f"Config file not found: {config_path}")
@@ -193,9 +193,7 @@ class Config:
             decode_responses=self._get_bool_config(
                 "REDIS_DECODE_RESPONSES", "redis.decode_responses", True
             ),
-            socket_timeout=self._get_int_config(
-                "REDIS_SOCKET_TIMEOUT", "redis.socket_timeout", 5
-            ),
+            socket_timeout=self._get_int_config("REDIS_SOCKET_TIMEOUT", "redis.socket_timeout", 5),
             socket_connect_timeout=self._get_int_config(
                 "REDIS_SOCKET_CONNECT_TIMEOUT", "redis.socket_connect_timeout", 5
             ),
@@ -225,9 +223,7 @@ class Config:
         # Bot basic settings
         self.token = self._get_config("DISCORD_TOKEN", "token", DISCORD_TOKEN)
         self.prefix = self._get_config("BOT_PREFIX", "prefix", DEFAULT_PREFIX)
-        self.description = self._get_config(
-            "BOT_DESCRIPTION", "description", DEFAULT_DESCRIPTION
-        )
+        self.description = self._get_config("BOT_DESCRIPTION", "description", DEFAULT_DESCRIPTION)
 
         # Owner configuration
         owner_id = self._get_config("OWNER_ID", "owner_id", OWNER_ID)
@@ -280,16 +276,12 @@ class Config:
         self.youtube_password = self._get_config("YOUTUBE_PASS", "youtube_password")
         self.lavalink_password = self._get_config("LAVALINK_PASS", "lavalink_password")
         self.lavalink_server = self._get_config("LAVALINK_SERVER", "lavalink_server")
-        self.spotify_client_id = self._get_config(
-            "SPOTIFY_CLIENT_ID", "spotify_client_id"
-        )
+        self.spotify_client_id = self._get_config("SPOTIFY_CLIENT_ID", "spotify_client_id")
         self.spotify_client_secret = self._get_config(
             "SPOTIFY_CLIENT_SECRET", "spotify_client_secret"
         )
         self.chatgpt_secret = self._get_config("CHATGPT_SECRET", "chatgpt_secret")
-        self.openai_api_key = self._get_config(
-            "CHATGPT_SECRET", "openai_api_key"
-        )  # Alias
+        self.openai_api_key = self._get_config("CHATGPT_SECRET", "openai_api_key")  # Alias
         self.api_coincap = self._get_config("API_COINCAP", "api_coincap")
         self.ip_info = self._get_config("IP_INFO", "ip_info")
         self.ksoft_api = self._get_config("KSOFT_API", "ksoft_api")
@@ -301,9 +293,7 @@ class Config:
         # Prefer DBHOST/DBPORT environment variables (short form) because
         # some deployments / .env files use DBHOST/DBPORT instead of DB_HOST/DB_PORT.
         # Fall back to DB_HOST/DB_PORT and the settings defaults if the short keys are missing.
-        host = os.getenv("DBHOST") or self._get_config(
-            "DB_HOST", "database.host", DATABASE_HOST
-        )
+        host = os.getenv("DBHOST") or self._get_config("DB_HOST", "database.host", DATABASE_HOST)
 
         port_env = os.getenv("DBPORT")
         if port_env is not None:
@@ -340,15 +330,9 @@ class Config:
             name=name,
             user=user,
             password=password,
-            pool_size=self._get_int_config(
-                "DATABASE_POOL_SIZE", "database.pool_size", 10
-            ),
-            max_overflow=self._get_int_config(
-                "DATABASE_MAX_OVERFLOW", "database.max_overflow", 20
-            ),
-            pool_timeout=self._get_int_config(
-                "DATABASE_POOL_TIMEOUT", "database.pool_timeout", 30
-            ),
+            pool_size=self._get_int_config("DATABASE_POOL_SIZE", "database.pool_size", 10),
+            max_overflow=self._get_int_config("DATABASE_MAX_OVERFLOW", "database.max_overflow", 20),
+            pool_timeout=self._get_int_config("DATABASE_POOL_TIMEOUT", "database.pool_timeout", 30),
             echo=self._get_bool_config("DATABASE_ECHO", "database.echo", False),
             params=params,  # Add this field to your DatabaseConfig dataclass
         )
@@ -357,12 +341,8 @@ class Config:
         """Initialize Lavalink configuration."""
         return LavalinkConfig(
             enabled=self._get_bool_config("LAVALINK_ENABLED", "lavalink.enabled", True),
-            host=self._get_config(
-                "LAVALINK_SERVER", "lavalink.host", LAVALINK_DEFAULT_HOST
-            ),
-            port=self._get_int_config(
-                "LAVALINK_PORT", "lavalink.port", LAVALINK_DEFAULT_PORT
-            ),
+            host=self._get_config("LAVALINK_SERVER", "lavalink.host", LAVALINK_DEFAULT_HOST),
+            port=self._get_int_config("LAVALINK_PORT", "lavalink.port", LAVALINK_DEFAULT_PORT),
             password=self._get_config(
                 "LAVALINK_PASS", "lavalink.password", LAVALINK_DEFAULT_PASSWORD
             ),
@@ -377,23 +357,15 @@ class Config:
             default_volume=self._get_float_config(
                 "MUSIC_DEFAULT_VOLUME", "music.default_volume", 0.5
             ),
-            max_volume=self._get_float_config(
-                "MUSIC_MAX_VOLUME", "music.max_volume", 1.0
-            ),
-            queue_limit=self._get_int_config(
-                "MUSIC_QUEUE_LIMIT", "music.queue_limit", 100
-            ),
-            search_limit=self._get_int_config(
-                "MUSIC_SEARCH_LIMIT", "music.search_limit", 10
-            ),
+            max_volume=self._get_float_config("MUSIC_MAX_VOLUME", "music.max_volume", 1.0),
+            queue_limit=self._get_int_config("MUSIC_QUEUE_LIMIT", "music.queue_limit", 100),
+            search_limit=self._get_int_config("MUSIC_SEARCH_LIMIT", "music.search_limit", 10),
         )
 
     def _initialize_moderation_config(self) -> ModerationConfig:
         """Initialize moderation configuration."""
         return ModerationConfig(
-            enabled=self._get_bool_config(
-                "MODERATION_ENABLED", "moderation.enabled", True
-            ),
+            enabled=self._get_bool_config("MODERATION_ENABLED", "moderation.enabled", True),
             default_reason=self._get_config(
                 "MODERATION_DEFAULT_REASON",
                 "moderation.default_reason",
@@ -429,15 +401,11 @@ class Config:
                 "logging.file_path",
                 str(PROJECT_ROOT / "logs" / "darkbot.log"),
             ),
-            max_bytes=self._get_int_config(
-                "LOG_MAX_BYTES", "logging.max_bytes", 10 * 1024 * 1024
-            ),
-            backup_count=self._get_int_config(
-                "LOG_BACKUP_COUNT", "logging.backup_count", 5
-            ),
+            max_bytes=self._get_int_config("LOG_MAX_BYTES", "logging.max_bytes", 10 * 1024 * 1024),
+            backup_count=self._get_int_config("LOG_BACKUP_COUNT", "logging.backup_count", 5),
         )
 
-    def _initialize_features(self) -> Dict[str, bool]:
+    def _initialize_features(self) -> dict[str, bool]:
         """Initialize feature flags."""
         features = {}
         for feature, default in FEATURES.items():
@@ -470,9 +438,7 @@ class Config:
 
         return default
 
-    def _get_bool_config(
-        self, env_key: str, file_key: str, default: bool = False
-    ) -> bool:
+    def _get_bool_config(self, env_key: str, file_key: str, default: bool = False) -> bool:
         """Get boolean configuration value."""
         value = self._get_config(env_key, file_key, default)
         if isinstance(value, bool):
@@ -482,8 +448,8 @@ class Config:
         return bool(value)
 
     def _get_int_config(
-        self, env_key: str, file_key: str, default: Optional[int] = None
-    ) -> Optional[int]:
+        self, env_key: str, file_key: str, default: int | None = None
+    ) -> int | None:
         """Get integer configuration value."""
         value = self._get_config(env_key, file_key, default)
         if value is None:
@@ -493,9 +459,7 @@ class Config:
         except (ValueError, TypeError):
             return default
 
-    def _get_float_config(
-        self, env_key: str, file_key: str, default: float = 0.0
-    ) -> float:
+    def _get_float_config(self, env_key: str, file_key: str, default: float = 0.0) -> float:
         """Get float configuration value."""
         value = self._get_config(env_key, file_key, default)
         try:
@@ -503,9 +467,7 @@ class Config:
         except (ValueError, TypeError):
             return default
 
-    def _get_list_config(
-        self, env_key: str, file_key: str, default: List[Any] = None
-    ) -> List[Any]:
+    def _get_list_config(self, env_key: str, file_key: str, default: list[Any] = None) -> list[Any]:
         """Get list configuration value."""
         if default is None:
             default = []
@@ -530,7 +492,7 @@ class Config:
         """Get permission level by name."""
         return self.permission_levels.get(level_name.upper(), 0)
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate configuration and return list of errors."""
         errors = []
 

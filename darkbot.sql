@@ -338,7 +338,7 @@ BEGIN
         WHERE remove_prefix(bg.name) ILIKE letter || '%' AND bg.own = TRUE
         ORDER BY remove_prefix(bg.name), bg.avgrating DESC
     )
-    SELECT 
+    SELECT
         dg.id,
         dg.userid,
         dg.username,
@@ -365,4 +365,3 @@ END;
 $$;
 
 alter function get_boardgames_starting_with(char) owner to postgres;
-

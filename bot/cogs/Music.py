@@ -6,14 +6,15 @@ Modern music playback using Wavelink and Lavalink.
 Supports YouTube, Spotify, SoundCloud, and more.
 """
 
+import datetime
+from typing import cast
+
 import discord
 from discord.ext import commands
-from typing import cast, Optional
-import asyncio
-import datetime
 
 try:
     import wavelink
+
     WAVELINK_AVAILABLE = True
 except ImportError:
     WAVELINK_AVAILABLE = False
@@ -26,7 +27,7 @@ class Music(commands.Cog):
         self.bot = bot
         self.logger = bot.logger
         self.redis = bot.redis_manager
-        
+
         if not WAVELINK_AVAILABLE:
             self.logger.error("Music | Wavelink not installed - music commands disabled")
 
@@ -34,21 +35,16 @@ class Music(commands.Cog):
         """Called when the cog is loaded. Sets up Wavelink nodes."""
         if not WAVELINK_AVAILABLE:
             return
-            
+
         try:
             # Connect to Lavalink node (use 'lavalink' service name in Docker, localhost for local dev)
             import os
-            lavalink_host = os.getenv('LAVALINK_SERVER', 'http://lavalink:2333')
-            lavalink_pass = os.getenv('LAVALINK_PASS', 'youshallnotpass')
-            
-            nodes = [
-                wavelink.Node(
-                    uri=lavalink_host,
-                    password=lavalink_pass,
-                    identifier="LOCAL"
-                )
-            ]
-            
+
+            lavalink_host = os.getenv("LAVALINK_SERVER", "http://lavalink:2333")
+            lavalink_pass = os.getenv("LAVALINK_PASS", "youshallnotpass")
+
+            nodes = [wavelink.Node(uri=lavalink_host, password=lavalink_pass, identifier="LOCAL")]
+
             await wavelink.Pool.connect(nodes=nodes, client=self.bot, cache_capacity=100)
             self.logger.info("Music | Connected to Lavalink successfully")
         except Exception as e:
@@ -69,38 +65,38 @@ class Music(commands.Cog):
         """Event fired when a track starts playing."""
         player: wavelink.Player = payload.player
         track = payload.track
-        
+
         if not player:
             return
-        
+
         embed = discord.Embed(
-            title="🎵 Now Playing",
-            description=f"**{track.title}**",
-            color=self.bot.embed_color
+            title="🎵 Now Playing", description=f"**{track.title}**", color=self.bot.embed_color
         )
-        
+
         if track.author:
             embed.add_field(name="Artist", value=track.author, inline=True)
-        
+
         if track.length:
             duration = str(datetime.timedelta(milliseconds=track.length))
             embed.add_field(name="Duration", value=duration, inline=True)
-        
+
         if track.uri:
             embed.add_field(name="URL", value=f"[Link]({track.uri})", inline=True)
-        
+
         if track.artwork:
             embed.set_thumbnail(url=track.artwork)
-        
+
         channel = self.bot.get_channel(player.channel.id)
         if channel:
             await channel.send(embed=embed)
 
-    @commands.hybrid_command(name="play", aliases=["p"], help="Play a song from YouTube, Spotify, or other sources.")
+    @commands.hybrid_command(
+        name="play", aliases=["p"], help="Play a song from YouTube, Spotify, or other sources."
+    )
     async def play(self, ctx: commands.Context, *, query: str):
         """
         Play a song or add it to the queue.
-        
+
         Usage: !play <song name or URL>
         Examples:
             !play Bohemian Rhapsody
@@ -117,11 +113,13 @@ class Music(commands.Cog):
 
         # Get or create player
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
-        
+
         if not player:
             try:
                 player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
-                self.logger.info(f"Music | Connected to voice channel: {ctx.author.voice.channel.name}")
+                self.logger.info(
+                    f"Music | Connected to voice channel: {ctx.author.voice.channel.name}"
+                )
             except Exception as e:
                 await ctx.send(f"❌ Failed to connect to voice channel: {e}")
                 self.logger.error(f"Music | Failed to connect: {e}")
@@ -133,7 +131,7 @@ class Music(commands.Cog):
         # Search for tracks
         try:
             tracks: wavelink.Search = await wavelink.Playable.search(query)
-            
+
             if not tracks:
                 await ctx.send(f"❌ No tracks found for: `{query}`")
                 return
@@ -141,15 +139,17 @@ class Music(commands.Cog):
             # If it's a playlist, add all tracks
             if isinstance(tracks, wavelink.Playlist):
                 added: int = await player.queue.put_wait(tracks)
-                await ctx.send(f"✅ Added playlist **{tracks.name}** with `{added}` tracks to the queue.")
-                
+                await ctx.send(
+                    f"✅ Added playlist **{tracks.name}** with `{added}` tracks to the queue."
+                )
+
                 # Start playing if not already
                 if not player.playing:
                     await player.play(player.queue.get(), volume=30)
             else:
                 # Add first track
                 track: wavelink.Playable = tracks[0]
-                
+
                 if player.playing:
                     # Add to queue if already playing
                     await player.queue.put_wait(track)
@@ -158,7 +158,7 @@ class Music(commands.Cog):
                     # Play immediately if nothing is playing
                     await player.play(track, volume=30)
                     await ctx.send(f"🎵 Playing: **{track.title}**")
-                
+
             self.logger.info(f"Music | {ctx.author} requested: {query}")
 
         except Exception as e:
@@ -178,7 +178,7 @@ class Music(commands.Cog):
             return
 
         await player.pause(not player.paused)
-        
+
         if player.paused:
             await ctx.send("⏸️ Paused playback.")
         else:
@@ -233,7 +233,7 @@ class Music(commands.Cog):
         embed = discord.Embed(
             title="🎵 Current Queue",
             color=self.bot.embed_color,
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.utcnow(),
         )
 
         # Show currently playing
@@ -241,7 +241,7 @@ class Music(commands.Cog):
             embed.add_field(
                 name="Now Playing",
                 value=f"**{player.current.title}** by {player.current.author}",
-                inline=False
+                inline=False,
             )
 
         # Show next tracks in queue (up to 10)
@@ -254,7 +254,7 @@ class Music(commands.Cog):
             embed.add_field(
                 name=f"Up Next ({len(player.queue)} tracks)",
                 value="\n".join(queue_list),
-                inline=False
+                inline=False,
             )
 
         if len(player.queue) > 10:
@@ -262,7 +262,9 @@ class Music(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name="nowplaying", aliases=["np"], help="Show the currently playing track.")
+    @commands.hybrid_command(
+        name="nowplaying", aliases=["np"], help="Show the currently playing track."
+    )
     async def nowplaying(self, ctx: commands.Context):
         """Display information about the current track."""
         if not WAVELINK_AVAILABLE:
@@ -275,11 +277,9 @@ class Music(commands.Cog):
             return
 
         track = player.current
-        
+
         embed = discord.Embed(
-            title="🎵 Now Playing",
-            description=f"**{track.title}**",
-            color=self.bot.embed_color
+            title="🎵 Now Playing", description=f"**{track.title}**", color=self.bot.embed_color
         )
 
         if track.author:
@@ -308,7 +308,7 @@ class Music(commands.Cog):
     async def volume(self, ctx: commands.Context, volume: int):
         """
         Set the player volume.
-        
+
         Usage: !volume <0-100>
         """
         if not WAVELINK_AVAILABLE:
@@ -327,7 +327,9 @@ class Music(commands.Cog):
         await player.set_volume(volume)
         await ctx.send(f"🔊 Set volume to {volume}%")
 
-    @commands.hybrid_command(name="disconnect", aliases=["dc", "leave"], help="Disconnect the bot from voice.")
+    @commands.hybrid_command(
+        name="disconnect", aliases=["dc", "leave"], help="Disconnect the bot from voice."
+    )
     async def disconnect(self, ctx: commands.Context):
         """Disconnect from the voice channel."""
         if not WAVELINK_AVAILABLE:

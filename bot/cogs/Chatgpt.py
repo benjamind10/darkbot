@@ -6,11 +6,12 @@ Handles ChatGPT integration for asking questions using OpenAI's API.
 """
 
 import os
-import discord
+
 from discord.ext import commands
 
 try:
     import openai
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -23,7 +24,7 @@ class ChatGPT(commands.Cog):
         self.bot = bot
         self.logger = bot.logger
         self.redis = bot.redis_manager
-        
+
         if OPENAI_AVAILABLE:
             # Fetch the OpenAI API key from the environment
             openai.api_key = os.getenv("CHATGPT_SECRET")
@@ -36,15 +37,19 @@ class ChatGPT(commands.Cog):
     async def askgpt(self, ctx, *, question: str):
         """
         Ask ChatGPT a question and get an AI-generated response.
-        
+
         Usage: !askgpt <your question>
         """
         if not OPENAI_AVAILABLE:
-            await ctx.send("❌ OpenAI package is not installed. Please install it with `pip install openai`")
+            await ctx.send(
+                "❌ OpenAI package is not installed. Please install it with `pip install openai`"
+            )
             return
-            
+
         if not openai.api_key:
-            await ctx.send("❌ ChatGPT API key not configured. Please set CHATGPT_SECRET environment variable.")
+            await ctx.send(
+                "❌ ChatGPT API key not configured. Please set CHATGPT_SECRET environment variable."
+            )
             return
 
         self.logger.info(f"ChatGPT | User {ctx.author} asked: {question}")
@@ -64,9 +69,7 @@ class ChatGPT(commands.Cog):
 
         except Exception as e:
             self.logger.error(f"ChatGPT | Error occurred while processing request: {e}")
-            await ctx.send(
-                "❌ Sorry, I couldn't process your request. Please try again later."
-            )
+            await ctx.send("❌ Sorry, I couldn't process your request. Please try again later.")
 
 
 async def setup(bot):

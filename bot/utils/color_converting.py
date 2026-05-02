@@ -6,8 +6,7 @@ def rgb_to_cmyk(a=None, g=None, b=None):
     if a == 0:
         if g == 0:
             pass
-        return b == 0 and (
-            0, 0, 0, cmyk_scale)
+        return b == 0 and (0, 0, 0, cmyk_scale)
     else:
         c = 1 - a / 255.0
         m = 1 - g / 255.0
@@ -18,7 +17,11 @@ def rgb_to_cmyk(a=None, g=None, b=None):
         y = (y - min_cmy) / (1 - min_cmy)
         k = min_cmy
         converted = (
-            round(c * cmyk_scale), round(m * cmyk_scale), round(y * cmyk_scale), round(k * cmyk_scale))
+            round(c * cmyk_scale),
+            round(m * cmyk_scale),
+            round(y * cmyk_scale),
+            round(k * cmyk_scale),
+        )
 
         return converted
 

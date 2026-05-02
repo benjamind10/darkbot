@@ -26,6 +26,7 @@ import asyncio
 import logging
 import os
 import sys
+from contextlib import suppress
 from pathlib import Path
 
 # Ensure bot/ is on sys.path so `import utils.*` works whether the script is
@@ -37,9 +38,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # use package imports
-from utils.boardgames import fetch_bgg_collection, BASE_URL
-
 import psycopg2
+from utils.boardgames import fetch_bgg_collection
 
 LOG = logging.getLogger("backfill_bgg_private")
 
@@ -68,7 +68,9 @@ async def _check_user_and_mark(db_conn, user_id, bgguser, dry_run: bool = True):
 
     if status in (401, 403):
         if dry_run:
-            LOG.info("[DRY] Would mark user id=%s (%s) private (status=%s)", user_id, bgguser, status)
+            LOG.info(
+                "[DRY] Would mark user id=%s (%s) private (status=%s)", user_id, bgguser, status
+            )
             return (user_id, bgguser, status, False)
 
         cur = db_conn.cursor()
@@ -85,14 +87,16 @@ async def _check_user_and_mark(db_conn, user_id, bgguser, dry_run: bool = True):
             )
             updated = cur.fetchone()
             db_conn.commit()
-            LOG.info("Marked user id=%s private; datemodified=%s", user_id, updated[0] if updated else None)
+            LOG.info(
+                "Marked user id=%s private; datemodified=%s",
+                user_id,
+                updated[0] if updated else None,
+            )
             return (user_id, bgguser, status, True)
         except Exception as e:
             LOG.exception("Error marking user id=%s private: %s", user_id, e)
-            try:
+            with suppress(Exception):
                 db_conn.rollback()
-            except Exception:
-                pass
             return (user_id, bgguser, status, False)
         finally:
             cur.close()
@@ -109,7 +113,9 @@ async def main(dry_run: bool):
 
     try:
         # Fetch users who have a bgguser and are not marked private
-        cur.execute("SELECT id, bgguser FROM users WHERE bgguser IS NOT NULL AND coalesce(bggprivate, FALSE) = FALSE;")
+        cur.execute(
+            "SELECT id, bgguser FROM users WHERE bgguser IS NOT NULL AND coalesce(bggprivate, FALSE) = FALSE;"
+        )
         users = cur.fetchall()
 
         LOG.info("Found %d candidates", len(users))

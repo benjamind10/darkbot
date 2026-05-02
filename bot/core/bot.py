@@ -5,19 +5,19 @@ DarkBot Main Bot Class - Refactored
 Main bot class with events moved to EventManager.
 """
 
-import discord
-from discord.ext import commands
-import logging
 import asyncio
-from typing import Optional, Dict, Any
+import logging
 import os
 from datetime import datetime
-import psycopg2
+from typing import Any
 
+import discord
+import psycopg2
+from discord.ext import commands
 from utils.redis_manager import RedisManager
 
-from .exceptions import DarkBotException, ConfigurationError
 from .events import EventManager
+from .exceptions import ConfigurationError, DarkBotException
 
 
 class DarkBot(commands.Bot):
@@ -31,7 +31,7 @@ class DarkBot(commands.Bot):
     - Error handling
     """
 
-    def __init__(self, config: Dict[str, Any], **kwargs):
+    def __init__(self, config: dict[str, Any], **kwargs):
         """
         Initialize the DarkBot instance.
 
@@ -110,13 +110,9 @@ class DarkBot(commands.Bot):
         else:
             # Config object with attributes
             if not hasattr(self.config, "token"):
-                raise ConfigurationError(
-                    "Missing required configuration attribute: token"
-                )
+                raise ConfigurationError("Missing required configuration attribute: token")
             if not hasattr(self.config, "database"):
-                raise ConfigurationError(
-                    "Missing required configuration attribute: database"
-                )
+                raise ConfigurationError("Missing required configuration attribute: database")
             if not self.config.token:
                 raise ConfigurationError("Bot token cannot be empty")
 
@@ -131,9 +127,7 @@ class DarkBot(commands.Bot):
             str or list: Command prefix(es)
         """
         default = (
-            self.config.get("prefix", "!")
-            if hasattr(self.config, "get")
-            else self.config.prefix
+            self.config.get("prefix", "!") if hasattr(self.config, "get") else self.config.prefix
         )
         return commands.when_mentioned_or(default)(self, message)
 
@@ -154,9 +148,7 @@ class DarkBot(commands.Bot):
         if redis_success:
             self.logger.info("Redis initialized successfully")
         else:
-            self.logger.warning(
-                "Redis initialization failed - continuing without Redis"
-            )
+            self.logger.warning("Redis initialization failed - continuing without Redis")
 
         # Load all cogs
         await self.load_cogs()
@@ -184,9 +176,8 @@ class DarkBot(commands.Bot):
             "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
             "LAVALINK_PASS": os.getenv("LAVALINK_PASS"),
             "LAVALINK_SERVER": os.getenv("LAVALINK_SERVER"),
-            "SPOTIFY_API / CLIENTS": os.getenv("SPOTIFY_API") or (
-                os.getenv("SPOTIFY_CLIENT_ID") and os.getenv("SPOTIFY_CLIENT_SECRET")
-            ),
+            "SPOTIFY_API / CLIENTS": os.getenv("SPOTIFY_API")
+            or (os.getenv("SPOTIFY_CLIENT_ID") and os.getenv("SPOTIFY_CLIENT_SECRET")),
             "CHATGPT_SECRET": os.getenv("CHATGPT_SECRET"),
             "KSOFT_API": os.getenv("KSOFT_API"),
             "IP_INFO": os.getenv("IP_INFO"),
@@ -203,9 +194,7 @@ class DarkBot(commands.Bot):
         """Load all cogs from the cogs directory."""
         cogs_dir = "cogs"
         cog_files = [
-            f
-            for f in os.listdir(cogs_dir)
-            if f.endswith(".py") and not f.startswith("__")
+            f for f in os.listdir(cogs_dir) if f.endswith(".py") and not f.startswith("__")
         ]
         # # Setup event handlers
         # await self.event_manager.setup()
@@ -229,9 +218,7 @@ class DarkBot(commands.Bot):
             if hasattr(db_config, "params"):
                 params = db_config.params
             else:
-                raise ConfigurationError(
-                    "Database connection parameters not found in config."
-                )
+                raise ConfigurationError("Database connection parameters not found in config.")
 
             print(params)  # For debugging
             conn = psycopg2.connect(**params)
@@ -297,14 +284,15 @@ class DarkBot(commands.Bot):
         # Close Wavelink connection if Music cog is loaded
         try:
             import wavelink
+
             if wavelink.Pool.nodes:
                 await wavelink.Pool.close()
                 self.logger.info("Wavelink connection closed")
-        except (ImportError, Exception) as e:
+        except (ImportError, Exception):
             pass  # Wavelink not installed or already closed
 
         # Close database connections
-        if hasattr(self, 'db_conn') and self.db_conn:
+        if hasattr(self, "db_conn") and self.db_conn:
             try:
                 self.db_conn.close()
                 self.logger.info("Database connection closed")
@@ -314,9 +302,7 @@ class DarkBot(commands.Bot):
         # Close Redis connection
         if self.redis_manager:
             try:
-                await self.redis_manager.set(
-                    "bot:last_shutdown_time", str(datetime.utcnow())
-                )
+                await self.redis_manager.set("bot:last_shutdown_time", str(datetime.utcnow()))
                 await self.redis_manager.close()
             except Exception as e:
                 self.logger.error(f"Error closing Redis: {e}")
@@ -329,7 +315,7 @@ class DarkBot(commands.Bot):
 
         # Call parent close
         await super().close()
-        
+
         # Give a moment for all cleanup to finish
         await asyncio.sleep(0.5)
 
@@ -337,10 +323,7 @@ class DarkBot(commands.Bot):
         """Run the bot with the configured token."""
         try:
             # Handle both dict and Config object
-            if hasattr(self.config, "get"):
-                token = self.config["token"]
-            else:
-                token = self.config.token
+            token = self.config["token"] if hasattr(self.config, "get") else self.config.token
 
             self.run(token)
         except Exception as e:
@@ -352,7 +335,7 @@ class DarkBot(commands.Bot):
         """Get the bot's uptime."""
         return datetime.utcnow() - self.start_time
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Get bot statistics, including live Redis metrics if available."""
         # Base in‐memory stats
         stats = {

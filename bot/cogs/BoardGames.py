@@ -5,12 +5,11 @@ BoardGames Cog
 Handles board game related commands, including integration with BoardGameGeek (BGG).
 """
 
-import re
-import discord
-from discord.ext import commands
-import aiohttp
 import xml.etree.ElementTree as ET
 
+import aiohttp
+import discord
+from discord.ext import commands
 from utils import boardgames as bg_utils
 
 
@@ -55,12 +54,12 @@ class BoardGames(commands.Cog):
         for i, page in enumerate(pages):
             description = "\n".join(page)
             embed = discord.Embed(
-                title=f"{title} (Page {i+1} of {len(pages)})",
+                title=f"{title} (Page {i + 1} of {len(pages)})",
                 description=description,
                 color=color,
             )
             await ctx.send(embed=embed)
-            self.bot.logger.info(f"Sent page {i+1} of {len(pages)} for {title}")
+            self.bot.logger.info(f"Sent page {i + 1} of {len(pages)} for {title}")
 
     @commands.hybrid_command(
         name="bgsearch", help="Search BGG for board games. Example: !bgsearch Catan"
@@ -76,39 +75,36 @@ class BoardGames(commands.Cog):
         search_url = f"{self.BASE_URL}search?search={search_query}"
         self.bot.logger.info(f"BGG search query: {search_query}")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(search_url) as response:
-                if response.status == 200:
-                    xml_data = await response.text()
-                    root = ET.fromstring(xml_data)
-                    games = []
-                    for item in root.findall("boardgame")[:5]:
-                        name = item.find("name")
-                        game_name = name.text if name is not None else "Unknown"
-                        object_id = item.get("objectid")
-                        games.append((game_name, object_id))
+        async with aiohttp.ClientSession() as session, session.get(search_url) as response:
+            if response.status == 200:
+                xml_data = await response.text()
+                root = ET.fromstring(xml_data)
+                games = []
+                for item in root.findall("boardgame")[:5]:
+                    name = item.find("name")
+                    game_name = name.text if name is not None else "Unknown"
+                    object_id = item.get("objectid")
+                    games.append((game_name, object_id))
 
-                    if games:
-                        embed = discord.Embed(
-                            color=self.bot.embed_color,
-                            title=f"Top 5 search results for '{search_query}'",
-                        )
-                        for game_name, obj_id in games:
-                            embed.add_field(
-                                name=game_name,
-                                value=f"ID: {obj_id}",
-                                inline=False,
-                            )
-                        await ctx.send(embed=embed)
-                        self.bot.logger.info("BGG search succeeded")
-                    else:
-                        await ctx.send("No games found.")
-                        self.bot.logger.warning("No results from BGG search")
-                else:
-                    self.bot.logger.error(
-                        f"BGG search failed, status: {response.status}"
+                if games:
+                    embed = discord.Embed(
+                        color=self.bot.embed_color,
+                        title=f"Top 5 search results for '{search_query}'",
                     )
-                    await ctx.send("Failed to retrieve search results from BGG.")
+                    for game_name, obj_id in games:
+                        embed.add_field(
+                            name=game_name,
+                            value=f"ID: {obj_id}",
+                            inline=False,
+                        )
+                    await ctx.send(embed=embed)
+                    self.bot.logger.info("BGG search succeeded")
+                else:
+                    await ctx.send("No games found.")
+                    self.bot.logger.warning("No results from BGG search")
+            else:
+                self.bot.logger.error(f"BGG search failed, status: {response.status}")
+                await ctx.send("Failed to retrieve search results from BGG.")
 
     @commands.hybrid_command(
         name="bginfo", help="Get BGG board game details by ID. Example: !bginfo 12345"
@@ -124,63 +120,52 @@ class BoardGames(commands.Cog):
         self.bot.logger.info(f"Fetching BGG info for ID: {game_id}")
         info_url = f"{self.BASE_URL}boardgame/{game_id}?stats=1"
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(info_url) as response:
-                if response.status == 200:
-                    xml_data = await response.text()
-                    root = ET.fromstring(xml_data)
-                    game = root.find("boardgame")
-                    if game is not None:
-                        game_name = next(
-                            (
-                                n.text
-                                for n in game.findall("name")
-                                if n.get("primary") == "true"
-                            ),
-                            "Unknown",
-                        )
-                        age = game.findtext("age", default="N/A")
-                        poll = game.find("poll[@name='suggested_numplayers']")
-                        best_count = "N/A"
-                        max_votes = -1
-                        if poll:
-                            for res in poll.findall("results"):
-                                votes = int(
-                                    res.find("result[@value='Best']").get("numvotes")
-                                )
-                                if votes > max_votes:
-                                    max_votes = votes
-                                    best_count = res.get("numplayers")
-
-                        ratings = game.find("statistics/ratings")
-                        users_rated = ratings.findtext("usersrated", default="N/A")
-                        avg_rating = ratings.findtext("average", default="N/A")
-                        avg_rating = (
-                            f"{float(avg_rating):.2f}"
-                            if avg_rating != "N/A"
-                            else avg_rating
-                        )
-
-                        embed = discord.Embed(
-                            color=self.bot.embed_color,
-                            title=f"**{game_name}**",
-                            description=(
-                                f"**ID:** {game_id}\n"
-                                f"**Recommended Age:** {age}+\n"
-                                f"**Best Player Count:** {best_count}\n"
-                                f"**Users Rated:** {users_rated}\n"
-                                f"**Average Rating:** {avg_rating}"
-                            ),
-                        )
-                        await ctx.send(embed=embed)
-                    else:
-                        await ctx.send("Game not found.")
-                        self.bot.logger.warning(f"No game found for ID {game_id}")
-                else:
-                    await ctx.send("Failed to retrieve game info from BGG.")
-                    self.bot.logger.error(
-                        f"BGG info fetch failed for {game_id}, status: {response.status}"
+        async with aiohttp.ClientSession() as session, session.get(info_url) as response:
+            if response.status == 200:
+                xml_data = await response.text()
+                root = ET.fromstring(xml_data)
+                game = root.find("boardgame")
+                if game is not None:
+                    game_name = next(
+                        (n.text for n in game.findall("name") if n.get("primary") == "true"),
+                        "Unknown",
                     )
+                    age = game.findtext("age", default="N/A")
+                    poll = game.find("poll[@name='suggested_numplayers']")
+                    best_count = "N/A"
+                    max_votes = -1
+                    if poll:
+                        for res in poll.findall("results"):
+                            votes = int(res.find("result[@value='Best']").get("numvotes"))
+                            if votes > max_votes:
+                                max_votes = votes
+                                best_count = res.get("numplayers")
+
+                    ratings = game.find("statistics/ratings")
+                    users_rated = ratings.findtext("usersrated", default="N/A")
+                    avg_rating = ratings.findtext("average", default="N/A")
+                    avg_rating = f"{float(avg_rating):.2f}" if avg_rating != "N/A" else avg_rating
+
+                    embed = discord.Embed(
+                        color=self.bot.embed_color,
+                        title=f"**{game_name}**",
+                        description=(
+                            f"**ID:** {game_id}\n"
+                            f"**Recommended Age:** {age}+\n"
+                            f"**Best Player Count:** {best_count}\n"
+                            f"**Users Rated:** {users_rated}\n"
+                            f"**Average Rating:** {avg_rating}"
+                        ),
+                    )
+                    await ctx.send(embed=embed)
+                else:
+                    await ctx.send("Game not found.")
+                    self.bot.logger.warning(f"No game found for ID {game_id}")
+            else:
+                await ctx.send("Failed to retrieve game info from BGG.")
+                self.bot.logger.error(
+                    f"BGG info fetch failed for {game_id}, status: {response.status}"
+                )
 
     @commands.hybrid_command(
         name="bggcollection", help="Fetch a BGG user's collection by username."
@@ -225,9 +210,7 @@ class BoardGames(commands.Cog):
                     )
                     self.bot.logger.info(f"Collection fetched for {username}")
                 elif response.status == 202:
-                    await ctx.send(
-                        f"Collection for {username} is being prepared. Try again later."
-                    )
+                    await ctx.send(f"Collection for {username} is being prepared. Try again later.")
                     self.bot.logger.warning(f"BGG collection preparing for {username}")
                 else:
                     await ctx.send("Failed to fetch collection.")
@@ -235,9 +218,7 @@ class BoardGames(commands.Cog):
                         f"Failed fetch for BGG {username}, status: {response.status}"
                     )
             except Exception as e:
-                self.bot.logger.exception(
-                    f"Error fetching BGG collection for {username}: {e}"
-                )
+                self.bot.logger.exception(f"Error fetching BGG collection for {username}: {e}")
                 await ctx.send("An error occurred during fetch.")
 
     @commands.hybrid_command(

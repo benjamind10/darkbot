@@ -5,14 +5,14 @@ Information Cog
 Displays general statistics and informational commands about the bot.
 """
 
-import time
 import platform
-import discord
-from discord.ext import commands
+import time
 from datetime import datetime, timedelta
-import asyncio
-import psutil
+
+import discord
 import distro
+import psutil
+from discord.ext import commands
 
 
 class Information(commands.Cog):
@@ -31,9 +31,7 @@ class Information(commands.Cog):
         self.logger = bot.logger
         self.redis = bot.redis_manager
 
-    @commands.hybrid_command(
-        name="botstats", help="Displays general statistics about the bot."
-    )
+    @commands.hybrid_command(name="botstats", help="Displays general statistics about the bot.")
     async def botstats(self, ctx):
         """
         Show a summary of in-memory and Redis-backed statistics.
@@ -48,15 +46,11 @@ class Information(commands.Cog):
             timestamp=datetime.utcnow(),
         )
         for name, value in stats.items():
-            embed.add_field(
-                name=name.replace("_", " ").title(), value=value, inline=True
-            )
+            embed.add_field(name=name.replace("_", " ").title(), value=value, inline=True)
         await ctx.send(embed=embed)
         self.logger.info(f"Bot statistics sent to {ctx.author} in {ctx.guild}")
 
-    @commands.hybrid_command(
-        aliases=["commands", "cmds"], help="Shows all available commands."
-    )
+    @commands.hybrid_command(aliases=["commands", "cmds"], help="Shows all available commands.")
     async def robot_commands(self, ctx):
         """
         List every command grouped by its cog.
@@ -83,9 +77,7 @@ class Information(commands.Cog):
                 if cmd.cog_name == cog_name and not cmd.hidden
             ]
             if cmds:
-                embed.add_field(
-                    name=f"• {cog_name} Commands", value=" ".join(cmds), inline=False
-                )
+                embed.add_field(name=f"• {cog_name} Commands", value=" ".join(cmds), inline=False)
         await ctx.send(embed=embed)
         self.logger.info(f"Command list sent to {ctx.author} in {ctx.guild}")
 
@@ -93,8 +85,8 @@ class Information(commands.Cog):
     async def help_command(self, ctx, *, command_name: str = None):
         """
         Display help for a specific command or list all commands.
-        
-        Usage: 
+
+        Usage:
             !help - Shows all commands
             !help <command> - Shows detailed help for a command
         """
@@ -102,19 +94,19 @@ class Information(commands.Cog):
             # Show all commands - delegate to robot_commands
             await self.robot_commands(ctx)
             return
-        
+
         # Show help for specific command
         cmd = self.bot.get_command(command_name)
         if cmd is None:
             await ctx.send(f"❌ Command `{command_name}` not found.")
             return
-        
+
         embed = discord.Embed(
             title=f"→ Help: {cmd.name}",
             color=self.bot.colors["info"],
             timestamp=datetime.utcnow(),
         )
-        
+
         # Command description
         if cmd.help:
             embed.description = cmd.help
@@ -122,22 +114,22 @@ class Information(commands.Cog):
             embed.description = cmd.brief
         else:
             embed.description = "No description available."
-        
+
         # Usage
         usage = f"{ctx.prefix}{cmd.name}"
         if cmd.signature:
             usage += f" {cmd.signature}"
         embed.add_field(name="• Usage", value=f"`{usage}`", inline=False)
-        
+
         # Aliases
         if cmd.aliases:
             aliases = ", ".join(f"`{alias}`" for alias in cmd.aliases)
             embed.add_field(name="• Aliases", value=aliases, inline=False)
-        
+
         # Cog
         if cmd.cog_name:
             embed.add_field(name="• Category", value=cmd.cog_name, inline=True)
-        
+
         await ctx.send(embed=embed)
         self.logger.info(f"Help for '{command_name}' shown to {ctx.author}")
 
@@ -166,9 +158,7 @@ class Information(commands.Cog):
                     timestamp=datetime.utcnow(),
                 )
                 await ctx.send(embed=embed)
-                self.logger.info(
-                    f"Fetched Redis key '{key}' for {ctx.author} in {ctx.guild}"
-                )
+                self.logger.info(f"Fetched Redis key '{key}' for {ctx.author} in {ctx.guild}")
         except Exception as e:
             await ctx.send("⚠️ Failed to fetch Redis key.")
             self.logger.exception(f"Error fetching Redis key '{key}': {e}")
@@ -201,17 +191,11 @@ class Information(commands.Cog):
             embed.add_field(name="• CPU Usage", value=f"{cpu:.1f}%", inline=True)
             embed.add_field(name="• RAM Used", value=f"{ram:.2f} GB", inline=True)
             embed.add_field(name="• Disk Used", value=f"{disk:.2f} GB", inline=True)
-            embed.add_field(
-                name="• Bot Uptime", value=str(uptime_td).split(".")[0], inline=True
-            )
+            embed.add_field(name="• Bot Uptime", value=str(uptime_td).split(".")[0], inline=True)
             embed.add_field(name="• Member Count", value=str(users), inline=True)
             embed.add_field(name="• Guild Count", value=str(guilds), inline=True)
-            embed.add_field(
-                name="• discord.py Version", value=discord.__version__, inline=True
-            )
-            embed.add_field(
-                name="• Python Version", value=platform.python_version(), inline=True
-            )
+            embed.add_field(name="• discord.py Version", value=discord.__version__, inline=True)
+            embed.add_field(name="• Python Version", value=platform.python_version(), inline=True)
             embed.set_footer(text="Made by Shiva187")
 
             await ctx.send(embed=embed)
@@ -290,9 +274,7 @@ class Information(commands.Cog):
             "dnd": "⛔",
             "offline": "⚪",
         }
-        roles = ", ".join(
-            role.name for role in member.roles if role.name != "@everyone"
-        )
+        roles = ", ".join(role.name for role in member.roles if role.name != "@everyone")
         embed = discord.Embed(
             title=f"→ User Info: {member}",
             color=self.bot.embed_color,

@@ -5,6 +5,7 @@ DarkBot Settings and Constants
 
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -155,9 +156,7 @@ EMOJIS = {
 # Development settings
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 DEVELOPMENT_GUILD_ID = os.getenv("DEVELOPMENT_GUILD_ID")
-SYNC_COMMANDS_ON_STARTUP = (
-    os.getenv("SYNC_COMMANDS_ON_STARTUP", "False").lower() == "true"
-)
+SYNC_COMMANDS_ON_STARTUP = os.getenv("SYNC_COMMANDS_ON_STARTUP", "False").lower() == "true"
 
 # Feature flags
 FEATURES = {

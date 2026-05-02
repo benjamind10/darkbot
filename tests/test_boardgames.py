@@ -1,10 +1,9 @@
-import asyncio
 import logging
 
 import pytest
 from aioresponses import aioresponses
 
-from bot.utils.boardgames import fetch_bgg_collection, BASE_URL
+from bot.utils.boardgames import BASE_URL, fetch_bgg_collection
 
 
 @pytest.mark.asyncio

@@ -6,11 +6,11 @@ Moderation logging and guild configuration commands.
 Handles logging of moderation actions, message deletes/edits to a designated channel.
 """
 
-import discord
-from discord.ext import commands
-from typing import Optional
 from datetime import datetime
+
+import discord
 import psycopg2.extras
+from discord.ext import commands
 
 
 class ModLog(commands.Cog):
@@ -21,21 +21,21 @@ class ModLog(commands.Cog):
         self.logger = bot.logger
         self.redis = bot.redis_manager
 
-    async def get_guild_config(self, guild_id: int) -> Optional[dict]:
+    async def get_guild_config(self, guild_id: int) -> dict | None:
         """Get guild configuration from database."""
         try:
             with self.bot.db_conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
                 cursor.execute(
                     "INSERT INTO guild_config (guild_id) VALUES (%s) "
                     "ON CONFLICT (guild_id) DO NOTHING",
-                    (guild_id,)
+                    (guild_id,),
                 )
                 self.bot.db_conn.commit()
                 cursor.execute(
                     "SELECT guild_id, modlog_channel_id, welcome_channel_id, "
                     "welcome_message, goodbye_message, auto_role_id, prefix "
                     "FROM guild_config WHERE guild_id = %s",
-                    (guild_id,)
+                    (guild_id,),
                 )
                 result = cursor.fetchone()
                 if result:
@@ -45,13 +45,13 @@ class ModLog(commands.Cog):
             self.logger.error(f"ModLog | Error fetching guild config: {e}")
             return None
 
-    async def get_modlog_channel(self, guild: discord.Guild) -> Optional[discord.TextChannel]:
+    async def get_modlog_channel(self, guild: discord.Guild) -> discord.TextChannel | None:
         """Get the modlog channel for a guild."""
         config = await self.get_guild_config(guild.id)
-        if not config or not config.get('modlog_channel_id'):
+        if not config or not config.get("modlog_channel_id"):
             return None
 
-        channel = guild.get_channel(config['modlog_channel_id'])
+        channel = guild.get_channel(config["modlog_channel_id"])
         return channel if isinstance(channel, discord.TextChannel) else None
 
     async def log_to_modlog(self, guild: discord.Guild, embed: discord.Embed):
@@ -88,14 +88,14 @@ class ModLog(commands.Cog):
                 cursor.execute(
                     "INSERT INTO guild_config (guild_id, modlog_channel_id) VALUES (%s, %s) "
                     "ON CONFLICT (guild_id) DO UPDATE SET modlog_channel_id = %s",
-                    (ctx.guild.id, channel.id, channel.id)
+                    (ctx.guild.id, channel.id, channel.id),
                 )
                 self.bot.db_conn.commit()
 
             embed = discord.Embed(
                 title="✅ Modlog Channel Set",
                 description=f"Moderation logs will now be sent to {channel.mention}",
-                color=discord.Color.green()
+                color=discord.Color.green(),
             )
             await ctx.send(embed=embed)
             self.logger.info(f"ModLog | Set modlog channel for {ctx.guild.name} to #{channel.name}")
@@ -111,14 +111,14 @@ class ModLog(commands.Cog):
             with self.bot.db_conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE guild_config SET modlog_channel_id = NULL WHERE guild_id = %s",
-                    (ctx.guild.id,)
+                    (ctx.guild.id,),
                 )
                 self.bot.db_conn.commit()
 
             embed = discord.Embed(
                 title="✅ Modlog Disabled",
                 description="Moderation logging has been disabled for this server.",
-                color=discord.Color.gold()
+                color=discord.Color.gold(),
             )
             await ctx.send(embed=embed)
             self.logger.info(f"ModLog | Disabled modlog for {ctx.guild.name}")
@@ -139,61 +139,45 @@ class ModLog(commands.Cog):
         embed = discord.Embed(
             title=f"📋 Modlog Configuration - {ctx.guild.name}",
             color=discord.Color.blue(),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
 
         # Modlog channel
-        if config.get('modlog_channel_id'):
-            channel = ctx.guild.get_channel(config['modlog_channel_id'])
+        if config.get("modlog_channel_id"):
+            channel = ctx.guild.get_channel(config["modlog_channel_id"])
             if channel:
-                embed.add_field(
-                    name="Modlog Channel",
-                    value=f"✅ {channel.mention}",
-                    inline=False
-                )
+                embed.add_field(name="Modlog Channel", value=f"✅ {channel.mention}", inline=False)
             else:
                 embed.add_field(
-                    name="Modlog Channel",
-                    value="❌ Configured but channel not found",
-                    inline=False
+                    name="Modlog Channel", value="❌ Configured but channel not found", inline=False
                 )
         else:
-            embed.add_field(
-                name="Modlog Channel",
-                value="❌ Not configured",
-                inline=False
-            )
+            embed.add_field(name="Modlog Channel", value="❌ Not configured", inline=False)
 
         # Welcome/goodbye channels (for future features)
-        if config.get('welcome_channel_id'):
-            channel = ctx.guild.get_channel(config['welcome_channel_id'])
+        if config.get("welcome_channel_id"):
+            channel = ctx.guild.get_channel(config["welcome_channel_id"])
             embed.add_field(
                 name="Welcome Channel",
                 value=channel.mention if channel else "❌ Channel not found",
-                inline=True
+                inline=True,
             )
 
         # Auto-role (for future features)
-        if config.get('auto_role_id'):
-            role = ctx.guild.get_role(config['auto_role_id'])
+        if config.get("auto_role_id"):
+            role = ctx.guild.get_role(config["auto_role_id"])
             embed.add_field(
-                name="Auto Role",
-                value=role.mention if role else "❌ Role not found",
-                inline=True
+                name="Auto Role", value=role.mention if role else "❌ Role not found", inline=True
             )
 
         # Prefix
-        embed.add_field(
-            name="Prefix",
-            value=f"`{config.get('prefix', '!')}`",
-            inline=True
-        )
+        embed.add_field(name="Prefix", value=f"`{config.get('prefix', '!')}`", inline=True)
 
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="cases")
     @commands.has_permissions(manage_messages=True)
-    async def cases(self, ctx, member: Optional[discord.Member] = None):
+    async def cases(self, ctx, member: discord.Member | None = None):
         """
         View moderation cases for a member or all recent cases.
 
@@ -206,14 +190,14 @@ class ModLog(commands.Cog):
                     cursor.execute(
                         "SELECT * FROM moderation_logs WHERE guild_id = %s AND target_id = %s "
                         "ORDER BY case_id DESC LIMIT 10",
-                        (ctx.guild.id, member.id)
+                        (ctx.guild.id, member.id),
                     )
                     title = f"📋 Recent Cases for {member}"
                 else:
                     cursor.execute(
                         "SELECT * FROM moderation_logs WHERE guild_id = %s "
                         "ORDER BY case_id DESC LIMIT 10",
-                        (ctx.guild.id,)
+                        (ctx.guild.id,),
                     )
                     title = "📋 Recent Moderation Cases"
 
@@ -224,27 +208,21 @@ class ModLog(commands.Cog):
                 return
 
             embed = discord.Embed(
-                title=title,
-                color=discord.Color.blue(),
-                timestamp=datetime.utcnow()
+                title=title, color=discord.Color.blue(), timestamp=datetime.utcnow()
             )
 
             for case in cases:
-                moderator = ctx.guild.get_member(case['moderator_id'])
-                target = ctx.guild.get_member(case['target_id']) or f"User ID: {case['target_id']}"
+                moderator = ctx.guild.get_member(case["moderator_id"])
+                target = ctx.guild.get_member(case["target_id"]) or f"User ID: {case['target_id']}"
 
                 value = f"**Type:** {case['action_type']}\n"
-                mod_id = case['moderator_id']
+                mod_id = case["moderator_id"]
                 value += f"**Moderator:** {moderator.mention if moderator else f'ID: {mod_id}'}\n"
                 value += f"**Target:** {target.mention if isinstance(target, discord.Member) else target}\n"
                 value += f"**Reason:** {case['reason'] or 'No reason provided'}\n"
                 value += f"**Date:** {case['created_at'].strftime('%Y-%m-%d %H:%M UTC')}"
 
-                embed.add_field(
-                    name=f"Case #{case['case_id']}",
-                    value=value,
-                    inline=False
-                )
+                embed.add_field(name=f"Case #{case['case_id']}", value=value, inline=False)
 
             if len(cases) == 10:
                 embed.set_footer(text="Showing 10 most recent cases")

@@ -9,18 +9,21 @@ for resolving Spotify URLs to playable audio via Wavelink.
 
 import os
 import time
+from typing import cast
+
 import discord
 from discord.ext import commands
-from typing import cast
 
 try:
     import aiohttp
+
     AIOHTTP_AVAILABLE = True
 except ImportError:
     AIOHTTP_AVAILABLE = False
 
 try:
     import wavelink
+
     WAVELINK_AVAILABLE = True
 except ImportError:
     WAVELINK_AVAILABLE = False
@@ -59,7 +62,9 @@ class Spotify(commands.Cog):
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, data=data, auth=auth, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                async with session.post(
+                    url, data=data, auth=auth, timeout=aiohttp.ClientTimeout(total=10)
+                ) as resp:
                     if resp.status != 200:
                         self.logger.error(f"Spotify | Token request failed: {resp.status}")
                         return None
@@ -80,7 +85,9 @@ class Spotify(commands.Cog):
 
         token = await self._fetch_spotify_token()
         if not token:
-            await ctx.send("Spotify API credentials not configured. Set `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`.")
+            await ctx.send(
+                "Spotify API credentials not configured. Set `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`."
+            )
             return None
         return token
 
@@ -104,7 +111,9 @@ class Spotify(commands.Cog):
         if not player:
             try:
                 player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
-                self.logger.info(f"Spotify | Connected to voice channel: {ctx.author.voice.channel.name}")
+                self.logger.info(
+                    f"Spotify | Connected to voice channel: {ctx.author.voice.channel.name}"
+                )
             except Exception as e:
                 await ctx.send(f"Failed to connect to voice channel: {e}")
                 self.logger.error(f"Spotify | Failed to connect: {e}")
@@ -130,7 +139,9 @@ class Spotify(commands.Cog):
             headers = {"Authorization": f"Bearer {token}"}
 
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                async with session.get(
+                    url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)
+                ) as resp:
                     if resp.status != 200:
                         await ctx.send("Failed to reach Spotify API. Please try again later.")
                         self.logger.error(f"Spotify | API error: {resp.status}")
@@ -198,7 +209,9 @@ class Spotify(commands.Cog):
             headers = {"Authorization": f"Bearer {token}"}
 
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                async with session.get(
+                    url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)
+                ) as resp:
                     if resp.status != 200:
                         await ctx.send("Failed to reach Spotify API. Please try again later.")
                         return
@@ -228,12 +241,16 @@ class Spotify(commands.Cog):
             results: wavelink.Search = await wavelink.Playable.search(spotify_url)
 
             if not results:
-                await ctx.send(f"Could not resolve a playable source for **{track_name}** by **{artists}**.")
+                await ctx.send(
+                    f"Could not resolve a playable source for **{track_name}** by **{artists}**."
+                )
                 return
 
             if isinstance(results, wavelink.Playlist):
                 added: int = await player.queue.put_wait(results)
-                await ctx.send(f"Added playlist **{results.name}** with `{added}` tracks to the queue.")
+                await ctx.send(
+                    f"Added playlist **{results.name}** with `{added}` tracks to the queue."
+                )
                 if not player.playing:
                     await player.play(player.queue.get(), volume=30)
             else:

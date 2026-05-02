@@ -8,11 +8,11 @@ Core functionality for the DarkBot Discord bot.
 from .bot import DarkBot
 from .events import EventManager
 from .exceptions import (
-    DarkBotException,
-    ConfigurationError,
-    BotConfigurationError,
-    DatabaseError,
     APIError,
+    BotConfigurationError,
+    ConfigurationError,
+    DarkBotException,
+    DatabaseError,
     ValidationError,
 )
 
