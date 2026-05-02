@@ -8,6 +8,7 @@ import ssl
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import dotenv
 
@@ -209,8 +210,8 @@ class Config:
         Args:
             config_file: Path to optional JSON config file
         """
-        # Load environment variables
-        dotenv.load_dotenv(PROJECT_ROOT / ".env")
+        # Load environment variables from both local and Docker layouts.
+        self._load_env_files()
 
         # Load configuration from file if provided
         self._file_config = {}
@@ -219,6 +220,20 @@ class Config:
 
         # Initialize configuration sections
         self._initialize_config()
+
+    def _load_env_files(self) -> None:
+        """Load .env from common repo, bot, and container working directories."""
+        env_file = os.getenv("DARKBOT_ENV_FILE")
+        candidates = [
+            Path(env_file).expanduser() if env_file else None,
+            PROJECT_ROOT / ".env",
+            BOT_DIR / ".env",
+            Path.cwd() / ".env",
+        ]
+
+        for candidate in candidates:
+            if candidate and candidate.is_file():
+                dotenv.load_dotenv(candidate)
 
     def print_config(self):
         for attr in dir(self):
@@ -369,7 +384,10 @@ class Config:
 
         # Build a valid PostgreSQL URL if not provided
         if not db_url and all([host, port, name, user, password]):
-            db_url = f"postgresql://{user}:{password}@{host}:{port}/{name}"
+            quoted_user = quote(str(user), safe="")
+            quoted_password = quote(str(password), safe="")
+            quoted_name = quote(str(name), safe="")
+            db_url = f"postgresql://{quoted_user}:{quoted_password}@{host}:{port}/{quoted_name}"
         elif not db_url:
             db_url = f"postgresql://{DATABASE_USER}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
