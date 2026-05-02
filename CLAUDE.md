@@ -41,7 +41,7 @@ Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files
 
 - `bot/core/` - Bot class (`bot.py`), event manager (`events.py`), custom exceptions (`exceptions.py`)
 - `bot/cogs/` - Feature modules loaded dynamically at startup (13 cogs)
-- `bot/config/` - `settings.py` (constants/env vars), `config.py` (typed dataclass configs with env->file->default fallback)
+- `bot/config/` - `config.py` (typed dataclass configs with env->file->default fallback)
 - `bot/utils/` - Shared utilities: `redis_manager.py`, `logger.py`, board game helpers, etc.
 - `docs/` - Documentation (deployment, music, modlog, events, testing, configuration)
 
@@ -64,9 +64,9 @@ Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files
 
 ### Configuration
 
-Configuration uses a three-level fallback: environment variables (`.env`) -> JSON config file -> defaults from `config/settings.py`. The `Config` class in `config/config.py` provides typed dataclass sections: `DatabaseConfig`, `RedisConfig`, `MusicConfig`, `LavalinkConfig`, `ModerationConfig`, `LoggingConfig`.
+Configuration uses a three-level fallback: environment variables (`.env`) -> JSON config file -> defaults in `config/config.py`. The `Config` class in `config/config.py` provides typed dataclass sections: `DatabaseConfig`, `RedisConfig`, `MusicConfig`, `LavalinkConfig`, `ModerationConfig`, `LoggingConfig`, `FeatureFlags`, and `ServicesConfig`.
 
-Feature flags in `settings.py` control which subsystems are active (MUSIC_ENABLED, MODERATION_ENABLED, etc.).
+All runtime configuration access should go through `bot.config`. Feature flags live at `bot.config.features` and external API keys/secrets live at `bot.config.services`.
 
 See `bot/.env.example` for required environment variables, or `docs/configuration.md` for full reference.
 

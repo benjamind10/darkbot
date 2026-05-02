@@ -5,8 +5,6 @@ ChatGPT Cog
 Handles ChatGPT integration for asking questions using OpenAI's API.
 """
 
-import os
-
 from discord.ext import commands
 
 try:
@@ -26,8 +24,7 @@ class ChatGPT(commands.Cog):
         self.redis = bot.redis_manager
 
         if OPENAI_AVAILABLE:
-            # Fetch the OpenAI API key from the environment
-            openai.api_key = os.getenv("CHATGPT_SECRET")
+            openai.api_key = bot.config.services.chatgpt_secret
             if not openai.api_key:
                 self.logger.warning("CHATGPT_SECRET not set - ChatGPT commands will not work")
         else:

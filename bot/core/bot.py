@@ -11,8 +11,9 @@ import os
 from datetime import datetime
 from typing import Any
 
+import aiohttp
 import discord
-import psycopg2
+import psycopg_pool
 from discord.ext import commands
 from utils.redis_manager import RedisManager
 
@@ -150,11 +151,14 @@ class DarkBot(commands.Bot):
         else:
             self.logger.warning("Redis initialization failed - continuing without Redis")
 
+        # Initialize database connection pool
+        await self.setup_database()
+
+        # Shared aiohttp session for all cogs
+        self.http_session = aiohttp.ClientSession()
+
         # Load all cogs
         await self.load_cogs()
-
-        # Initialize database connection
-        await self.setup_database()
 
         # Sync slash commands to Discord
         try:
@@ -170,18 +174,16 @@ class DarkBot(commands.Bot):
 
         This gives clearer feedback at startup which keys to check in .env or deployment.
         """
-        import os
-
         checks = {
-            "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
-            "LAVALINK_PASS": os.getenv("LAVALINK_PASS"),
-            "LAVALINK_SERVER": os.getenv("LAVALINK_SERVER"),
-            "SPOTIFY_API / CLIENTS": os.getenv("SPOTIFY_API")
-            or (os.getenv("SPOTIFY_CLIENT_ID") and os.getenv("SPOTIFY_CLIENT_SECRET")),
-            "CHATGPT_SECRET": os.getenv("CHATGPT_SECRET"),
-            "KSOFT_API": os.getenv("KSOFT_API"),
-            "IP_INFO": os.getenv("IP_INFO"),
-            "YOUTUBE_API_KEY": os.getenv("YOUTUBE_API_KEY"),
+            "DISCORD_TOKEN": self.config.token,
+            "LAVALINK_PASS": self.config.lavalink.password,
+            "LAVALINK_SERVER": self.config.lavalink.host,
+            "SPOTIFY_CLIENTS": self.config.services.spotify_client_id
+            and self.config.services.spotify_client_secret,
+            "CHATGPT_SECRET": self.config.services.chatgpt_secret,
+            "KSOFT_API": self.config.services.ksoft_api,
+            "IP_INFO": self.config.services.ip_info,
+            "YOUTUBE_API_KEY": self.config.services.youtube_api_key,
         }
 
         missing = [k for k, v in checks.items() if not v]
@@ -208,22 +210,23 @@ class DarkBot(commands.Bot):
                 self.logger.error(f"Failed to load cog {cog_name}: {e}")
 
     async def setup_database(self):
-        """Initialize database connection."""
+        """Initialize database connection pool."""
         try:
             db_config = getattr(self.config, "database", None)
             if not db_config:
                 raise ConfigurationError("Database configuration missing.")
 
-            # Use params dict for psycopg2
-            if hasattr(db_config, "params"):
-                params = db_config.params
-            else:
-                raise ConfigurationError("Database connection parameters not found in config.")
+            if not getattr(db_config, "url", None):
+                raise ConfigurationError("Database connection URL not found in config.")
 
-            print(params)  # For debugging
-            conn = psycopg2.connect(**params)
-            self.db_conn = conn
-            self.logger.info("Database connection established.")
+            self.db_pool = psycopg_pool.AsyncConnectionPool(
+                conninfo=db_config.url,
+                min_size=1,
+                max_size=10,
+                open=False,
+            )
+            await self.db_pool.open()
+            self.logger.info("Database connection pool established.")
         except Exception as e:
             self.logger.error(f"Database setup failed: {e}")
             raise
@@ -291,11 +294,19 @@ class DarkBot(commands.Bot):
         except (ImportError, Exception):
             pass  # Wavelink not installed or already closed
 
-        # Close database connections
-        if hasattr(self, "db_conn") and self.db_conn:
+        # Close shared aiohttp session
+        if hasattr(self, "http_session") and self.http_session:
             try:
-                self.db_conn.close()
-                self.logger.info("Database connection closed")
+                await self.http_session.close()
+                self.logger.info("HTTP session closed")
+            except Exception as e:
+                self.logger.error(f"Error closing HTTP session: {e}")
+
+        # Close database connection pool
+        if hasattr(self, "db_pool") and self.db_pool:
+            try:
+                await self.db_pool.close()
+                self.logger.info("Database pool closed")
             except Exception as e:
                 self.logger.error(f"Error closing database: {e}")
 

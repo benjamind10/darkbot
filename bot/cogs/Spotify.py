@@ -7,7 +7,6 @@ Uses the Spotify Web API for search and LavaSrc (Lavalink plugin)
 for resolving Spotify URLs to playable audio via Wavelink.
 """
 
-import os
 import time
 from typing import cast
 
@@ -36,8 +35,8 @@ class Spotify(commands.Cog):
         self.bot = bot
         self.logger = bot.logger
         self.redis = bot.redis_manager
-        self.spotify_client_id = os.getenv("SPOTIFY_CLIENT_ID")
-        self.spotify_client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        self.spotify_client_id = bot.config.services.spotify_client_id
+        self.spotify_client_secret = bot.config.services.spotify_client_secret
         self.spotify_api_url = "https://api.spotify.com/v1"
         self._spotify_token = None
         self._spotify_token_expires = 0

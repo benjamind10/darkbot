@@ -230,7 +230,11 @@ class BoardGames(commands.Cog):
         """
         await ctx.send("Starting manual update of BGG collections. Please wait...")
         try:
-            await bg_utils.process_bgg_users(self.bot.db_conn, self.bot.logger)
+            await bg_utils.process_bgg_users(
+                self.bot.db_conn,
+                self.bot.logger,
+                cookie_value=self.bot.config.services.bgg_cookie,
+            )
             await ctx.send("BGG collections updated successfully.")
             self.bot.logger.info("Manual BGG update completed.")
         except Exception as e:

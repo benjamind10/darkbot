@@ -1,5 +1,4 @@
 import asyncio
-import os
 import xml.etree.ElementTree as ET
 
 import aiohttp
@@ -14,7 +13,13 @@ def safe_convert(value, default=0, data_type=int):
         return default
 
 
-async def fetch_bgg_collection(username, logger, max_attempts: int = 3, backoff: float = 2.0):
+async def fetch_bgg_collection(
+    username,
+    logger,
+    cookie_value: str | None = None,
+    max_attempts: int = 3,
+    backoff: float = 2.0,
+):
     """Fetch a user's BGG collection with retries for transient errors and
     improved logging for diagnostics.
 
@@ -29,9 +34,6 @@ async def fetch_bgg_collection(username, logger, max_attempts: int = 3, backoff:
 
     url = f"{BASE_URL}collection/{username}?stats=1"
     logger.info("Attempting to fetch BGG collection for user: %s", username)
-
-    # Support optional authentication via environment variable.
-    cookie_value = os.getenv("BGG_AUTH_COOKIE") or os.getenv("BGG_COOKIE")
 
     async with aiohttp.ClientSession() as session:
         for attempt in range(1, max_attempts + 1):
@@ -224,7 +226,7 @@ async def upsert_boardgame(db, logger, game_data):
         raise
 
 
-async def process_bgg_users(db, logger):
+async def process_bgg_users(db, logger, cookie_value: str | None = None):
     try:
         cursor = db.cursor()
         try:
@@ -238,7 +240,9 @@ async def process_bgg_users(db, logger):
         logger.info(f"Processing {len(users)} users' BGG collections.")
         for user_id, bgguser in users:
             try:
-                xml_data, status = await fetch_bgg_collection(bgguser, logger)
+                xml_data, status = await fetch_bgg_collection(
+                    bgguser, logger, cookie_value=cookie_value
+                )
 
                 # If we hit an authorization error mark the DB user as private
                 if status in (401, 403):

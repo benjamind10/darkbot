@@ -24,7 +24,6 @@ first to inspect what would be marked.
 import argparse
 import asyncio
 import logging
-import os
 import sys
 from contextlib import suppress
 from pathlib import Path
@@ -33,35 +32,30 @@ from pathlib import Path
 # run from repo root or from within the bot/ directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 # use package imports
 import psycopg2
+from config.config import Config
 from utils.boardgames import fetch_bgg_collection
 
 LOG = logging.getLogger("backfill_bgg_private")
 
 
-def _get_db_conn_from_env():
-    dbname = os.getenv("DB_NAME") or os.getenv("DBNAME")
-    user = os.getenv("DB_USER") or os.getenv("DBUSER")
-    password = os.getenv("DB_PASS") or os.getenv("DBPASS")
-    host = os.getenv("DB_HOST") or os.getenv("DBHOST")
-    port = os.getenv("DB_PORT") or os.getenv("DBPORT")
-
-    return psycopg2.connect(dbname=dbname, user=user, password=password, host=host, port=port)
+def _get_db_conn(config: Config):
+    return psycopg2.connect(**config.database.params)
 
 
-async def _check_user_and_mark(db_conn, user_id, bgguser, dry_run: bool = True):
+async def _check_user_and_mark(
+    db_conn, user_id, bgguser, cookie_value: str | None = None, dry_run: bool = True
+):
     """Check single user; if 401/403 mark bggprivate
 
     Returns: tuple (user_id, bgguser, status, marked_bool)
     """
     status = None
     try:
-        body, status = await fetch_bgg_collection(bgguser, LOG, max_attempts=1)
+        body, status = await fetch_bgg_collection(
+            bgguser, LOG, cookie_value=cookie_value, max_attempts=1
+        )
     except Exception as e:
         LOG.exception("Unhandled error fetching for %s: %s", bgguser, e)
         return (user_id, bgguser, None, False)
@@ -108,7 +102,8 @@ async def _check_user_and_mark(db_conn, user_id, bgguser, dry_run: bool = True):
 async def main(dry_run: bool):
     LOG.info("Starting backfill (dry_run=%s)", dry_run)
 
-    db_conn = _get_db_conn_from_env()
+    config = Config()
+    db_conn = _get_db_conn(config)
     cur = db_conn.cursor()
 
     try:
@@ -122,7 +117,15 @@ async def main(dry_run: bool):
 
         tasks = []
         for uid, bgguser in users:
-            tasks.append(_check_user_and_mark(db_conn, uid, bgguser, dry_run=dry_run))
+            tasks.append(
+                _check_user_and_mark(
+                    db_conn,
+                    uid,
+                    bgguser,
+                    cookie_value=config.services.bgg_cookie,
+                    dry_run=dry_run,
+                )
+            )
 
         results = await asyncio.gather(*tasks)
 

@@ -8,7 +8,6 @@ weather, translations, IP lookup, polls, reminders, and more.
 
 import asyncio
 import datetime
-import os
 import random
 
 import discord
@@ -70,9 +69,8 @@ class Utility(commands.Cog):
         if TRANSLATOR_AVAILABLE:
             self.t = aiogoogletrans.Translator
 
-        # Get API keys from environment
-        self.ip_info_token = os.getenv("IP_INFO")
-        self.openweather_api_key = os.getenv("KSOFT_API")
+        self.ip_info_token = bot.config.services.ip_info
+        self.openweather_api_key = bot.config.services.ksoft_api
 
     # ========== Cryptocurrency Commands ==========
 

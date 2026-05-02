@@ -1,6 +1,8 @@
 # Configuration
 
-DarkBot uses a three-level configuration fallback: **environment variables** (`.env`) > **JSON config file** > **defaults** from `bot/config/settings.py`.
+DarkBot uses a three-level configuration fallback: **environment variables** (`.env`) > **JSON config file** > **defaults** in `bot/config/config.py`.
+
+The single runtime front door is the `Config` class in `bot/config/config.py`. Bot code should read configuration through `bot.config` rather than calling `os.getenv` directly.
 
 ## Environment Variables
 
@@ -57,7 +59,7 @@ Copy `bot/.env.example` to `bot/.env` and fill in your values.
 
 ## Feature Flags
 
-Feature flags in `bot/config/settings.py` control which subsystems load:
+Feature flags in `bot.config.features` control which subsystems load:
 
 - `MUSIC_ENABLED`
 - `MODERATION_ENABLED`
@@ -83,3 +85,5 @@ The `Config` class in `bot/config/config.py` provides typed dataclass sections:
 - `LavalinkConfig`
 - `ModerationConfig`
 - `LoggingConfig`
+- `FeatureFlags`
+- `ServicesConfig`

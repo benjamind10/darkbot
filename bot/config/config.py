@@ -9,45 +9,77 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
+import dotenv
 
-from .settings import (
-    CONFIG_DIR,
-    DATABASE_HOST,
-    DATABASE_NAME,
-    DATABASE_PASSWORD,
-    DATABASE_PORT,
-    DATABASE_URL_DEFAULT,
-    DATABASE_USER,
-    DEFAULT_ACTIVITY_NAME,
-    DEFAULT_ACTIVITY_TYPE,
-    DEFAULT_DESCRIPTION,
-    DEFAULT_PREFIX,
-    DISCORD_TOKEN,
-    EMBED_COLORS,
-    EMOJIS,
-    # COGS_TO_LOAD,
-    FEATURES,
-    LAVALINK_DEFAULT_HOST,
-    LAVALINK_DEFAULT_PASSWORD,
-    LAVALINK_DEFAULT_PORT,
-    OWNER_ID,
-    PERMISSION_LEVELS,
-    PROJECT_ROOT,
-    REDIS_DB,
-    REDIS_ENABLED,
-    REDIS_HOST,
-    REDIS_KEY_PREFIX,
-    REDIS_PASSWORD,
-    REDIS_PORT,
-)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+BOT_DIR = PROJECT_ROOT / "bot"
+LOGS_DIR = PROJECT_ROOT / "logs"
+CONFIG_DIR = BOT_DIR / "config"
+
+DEFAULT_PREFIX = "!"
+DEFAULT_DESCRIPTION = "DarkBot - A powerful Discord bot"
+DEFAULT_ACTIVITY_NAME = "!help for commands"
+DEFAULT_ACTIVITY_TYPE = "listening"
+
+DATABASE_HOST = "localhost"
+DATABASE_PORT = 5432
+DATABASE_NAME = "darkbot"
+DATABASE_USER = "postgres"
+DATABASE_PASSWORD = ""
+
+REDIS_HOST = "127.0.0.1"
+REDIS_PORT = 6379
+REDIS_DB = 0
+REDIS_KEY_PREFIX = "darkbot:"
+
+LAVALINK_DEFAULT_HOST = "http://lavalink:2333"
+LAVALINK_DEFAULT_PORT = 2333
+LAVALINK_DEFAULT_PASSWORD = "youshallnotpass"
+
+PERMISSION_LEVELS = {
+    "OWNER": 10,
+    "ADMIN": 8,
+    "MODERATOR": 6,
+    "TRUSTED": 4,
+    "MEMBER": 2,
+    "EVERYONE": 0,
+}
+
+EMBED_COLORS = {
+    "DEFAULT": 0x2F3136,
+    "SUCCESS": 0x00FF00,
+    "ERROR": 0xFF0000,
+    "WARNING": 0xFFFF00,
+    "INFO": 0x0099FF,
+    "MUSIC": 0x1DB954,
+    "MODERATION": 0xFF6B00,
+}
+
+EMOJIS = {
+    "SUCCESS": "✅",
+    "ERROR": "❌",
+    "WARNING": "⚠️",
+    "INFO": "ℹ️",
+    "MUSIC": "🎵",
+    "LOADING": "⏳",
+    "NEXT": "⏭️",
+    "PREVIOUS": "⏮️",
+    "PLAY": "▶️",
+    "PAUSE": "⏸️",
+    "STOP": "⏹️",
+    "VOLUME_UP": "🔊",
+    "VOLUME_DOWN": "🔉",
+    "MUTE": "🔇",
+    "LOOP": "🔄",
+    "SHUFFLE": "🔀",
+}
 
 
 @dataclass
 class DatabaseConfig:
     """Database configuration."""
 
-    url: str = DATABASE_URL_DEFAULT
+    url: str = ""
     host: str = DATABASE_HOST
     port: int = DATABASE_PORT
     name: str = DATABASE_NAME
@@ -64,10 +96,10 @@ class DatabaseConfig:
 class RedisConfig:
     """Redis configuration."""
 
-    enabled: bool = REDIS_ENABLED
+    enabled: bool = False
     host: str = REDIS_HOST
     port: int = REDIS_PORT
-    password: str | None = REDIS_PASSWORD
+    password: str | None = None
     db: int = REDIS_DB
     decode_responses: bool = True
     socket_timeout: int = 5
@@ -139,6 +171,35 @@ class LoggingConfig:
     file: str = "logs/darkbot.log"
 
 
+@dataclass
+class FeatureFlags:
+    """Feature flag configuration."""
+
+    music_enabled: bool = True
+    moderation_enabled: bool = True
+    economy_enabled: bool = False
+    leveling_enabled: bool = False
+    automod_enabled: bool = False
+
+
+@dataclass
+class ServicesConfig:
+    """External API and integration secrets."""
+
+    weather_api_key: str | None = None
+    youtube_api_key: str | None = None
+    youtube_email: str | None = None
+    youtube_password: str | None = None
+    spotify_client_id: str | None = None
+    spotify_client_secret: str | None = None
+    chatgpt_secret: str | None = None
+    openai_api_key: str | None = None
+    api_coincap: str | None = None
+    ip_info: str | None = None
+    ksoft_api: str | None = None
+    bgg_cookie: str | None = None
+
+
 class Config:
     """Main configuration class for DarkBot."""
 
@@ -149,7 +210,7 @@ class Config:
             config_file: Path to optional JSON config file
         """
         # Load environment variables
-        load_dotenv(PROJECT_ROOT / ".env")
+        dotenv.load_dotenv(PROJECT_ROOT / ".env")
 
         # Load configuration from file if provided
         self._file_config = {}
@@ -221,12 +282,12 @@ class Config:
     def _initialize_config(self) -> None:
         """Initialize all configuration sections."""
         # Bot basic settings
-        self.token = self._get_config("DISCORD_TOKEN", "token", DISCORD_TOKEN)
+        self.token = self._get_config("DISCORD_TOKEN", "token")
         self.prefix = self._get_config("BOT_PREFIX", "prefix", DEFAULT_PREFIX)
         self.description = self._get_config("BOT_DESCRIPTION", "description", DEFAULT_DESCRIPTION)
 
         # Owner configuration
-        owner_id = self._get_config("OWNER_ID", "owner_id", OWNER_ID)
+        owner_id = self._get_config("OWNER_ID", "owner_id")
         self.owner_ids = [int(owner_id)] if owner_id else []
 
         # Bot activity
@@ -256,6 +317,7 @@ class Config:
 
         # Features
         self.features = self._initialize_features()
+        self.services = self._initialize_services_config()
 
         # # Cogs
         # self.cogs_to_load = self._get_list_config(
@@ -269,27 +331,25 @@ class Config:
         # Permission levels
         self.permission_levels = PERMISSION_LEVELS.copy()
 
-        # API Keys
-        self.weather_api_key = self._get_config("WEATHER_API_KEY", "weather_api_key")
-        self.youtube_api_key = self._get_config("YOUTUBE_API_KEY", "youtube_api_key")
-        self.youtube_email = self._get_config("YOUTUBE_EMAIL", "youtube_email")
-        self.youtube_password = self._get_config("YOUTUBE_PASS", "youtube_password")
-        self.lavalink_password = self._get_config("LAVALINK_PASS", "lavalink_password")
-        self.lavalink_server = self._get_config("LAVALINK_SERVER", "lavalink_server")
-        self.spotify_client_id = self._get_config("SPOTIFY_CLIENT_ID", "spotify_client_id")
-        self.spotify_client_secret = self._get_config(
-            "SPOTIFY_CLIENT_SECRET", "spotify_client_secret"
-        )
-        self.chatgpt_secret = self._get_config("CHATGPT_SECRET", "chatgpt_secret")
-        self.openai_api_key = self._get_config("CHATGPT_SECRET", "openai_api_key")  # Alias
-        self.api_coincap = self._get_config("API_COINCAP", "api_coincap")
-        self.ip_info = self._get_config("IP_INFO", "ip_info")
-        self.ksoft_api = self._get_config("KSOFT_API", "ksoft_api")
+        # API key aliases retained for older callers; new code should use services.
+        self.weather_api_key = self.services.weather_api_key
+        self.youtube_api_key = self.services.youtube_api_key
+        self.youtube_email = self.services.youtube_email
+        self.youtube_password = self.services.youtube_password
+        self.lavalink_password = self.lavalink.password
+        self.lavalink_server = self.lavalink.host
+        self.spotify_client_id = self.services.spotify_client_id
+        self.spotify_client_secret = self.services.spotify_client_secret
+        self.chatgpt_secret = self.services.chatgpt_secret
+        self.openai_api_key = self.services.openai_api_key
+        self.api_coincap = self.services.api_coincap
+        self.ip_info = self.services.ip_info
+        self.ksoft_api = self.services.ksoft_api
 
     def _initialize_database_config(self) -> DatabaseConfig:
         """Initialize database configuration."""
         # Prefer DATABASE_URL if provided
-        db_url = self._get_config("DATABASE_URL_DEFAULT", "database.url")
+        db_url = self._get_config("DATABASE_URL", "database.url")
         # Prefer DBHOST/DBPORT environment variables (short form) because
         # some deployments / .env files use DBHOST/DBPORT instead of DB_HOST/DB_PORT.
         # Fall back to DB_HOST/DB_PORT and the settings defaults if the short keys are missing.
@@ -311,7 +371,7 @@ class Config:
         if not db_url and all([host, port, name, user, password]):
             db_url = f"postgresql://{user}:{password}@{host}:{port}/{name}"
         elif not db_url:
-            db_url = DATABASE_URL_DEFAULT
+            db_url = f"postgresql://{DATABASE_USER}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
         # Create params dict for psycopg2
         params = {
@@ -403,16 +463,48 @@ class Config:
             ),
             max_bytes=self._get_int_config("LOG_MAX_BYTES", "logging.max_bytes", 10 * 1024 * 1024),
             backup_count=self._get_int_config("LOG_BACKUP_COUNT", "logging.backup_count", 5),
+            file=self._get_config("LOG_FILE", "logging.file", "logs/darkbot.log"),
         )
 
-    def _initialize_features(self) -> dict[str, bool]:
+    def _initialize_features(self) -> FeatureFlags:
         """Initialize feature flags."""
-        features = {}
-        for feature, default in FEATURES.items():
-            features[feature] = self._get_bool_config(
-                feature, f"features.{feature.lower()}", default
-            )
-        return features
+        return FeatureFlags(
+            music_enabled=self._get_bool_config("MUSIC_ENABLED", "features.music_enabled", True),
+            moderation_enabled=self._get_bool_config(
+                "MODERATION_ENABLED", "features.moderation_enabled", True
+            ),
+            economy_enabled=self._get_bool_config(
+                "ECONOMY_ENABLED", "features.economy_enabled", False
+            ),
+            leveling_enabled=self._get_bool_config(
+                "LEVELING_ENABLED", "features.leveling_enabled", False
+            ),
+            automod_enabled=self._get_bool_config(
+                "AUTOMOD_ENABLED", "features.automod_enabled", False
+            ),
+        )
+
+    def _initialize_services_config(self) -> ServicesConfig:
+        """Initialize external API and service secrets."""
+        chatgpt_secret = self._get_config("CHATGPT_SECRET", "services.chatgpt_secret")
+        return ServicesConfig(
+            weather_api_key=self._get_config("WEATHER_API_KEY", "services.weather_api_key"),
+            youtube_api_key=self._get_config("YOUTUBE_API_KEY", "services.youtube_api_key"),
+            youtube_email=self._get_config("YOUTUBE_EMAIL", "services.youtube_email"),
+            youtube_password=self._get_config("YOUTUBE_PASS", "services.youtube_password"),
+            spotify_client_id=self._get_config("SPOTIFY_CLIENT_ID", "services.spotify_client_id"),
+            spotify_client_secret=self._get_config(
+                "SPOTIFY_CLIENT_SECRET", "services.spotify_client_secret"
+            ),
+            chatgpt_secret=chatgpt_secret,
+            openai_api_key=self._get_config("OPENAI_API_KEY", "services.openai_api_key")
+            or chatgpt_secret,
+            api_coincap=self._get_config("API_COINCAP", "services.api_coincap"),
+            ip_info=self._get_config("IP_INFO", "services.ip_info"),
+            ksoft_api=self._get_config("KSOFT_API", "services.ksoft_api"),
+            bgg_cookie=self._get_config("BGG_AUTH_COOKIE", "services.bgg_cookie")
+            or self._get_config("BGG_COOKIE", "services.bgg_cookie"),
+        )
 
     def _get_config(self, env_key: str, file_key: str, default: Any = None) -> Any:
         """Get configuration value from environment or file."""
