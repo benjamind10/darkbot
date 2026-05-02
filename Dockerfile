@@ -1,5 +1,5 @@
-# Use the Python 3.10 image as the base image
-FROM python:3.10
+# Use the Python 3.12 image as the base image
+FROM python:3.12-slim
 
 # Set the working directory inside the container
 WORKDIR /usr/local/share/bot
@@ -13,14 +13,12 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the requirements.txt file into the container
-COPY ./bot/requirements.txt .
+# Copy package metadata and source into the container
+COPY pyproject.toml README.md ./
+COPY bot ./bot
 
 # Install the Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-# Ensure redis asyncio client is installed (explicit, to avoid cached-broken builds)
-RUN pip install --no-cache-dir redis==5.0.1
-RUN pip install aiogoogletrans asyncurban ipinfo strgen forex-python bitlyshortener
+RUN pip install --no-cache-dir .
 
 # At runtime, this will be the default command, but it's overridden by the docker-compose.yml command
 CMD ["python", "bot.py"]

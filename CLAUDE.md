@@ -14,6 +14,7 @@ docker-compose up -d
 docker-compose logs -f python-app
 
 # Local development
+pip install -e ".[dev]"
 python bot/main.py
 ```
 
@@ -25,7 +26,7 @@ Entry point is `bot/main.py` which bootstraps via `BotRunner` -> `DarkBot`.
 pytest                              # all tests
 pytest tests/test_boardgames.py     # single test file
 pytest -v                           # verbose
-pyright                             # type checking (pyrightconfig.json)
+pyright                             # type checking (configured in pyproject.toml)
 ```
 
 Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files live in `tests/`.
@@ -71,7 +72,7 @@ See `bot/.env.example` for required environment variables, or `docs/configuratio
 
 ### Services (docker-compose.yml)
 
-- **python-app** - The bot (Python 3.10, mounts `./bot`)
+- **python-app** - The bot (Python 3.12, mounts `./bot`)
 - **lavalink** - Music audio server (configured via `application.yml`)
 - **db** - PostgreSQL 16 (schemas: `darkbot.sql`, `events_schema.sql`, `modlog_schema.sql`)
 - **redis** - Redis 6 for caching/cooldowns (key prefix: `darkbot:`)
@@ -98,7 +99,6 @@ All commands use `@commands.hybrid_command` (or `@commands.hybrid_group` for sub
 
 ## Important Notes
 
-- `bot/requirements.txt` has corrupted encoding (spaces between characters) - the Dockerfile installs additional packages explicitly to compensate
 - Database schemas must be applied manually (see above)
 - Redis is optional - controlled by `REDIS_ENABLED` env var, bot gracefully falls back if unavailable
 - Lavalink host defaults to `lavalink` (Docker service name) for containerized runs, override with `LAVALINK_SERVER`
