@@ -5,10 +5,13 @@ Moderation Cog
 Handles moderation commands like ban, kick, warn, role management, and message purging.
 """
 
+import logging
 import traceback
 
 import discord
 from discord.ext import commands
+
+logger = logging.getLogger("darkbot.moderation")
 
 
 class Moderation(commands.Cog):
@@ -204,8 +207,8 @@ class Moderation(commands.Cog):
                 embed2.add_field(name="• Reason", value=f"{reason}")
                 embed2.set_footer(text=f"Banned from: {ctx.guild}")
                 await member.send(embed=embed2)
-            except:
-                pass  # User has DMs disabled
+            except (discord.Forbidden, discord.HTTPException):
+                logger.exception("Moderation | Failed to DM user before ban: %s", member)
 
             await member.ban(reason=reason)
             await ctx.send(embed=embed)
@@ -393,8 +396,8 @@ class Moderation(commands.Cog):
                 embed2.add_field(name="• Reason", value=f"{reason}")
                 embed2.set_footer(text=f"Kicked from: {ctx.guild}")
                 await member.send(embed=embed2)
-            except:
-                pass  # User has DMs disabled
+            except (discord.Forbidden, discord.HTTPException):
+                logger.exception("Moderation | Failed to DM user before kick: %s", member)
 
             await member.kick(reason=reason)
             await ctx.send(embed=embed)
@@ -475,8 +478,8 @@ class Moderation(commands.Cog):
                 embed2.add_field(name="• Reason", value=f"`{reason}`")
                 embed2.set_footer(text=f"Warning sent from: {ctx.guild}")
                 await member.send(embed=embed2)
-            except:
-                pass  # User has DMs disabled
+            except (discord.Forbidden, discord.HTTPException):
+                logger.exception("Moderation | Failed to DM user about warning: %s", member)
 
             self.logger.info(
                 f"Moderation | Sent Warn: {ctx.author} | Warned: {member} | Reason: {reason}"

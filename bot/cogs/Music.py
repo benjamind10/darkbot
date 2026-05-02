@@ -49,8 +49,13 @@ class Music(commands.Cog):
 
     async def cog_unload(self):
         """Called when the cog is unloaded. Cleanup Wavelink."""
-        if WAVELINK_AVAILABLE:
-            await wavelink.Pool.close()
+        if not WAVELINK_AVAILABLE:
+            return
+        if not wavelink.Pool.nodes:
+            self.logger.debug("Music | Wavelink already closed; skipping pool shutdown")
+            return
+        await wavelink.Pool.close()
+        self.logger.info("Music | Wavelink connection closed")
 
     @commands.Cog.listener()
     async def on_wavelink_node_ready(self, payload: wavelink.NodeReadyEventPayload):

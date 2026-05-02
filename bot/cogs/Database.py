@@ -6,6 +6,7 @@ Handles database related commands.
 """
 
 import discord
+import psycopg
 from discord.ext import commands
 
 
@@ -43,9 +44,9 @@ class Database(commands.Cog):
                 )
             await ctx.send(embed=embed)
             self.bot.logger.info("Successfully listed all users.")
-        except Exception as e:
+        except psycopg.Error:
             await ctx.send("Failed to fetch users.")
-            self.bot.logger.error(f"Failed to fetch users: {e}")
+            self.bot.logger.exception("Failed to fetch users")
 
     @commands.hybrid_command(
         name="adduser",
@@ -88,9 +89,9 @@ class Database(commands.Cog):
         except ValueError:
             await ctx.send("Please make sure the Discord User ID is a valid integer.")
             self.bot.logger.warning("Invalid input for Discord User ID.")
-        except Exception as e:
+        except psycopg.Error as e:
             await ctx.send(f"An error occurred: {e}")
-            self.bot.logger.error(f"An error occurred during user upsert: {e}")
+            self.bot.logger.exception("An error occurred during user upsert")
 
     @commands.hybrid_command(
         name="disableuser",
@@ -115,9 +116,9 @@ class Database(commands.Cog):
             )
             await ctx.send(embed=embed)
             self.bot.logger.info(f"User with ID {user_id} disabled successfully.")
-        except Exception as e:
+        except psycopg.Error as e:
             await ctx.send(f"Failed to disable user: {e}")
-            self.bot.logger.error(f"Failed to disable user: {e}")
+            self.bot.logger.exception("Failed to disable user")
 
     @commands.hybrid_command(
         name="enableuser",
@@ -142,9 +143,9 @@ class Database(commands.Cog):
                 description=f"The user with ID {user_id} has been enabled.",
             )
             await ctx.send(embed=embed)
-        except Exception as e:
+        except psycopg.Error as e:
             await ctx.send(f"Failed to enable user: {e}")
-            self.bot.logger.error(f"Failed to enable user: {e}")
+            self.bot.logger.exception("Failed to enable user")
 
     def chunk_games(self, games, size=25):
         """Yield successive chunks from games."""
@@ -218,10 +219,10 @@ class Database(commands.Cog):
                 self.bot.logger.info(
                     f"Embed sent for a chunk of games starting with '{letter}'. {game_count} games listed so far."
                 )
-        except Exception as e:
+        except psycopg.Error as e:
             await ctx.send(f"Failed to fetch board games: {e}")
-            self.bot.logger.error(
-                f"Exception occurred while fetching games starting with '{letter}': {e}"
+            self.bot.logger.exception(
+                "Exception occurred while fetching games starting with '%s'", letter
             )
 
     @commands.hybrid_command(name="executesql", help="Executes a custom SQL query. Owner only.")
@@ -254,9 +255,9 @@ class Database(commands.Cog):
                         await ctx.send("Query executed successfully with no return.")
 
             self.bot.logger.info(f"SQL executed by owner: {query}")
-        except Exception as e:
+        except psycopg.Error as e:
             await ctx.send(f"Failed to execute query: {e}")
-            self.bot.logger.error(f"Exception occurred during SQL execution: {e}")
+            self.bot.logger.exception("Exception occurred during SQL execution")
 
     async def send_paginated_embeds(self, ctx, games):
         """
@@ -306,9 +307,9 @@ class Database(commands.Cog):
             else:
                 await ctx.send("Unable to fetch database record.")
                 self.bot.logger.error("No boardgame count found.")
-        except Exception as e:
+        except psycopg.Error as e:
             await ctx.send(f"Error checking the database: {e}")
-            self.bot.logger.error(f"DB error in boardgame_count: {e}")
+            self.bot.logger.exception("DB error in boardgame_count")
 
 
 async def setup(bot):

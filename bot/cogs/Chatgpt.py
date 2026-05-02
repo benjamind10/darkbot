@@ -64,8 +64,8 @@ class ChatGPT(commands.Cog):
             answer = response.choices[0].message["content"]
             await ctx.send(answer)
 
-        except Exception as e:
-            self.logger.error(f"ChatGPT | Error occurred while processing request: {e}")
+        except (openai.OpenAIError, TimeoutError):
+            self.logger.exception("ChatGPT | Error occurred while processing request")
             await ctx.send("❌ Sorry, I couldn't process your request. Please try again later.")
 
 

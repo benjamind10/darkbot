@@ -108,9 +108,9 @@ class EventManager:
                     await handler(*args, **kwargs)
                 else:
                     handler(*args, **kwargs)
-            except Exception as e:
-                self.logger.error(
-                    f"Error in event handler {handler.__name__} for {event_name}: {e}"
+            except Exception:
+                self.logger.exception(
+                    "Error in event handler %s for %s", handler.__name__, event_name
                 )
 
     async def setup(self):
@@ -187,7 +187,7 @@ class EventManager:
 
         else:
             # Log unexpected errors
-            self.logger.error(f"Unexpected error in command '{ctx.command}': {error}")
+            self.logger.exception("Unexpected error in command '%s'", ctx.command, exc_info=error)
             await ctx.send("❌ An unexpected error occurred. Please try again later.")
 
     # Custom event handlers (existing functionality)
@@ -231,8 +231,8 @@ class EventManager:
                 embed.set_thumbnail(url=member.display_avatar.url)
 
                 await modlog_cog.log_to_modlog(member.guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging member join to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging member join to modlog")
 
         # TODO: Check for auto-role assignment
         # TODO: Send welcome message if configured
@@ -260,8 +260,8 @@ class EventManager:
                             was_kicked = True
                             moderator = entry.user
                             break
-                except:
-                    pass
+                except (discord.Forbidden, discord.HTTPException):
+                    self.logger.exception("Audit log fetch failed")
 
                 if was_kicked:
                     embed = discord.Embed(
@@ -286,8 +286,8 @@ class EventManager:
                 embed.set_thumbnail(url=member.display_avatar.url)
 
                 await modlog_cog.log_to_modlog(member.guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging member remove to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging member remove to modlog")
 
         # TODO: Send goodbye message if configured
 
@@ -330,8 +330,8 @@ class EventManager:
                     name=str(message.author), icon_url=message.author.display_avatar.url
                 )
                 await modlog_cog.log_to_modlog(message.guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging message delete to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging message delete to modlog")
 
         # TODO: Store in message cache for snipe commands
 
@@ -373,8 +373,8 @@ class EventManager:
                 )
                 embed.set_author(name=str(before.author), icon_url=before.author.display_avatar.url)
                 await modlog_cog.log_to_modlog(before.guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging message edit to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging message edit to modlog")
 
         # TODO: Store in message cache for edit snipe commands
 
@@ -396,8 +396,8 @@ class EventManager:
                             reason = entry.reason or "No reason provided"
                             moderator = entry.user
                             break
-                except:
-                    pass
+                except (discord.Forbidden, discord.HTTPException):
+                    self.logger.exception("Audit log fetch failed")
 
                 embed = discord.Embed(
                     title="🔨 Member Banned", color=discord.Color.red(), timestamp=datetime.utcnow()
@@ -412,8 +412,8 @@ class EventManager:
                 embed.set_thumbnail(url=user.display_avatar.url)
 
                 await modlog_cog.log_to_modlog(guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging ban to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging ban to modlog")
 
         # TODO: Update moderation case database
 
@@ -435,8 +435,8 @@ class EventManager:
                         if entry.target.id == user.id:
                             moderator = entry.user
                             break
-                except:
-                    pass
+                except (discord.Forbidden, discord.HTTPException):
+                    self.logger.exception("Audit log fetch failed")
 
                 embed = discord.Embed(
                     title="✅ Member Unbanned",
@@ -452,8 +452,8 @@ class EventManager:
                 embed.set_thumbnail(url=user.display_avatar.url)
 
                 await modlog_cog.log_to_modlog(guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging unban to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging unban to modlog")
 
         # TODO: Update moderation case database
 

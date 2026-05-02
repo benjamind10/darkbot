@@ -164,8 +164,9 @@ class DarkBot(commands.Bot):
         try:
             synced = await self.tree.sync()
             self.logger.info(f"Synced {len(synced)} slash command(s) to Discord")
-        except Exception as e:
-            self.logger.error(f"Failed to sync slash commands: {e}")
+        except Exception:
+            # Boundary guard: don't crash startup if Discord rejects the sync
+            self.logger.exception("Failed to sync slash commands")
 
         self.logger.info("DarkBot setup complete")
 
@@ -206,8 +207,9 @@ class DarkBot(commands.Bot):
             try:
                 await self.load_extension(cog_name)
                 self.logger.info(f"Loaded cog: {cog_name}")
-            except Exception as e:
-                self.logger.error(f"Failed to load cog {cog_name}: {e}")
+            except Exception:
+                # Boundary guard: one bad cog should not abort startup
+                self.logger.exception("Failed to load cog %s", cog_name)
 
     async def setup_database(self):
         """Initialize database connection pool."""
@@ -227,8 +229,8 @@ class DarkBot(commands.Bot):
             )
             await self.db_pool.open()
             self.logger.info("Database connection pool established.")
-        except Exception as e:
-            self.logger.error(f"Database setup failed: {e}")
+        except Exception:
+            self.logger.exception("Database setup failed")
             raise
 
     # Discord event handlers - these delegate to the event manager
@@ -284,45 +286,41 @@ class DarkBot(commands.Bot):
         """Clean up resources when the bot shuts down."""
         self.logger.info("Shutting down DarkBot...")
 
-        # Close Wavelink connection if Music cog is loaded
-        try:
-            import wavelink
-
-            if wavelink.Pool.nodes:
-                await wavelink.Pool.close()
-                self.logger.info("Wavelink connection closed")
-        except (ImportError, Exception):
-            pass  # Wavelink not installed or already closed
+        # Wavelink shutdown is owned by Music.cog_unload (runs during super().close())
 
         # Close shared aiohttp session
         if hasattr(self, "http_session") and self.http_session:
             try:
                 await self.http_session.close()
                 self.logger.info("HTTP session closed")
-            except Exception as e:
-                self.logger.error(f"Error closing HTTP session: {e}")
+            except Exception:
+                # Boundary guard: keep shutdown progressing
+                self.logger.exception("Error closing HTTP session")
 
         # Close database connection pool
         if hasattr(self, "db_pool") and self.db_pool:
             try:
                 await self.db_pool.close()
                 self.logger.info("Database pool closed")
-            except Exception as e:
-                self.logger.error(f"Error closing database: {e}")
+            except Exception:
+                # Boundary guard: keep shutdown progressing
+                self.logger.exception("Error closing database")
 
         # Close Redis connection
         if self.redis_manager:
             try:
                 await self.redis_manager.set("bot:last_shutdown_time", str(datetime.utcnow()))
                 await self.redis_manager.close()
-            except Exception as e:
-                self.logger.error(f"Error closing Redis: {e}")
+            except Exception:
+                # Boundary guard: keep shutdown progressing
+                self.logger.exception("Error closing Redis")
 
         # Close event manager
         try:
             await self.event_manager.cleanup()
-        except Exception as e:
-            self.logger.error(f"Error cleaning up event manager: {e}")
+        except Exception:
+            # Boundary guard: keep shutdown progressing
+            self.logger.exception("Error cleaning up event manager")
 
         # Call parent close
         await super().close()
@@ -338,8 +336,8 @@ class DarkBot(commands.Bot):
 
             self.run(token)
         except Exception as e:
-            self.logger.error(f"Failed to start bot: {e}")
-            raise DarkBotException(f"Bot startup failed: {e}")
+            self.logger.exception("Failed to start bot")
+            raise DarkBotException(f"Bot startup failed: {e}") from e
 
     @property
     def uptime(self):
@@ -362,6 +360,6 @@ class DarkBot(commands.Bot):
             for key in ["command_count", "messages_seen", "errors"]:
                 try:
                     stats[key] = await self.redis_manager.get_command_usage(key)
-                except Exception:
+                except Exception:  # boundary guard: degrade stats gracefully on Redis failure
                     stats[key] = "N/A"
         return stats
