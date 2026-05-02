@@ -234,7 +234,7 @@ class Utility(commands.Cog):
 
     # ========== Urban Dictionary ==========
 
-    @commands.group(invoke_without_command=True)
+    @commands.hybrid_group(invoke_without_command=True)
     async def word(self, ctx):
         """Urban Dictionary word lookup."""
         embed = discord.Embed(
@@ -482,7 +482,7 @@ class Utility(commands.Cog):
 
     # ========== Temperature Conversion ==========
 
-    @commands.group(aliases=["temp"], invoke_without_command=True)
+    @commands.hybrid_group(aliases=["temp"], invoke_without_command=True)
     async def temperature(self, ctx):
         """Temperature conversion commands."""
         embed = discord.Embed(
