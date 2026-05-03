@@ -42,6 +42,9 @@ class Mtg(commands.Cog):
     @commands.hybrid_command(name="card", help="Get details about a Magic: The Gathering card.")
     async def card(self, ctx, *, card_name):
         """Fetch and display MTG card details."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         self.logger.info(f"MTG | Fetching card: {card_name}")
         card_data = await self.fetch_card(card_name)
 
@@ -65,6 +68,9 @@ class Mtg(commands.Cog):
     @commands.hybrid_command(name="searchcards", help="Search for MTG cards by type and color.")
     async def search_cards(self, ctx, card_type: str, card_color: str):
         """Search for cards by type and color."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         self.logger.info(f"MTG | Searching for cards: Type={card_type}, Color={card_color}")
 
         try:

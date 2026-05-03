@@ -71,6 +71,9 @@ class BoardGames(commands.Cog):
             ctx (commands.Context): The command context.
             search_query (str): The name or keyword to search.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         search_url = f"{self.BASE_URL}search?search={search_query}"
         self.bot.logger.info(f"BGG search query: {search_query}")
 
@@ -116,6 +119,9 @@ class BoardGames(commands.Cog):
             ctx (commands.Context): The command context.
             game_id (str): The BGG object ID.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         self.bot.logger.info(f"Fetching BGG info for ID: {game_id}")
         info_url = f"{self.BASE_URL}boardgame/{game_id}?stats=1"
 
@@ -177,6 +183,9 @@ class BoardGames(commands.Cog):
             ctx (commands.Context): The command context.
             username (str): BGG username.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         collection_url = f"{self.BASE_URL}collection/{username}?own=1&stats=1"
         self.bot.logger.info(f"Fetching BGG collection for: {username}")
 

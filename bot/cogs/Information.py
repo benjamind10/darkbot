@@ -39,6 +39,9 @@ class Information(commands.Cog):
         Fields include uptime, guild count, user count, cogs loaded,
         commands used, messages seen, and errors logged.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         stats = await self.bot.get_stats()
         embed = discord.Embed(
             title="📊 Bot Statistics",
@@ -143,6 +146,9 @@ class Information(commands.Cog):
 
         Returns an embed showing the key and its integer value.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not self.redis or not self.redis.redis:
             await ctx.send("❌ Redis is not connected.")
             return
@@ -209,14 +215,27 @@ class Information(commands.Cog):
         """
         DM the user with an invite link for the bot.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         url = "http://bit.ly/2Zm5XyP"
         embed = discord.Embed(
             title="→ Invite Me To Your Server!",
             description=f"• [**Click Here**]({url})",
             color=self.bot.embed_color,
         )
-        await ctx.message.add_reaction("🤖")
-        await ctx.author.send(embed=embed)
+        try:
+            await ctx.author.send(embed=embed)
+        except discord.Forbidden:
+            await ctx.send("❌ I couldn't DM you the invite link. Please check your privacy settings.")
+            self.logger.warning(f"invite DM blocked for {ctx.author}")
+            return
+
+        if ctx.message:
+            await ctx.message.add_reaction("🤖")
+        else:
+            await ctx.send("✅ I sent you the invite link in DMs.")
+
         self.logger.info(f"invite sent to {ctx.author}")
 
     @commands.hybrid_command(help="Check the bot's websocket & API latency.")
@@ -224,11 +243,12 @@ class Information(commands.Cog):
         """
         Measure and display the bot's WS and REST latencies.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         before = time.monotonic()
         ws_ping = int(self.bot.latency * 1000)
-        msg = await ctx.send("Pinging...")
         rest_ping = int((time.monotonic() - before) * 1000)
-        await msg.delete()
         embed = discord.Embed(
             title="→ Ping",
             color=self.bot.embed_color,

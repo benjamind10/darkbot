@@ -37,6 +37,9 @@ class ChatGPT(commands.Cog):
 
         Usage: !askgpt <your question>
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not OPENAI_AVAILABLE:
             await ctx.send(
                 "❌ OpenAI package is not installed. Please install it with `pip install openai`"

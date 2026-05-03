@@ -117,6 +117,9 @@ class Spotify(commands.Cog):
 
         Usage: !spsearch <track name or artist>
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         token = await self._get_token(ctx)
         if not token:
             return
@@ -181,6 +184,9 @@ class Spotify(commands.Cog):
 
         Usage: !spplay <track name>
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         token = await self._get_token(ctx)
         if not token:
             return

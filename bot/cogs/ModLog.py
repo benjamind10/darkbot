@@ -81,6 +81,9 @@ class ModLog(commands.Cog):
         Args:
             channel: The channel to use for moderation logs
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             async with self.bot.db_pool.connection() as conn:
                 async with conn.cursor() as cursor:
@@ -105,6 +108,9 @@ class ModLog(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def modlog_disable(self, ctx):
         """Disable moderation logging for this server."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             async with self.bot.db_pool.connection() as conn:
                 async with conn.cursor() as cursor:
@@ -128,6 +134,9 @@ class ModLog(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def modlog_status(self, ctx):
         """Check the current modlog configuration."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         config = await self.get_guild_config(ctx.guild.id)
 
         if not config:
@@ -182,6 +191,9 @@ class ModLog(commands.Cog):
         Args:
             member: The member to view cases for (optional)
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             async with self.bot.db_pool.connection() as conn:
                 async with conn.cursor(row_factory=dict_row) as cursor:

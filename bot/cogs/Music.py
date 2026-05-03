@@ -105,6 +105,9 @@ class Music(commands.Cog):
             !play https://www.youtube.com/watch?v=...
             !play spotify:track:...
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not WAVELINK_AVAILABLE:
             await ctx.send("❌ Wavelink is not installed. Please run `pip install wavelink`")
             return
@@ -170,6 +173,9 @@ class Music(commands.Cog):
     @commands.hybrid_command(name="pause", help="Pause the currently playing track.")
     async def pause(self, ctx: commands.Context):
         """Pause the current track."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not WAVELINK_AVAILABLE:
             await ctx.send("❌ Wavelink not available.")
             return
@@ -189,6 +195,9 @@ class Music(commands.Cog):
     @commands.hybrid_command(name="skip", aliases=["next"], help="Skip the current track.")
     async def skip(self, ctx: commands.Context):
         """Skip to the next track in the queue."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not WAVELINK_AVAILABLE:
             await ctx.send("❌ Wavelink not available.")
             return
@@ -204,6 +213,9 @@ class Music(commands.Cog):
     @commands.hybrid_command(name="stop", help="Stop playback and clear the queue.")
     async def stop(self, ctx: commands.Context):
         """Stop playback and disconnect."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not WAVELINK_AVAILABLE:
             await ctx.send("❌ Wavelink not available.")
             return
@@ -313,6 +325,9 @@ class Music(commands.Cog):
 
         Usage: !volume <0-100>
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not WAVELINK_AVAILABLE:
             await ctx.send("❌ Wavelink not available.")
             return
@@ -334,6 +349,9 @@ class Music(commands.Cog):
     )
     async def disconnect(self, ctx: commands.Context):
         """Disconnect from the voice channel."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not WAVELINK_AVAILABLE:
             await ctx.send("❌ Wavelink not available.")
             return

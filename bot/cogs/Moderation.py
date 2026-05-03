@@ -34,6 +34,9 @@ class Moderation(commands.Cog):
         Usage: !addrole <role> <member>
         Requires: Manage Roles permission
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if ctx.guild.me.top_role < member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -104,6 +107,9 @@ class Moderation(commands.Cog):
         Usage: !removerole <role> <member>
         Requires: Manage Roles permission
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if ctx.guild.me.top_role < member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -176,6 +182,9 @@ class Moderation(commands.Cog):
         Usage: !ban <member> [reason]
         Requires: Ban Members permission
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if ctx.guild.me.top_role < member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -261,6 +270,9 @@ class Moderation(commands.Cog):
         Usage: !forceban <user_id>
         Requires: Ban Members permission
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         await ctx.guild.ban(discord.Object(id))
         embed = discord.Embed(
             color=self.bot.embed_color,
@@ -312,6 +324,9 @@ class Moderation(commands.Cog):
         Usage: !unban <user_id>
         Requires: Ban Members permission
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         await ctx.guild.unban(discord.Object(id))
         embed = discord.Embed(
             color=self.bot.embed_color,
@@ -365,6 +380,9 @@ class Moderation(commands.Cog):
         Usage: !kick <member> [reason]
         Requires: Kick Members permission
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if ctx.guild.me.top_role < member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -454,6 +472,9 @@ class Moderation(commands.Cog):
         Usage: !warn <member> [reason]
         Requires: Manage Messages permission
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if ctx.guild.me.top_role < member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -529,6 +550,9 @@ class Moderation(commands.Cog):
         Usage: !purge <amount>
         Requires: Manage Messages permission
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         await ctx.channel.purge(limit=amount)
         self.logger.info(f"Moderation | Sent Purge: {ctx.author} | Purged: {amount} messages")
 
@@ -575,6 +599,9 @@ class Moderation(commands.Cog):
         Usage: !dc_voice <member>
         Requires: Move Members permission
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if member.voice is None or member.voice.channel is None:
             await ctx.send(f"{member.mention} is not in a voice channel!")
             return

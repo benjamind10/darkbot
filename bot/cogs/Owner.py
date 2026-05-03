@@ -23,6 +23,9 @@ class Owner(commands.Cog):
         Change the bot's overall presence status.
         Usage: !status <online|idle|dnd|offline>
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         st = new_status.lower()
         mapping = {
             "online": discord.Status.online,
@@ -44,6 +47,9 @@ class Owner(commands.Cog):
         Change the bot's username.
         Usage: !name <new_username>
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         await self.bot.user.edit(username=new_name)
         await ctx.send(f"✅ Username changed to `{new_name}`.")
         self.logger.info(f"Username changed to {new_name} by {ctx.author}")
@@ -55,6 +61,9 @@ class Owner(commands.Cog):
         Sync slash commands to the current guild for immediate availability.
         Usage: !sync
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         self.bot.tree.copy_global_to(guild=ctx.guild)
         synced = await self.bot.tree.sync(guild=ctx.guild)
         await ctx.send(f"✅ Synced {len(synced)} slash command(s) to this server.")
@@ -67,6 +76,9 @@ class Owner(commands.Cog):
         Change the bot's "Playing ..." activity.
         Usage: !playing <message>
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         await self.bot.change_presence(activity=discord.Game(name=message))
         await ctx.send(f"✅ Playing message set to: `{message}`")
         self.logger.info(f"Playing message changed to '{message}' by {ctx.author}")

@@ -20,6 +20,9 @@ class Database(commands.Cog):
         Retrieves and lists all enabled users in the database.
         Displays user ID, name, Discord ID, BGG username, and enabled status.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             async with self.bot.db_pool.connection() as conn:
                 async with conn.cursor() as cursor:
@@ -69,6 +72,9 @@ class Database(commands.Cog):
             bgg_user (str): BGG username.
             is_enabled (bool): Whether the user is active.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             discord_user_int = int(discord_user)
             async with self.bot.db_pool.connection() as conn:
@@ -104,6 +110,9 @@ class Database(commands.Cog):
         Args:
             user_id (int): The internal DB user ID.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             async with self.bot.db_pool.connection() as conn:
                 async with conn.cursor() as cursor:
@@ -131,6 +140,9 @@ class Database(commands.Cog):
         Args:
             user_id (int): The internal DB user ID.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             async with self.bot.db_pool.connection() as conn:
                 async with conn.cursor() as cursor:
@@ -164,6 +176,9 @@ class Database(commands.Cog):
             letter (str): The starting letter to filter game names.
             username (str, optional): Filter games owned by a specific user.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if len(letter) != 1 or not letter.isalpha():
             await ctx.send("Please provide a single alphabetical letter.")
             self.bot.logger.warning(f"Invalid input for list_board_games command: '{letter}'")
@@ -234,6 +249,9 @@ class Database(commands.Cog):
         Args:
             query (str): The SQL statement to execute.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         destructive_operations = ["DROP", "DELETE", "TRUNCATE", "ALTER"]
 
         if any(op in query.upper() for op in destructive_operations):
@@ -291,6 +309,9 @@ class Database(commands.Cog):
         """
         Counts how many unique board games are marked as owned in the database.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             async with self.bot.db_pool.connection() as conn:
                 async with conn.cursor() as cursor:

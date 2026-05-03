@@ -54,6 +54,9 @@ class Events(commands.Cog):
     @commands.guild_only()
     async def list_events(self, ctx):
         """List all upcoming Discord scheduled events in this server."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             # Fetch all scheduled events from the guild
             events = await ctx.guild.fetch_scheduled_events(with_counts=True)
@@ -142,6 +145,9 @@ class Events(commands.Cog):
         Args:
             event_id: The ID of the event
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             # Fetch the specific event
             try:
@@ -252,6 +258,9 @@ class Events(commands.Cog):
         Args:
             event_id: The ID of the event
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             # Fetch the event
             try:
@@ -312,6 +321,9 @@ class Events(commands.Cog):
     @commands.guild_only()
     async def next_event(self, ctx):
         """Show the next upcoming Discord scheduled event."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             events = await ctx.guild.fetch_scheduled_events(with_counts=True)
 

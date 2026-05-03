@@ -75,6 +75,9 @@ class Utility(commands.Cog):
         Usage: !bitcoin [currency]
         Example: !bitcoin CAD
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not FOREX_AVAILABLE:
             await ctx.send("❌ forex-python library not installed.")
             return
@@ -106,6 +109,9 @@ class Utility(commands.Cog):
 
         Usage: !litecoin
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         try:
             async with self.bot.http_session.get("https://api.coincap.io/v2/rates/litecoin") as r:
                 res = await r.json()
@@ -131,6 +137,9 @@ class Utility(commands.Cog):
         Usage: !currency <amount> <from_currency> <to_currency>
         Example: !currency 10 USD CAD
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not FOREX_AVAILABLE:
             await ctx.send("❌ forex-python library not installed.")
             return
@@ -184,6 +193,9 @@ class Utility(commands.Cog):
         Usage: !tobtc <amount> [currency]
         Example: !tobtc 100 USD
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not FOREX_AVAILABLE:
             await ctx.send("❌ forex-python library not installed.")
             return
@@ -243,6 +255,9 @@ class Utility(commands.Cog):
     @word.command()
     async def random(self, ctx):
         """Get a random Urban Dictionary word."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not ASYNCURBAN_AVAILABLE:
             await ctx.send("❌ asyncurban library not installed.")
             return
@@ -263,6 +278,9 @@ class Utility(commands.Cog):
     @word.command()
     async def search(self, ctx, *, query):
         """Search for a word in Urban Dictionary."""
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not ASYNCURBAN_AVAILABLE:
             await ctx.send("❌ asyncurban library not installed.")
             return
@@ -290,6 +308,9 @@ class Utility(commands.Cog):
         Usage: !ip <ip_address>
         Example: !ip 8.8.8.8
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not IPINFO_AVAILABLE:
             await ctx.send("❌ ipinfo library not installed.")
             return
@@ -354,12 +375,16 @@ class Utility(commands.Cog):
 
         Usage: !poll <#channel> <question>
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         sender = ctx.author
         embed = discord.Embed(color=self.bot.embed_color, title="→ Quick Poll 📊")
         embed.add_field(name="• Question", inline=False, value=question)
         embed.set_footer(text=f"— Poll from {sender}", icon_url=ctx.author.display_avatar.url)
 
-        await ctx.message.delete()
+        if ctx.message:
+            await ctx.message.delete()
         message = await channel.send(embed=embed)
         await message.add_reaction("👍")
         await message.add_reaction("👎")
@@ -528,6 +553,9 @@ class Utility(commands.Cog):
         Usage: !translate <language_code> <text>
         Example: !translate es Hello world
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not TRANSLATOR_AVAILABLE:
             await ctx.send("❌ aiogoogletrans library not installed.")
             return
@@ -573,6 +601,9 @@ class Utility(commands.Cog):
         Usage: !weather <city or zip code>
         Example: !weather New York
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         if not self.openweather_api_key:
             await ctx.send("❌ OpenWeather API key not configured (KSOFT_API).")
             return
