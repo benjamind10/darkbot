@@ -175,20 +175,31 @@ class EventManager:
             return  # Ignore unknown commands
 
         elif isinstance(error, commands.MissingPermissions):
-            await ctx.send("❌ You don't have permission to use this command.")
+            await self._safe_send_error(ctx, "❌ You don't have permission to use this command.")
 
         elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send("❌ I don't have the required permissions to execute this command.")
+            await self._safe_send_error(
+                ctx,
+                "❌ I don't have the required permissions to execute this command.",
+            )
 
         elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(
+            await self._safe_send_error(
+                ctx,
                 f"❌ Command is on cooldown. Try again in {error.retry_after:.2f} seconds."
             )
 
         else:
             # Log unexpected errors
             self.logger.exception("Unexpected error in command '%s'", ctx.command, exc_info=error)
-            await ctx.send("❌ An unexpected error occurred. Please try again later.")
+            await self._safe_send_error(ctx, "❌ An unexpected error occurred. Please try again later.")
+
+    async def _safe_send_error(self, ctx: commands.Context, message: str) -> None:
+        """Send error feedback without crashing if an interaction has expired."""
+        try:
+            await ctx.send(message)
+        except discord.NotFound:
+            self.logger.warning("Could not send error response because interaction expired")
 
     # Custom event handlers (existing functionality)
 
