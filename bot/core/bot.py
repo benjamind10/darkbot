@@ -15,6 +15,7 @@ import aiohttp
 import discord
 import psycopg_pool
 from discord.ext import commands
+from utils.log_buffer import RollingLogHandler
 from utils.redis_manager import RedisManager
 
 from .events import EventManager
@@ -96,6 +97,8 @@ class DarkBot(commands.Bot):
     def setup_logging(self):
         """Set up logging configuration."""
         self.logger = logging.getLogger("darkbot")
+        self.log_buffer = RollingLogHandler(maxlen=500)
+        self.logger.addHandler(self.log_buffer)
 
     def _validate_config(self):
         """Validate the bot configuration."""
