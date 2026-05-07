@@ -83,6 +83,38 @@ class Owner(commands.Cog):
         await ctx.send(f"✅ Playing message set to: `{message}`")
         self.logger.info(f"Playing message changed to '{message}' by {ctx.author}")
 
+    @commands.hybrid_command(help="Show last N bot log entries (owner only).")
+    @commands.is_owner()
+    async def logs(self, ctx, n: int = 20):
+        """
+        Display the last N log entries from the bot's in-memory buffer.
+        Usage: !logs [n]  (default 20, max 100)
+        """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
+        n = max(1, min(n, 100))
+        entries = self.bot.log_buffer.get_entries(n)
+
+        if not entries:
+            await ctx.send("No log entries recorded yet.")
+            return
+
+        text = "\n".join(entries)
+        chunks = []
+        while text:
+            if len(text) <= 1990:
+                chunks.append(text)
+                break
+            split_at = text.rfind("\n", 0, 1990)
+            if split_at == -1:
+                split_at = 1990
+            chunks.append(text[:split_at])
+            text = text[split_at:].lstrip("\n")
+
+        for chunk in chunks:
+            await ctx.send(f"```\n{chunk}\n```")
+
 
 async def setup(bot):
     """Register the Owner cog with the bot."""
