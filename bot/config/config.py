@@ -222,18 +222,48 @@ class Config:
         self._initialize_config()
 
     def _load_env_files(self) -> None:
-        """Load .env from common repo, bot, and container working directories."""
-        env_file = os.getenv("DARKBOT_ENV_FILE")
-        candidates = [
-            Path(env_file).expanduser() if env_file else None,
-            PROJECT_ROOT / ".env",
-            BOT_DIR / ".env",
-            Path.cwd() / ".env",
-        ]
+        """Load .env files from explicit and discoverable project locations.
 
+        We support a few layouts:
+        - Local repo runs from the repository root
+        - Local runs from the `bot/` directory
+        - Container runs where only the app directory is mounted
+        - Deployments that pin a path via `DARKBOT_ENV_FILE`
+        """
+        env_file = os.getenv("DARKBOT_ENV_FILE")
+        candidates: list[Path] = []
+
+        if env_file:
+            candidates.append(Path(env_file).expanduser())
+
+        def add_env_candidates(search_root: Path) -> None:
+            try:
+                resolved_root = search_root.resolve()
+            except OSError:
+                resolved_root = search_root
+
+            # Load parent `.env` files before child ones so broader project-level
+            # config wins when `override=False`.
+            for base in reversed((resolved_root, *resolved_root.parents)):
+                candidates.append(base / ".env")
+
+        add_env_candidates(PROJECT_ROOT)
+        add_env_candidates(BOT_DIR)
+        add_env_candidates(Path.cwd())
+        add_env_candidates(Path(__file__).resolve().parent)
+
+        loaded_paths: set[Path] = set()
         for candidate in candidates:
-            if candidate and candidate.is_file():
-                dotenv.load_dotenv(candidate)
+            try:
+                resolved_candidate = candidate.resolve()
+            except OSError:
+                resolved_candidate = candidate
+
+            if resolved_candidate in loaded_paths or not resolved_candidate.is_file():
+                continue
+
+            dotenv.load_dotenv(resolved_candidate)
+            loaded_paths.add(resolved_candidate)
 
     def print_config(self):
         for attr in dir(self):

@@ -178,6 +178,9 @@ class DarkBot(commands.Bot):
 
         This gives clearer feedback at startup which keys to check in .env or deployment.
         """
+        youtube_configured = self.config.services.youtube_api_key or (
+            self.config.services.youtube_email and self.config.services.youtube_password
+        )
         checks = {
             "DISCORD_TOKEN": self.config.token,
             "LAVALINK_PASS": self.config.lavalink.password,
@@ -187,7 +190,7 @@ class DarkBot(commands.Bot):
             "CHATGPT_SECRET": self.config.services.chatgpt_secret,
             "KSOFT_API": self.config.services.ksoft_api,
             "IP_INFO": self.config.services.ip_info,
-            "YOUTUBE_API_KEY": self.config.services.youtube_api_key,
+            "YOUTUBE_API_KEY or YOUTUBE_EMAIL/YOUTUBE_PASS": youtube_configured,
         }
 
         missing = [k for k, v in checks.items() if not v]
