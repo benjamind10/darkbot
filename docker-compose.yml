@@ -3,18 +3,54 @@ version: '3.8'
 services:
   python-app:
     build: ./
+    env_file:
+      - ./.env
     volumes:
       - ./bot:/usr/local/share/bot
     working_dir: /usr/local/share/bot
-    command: python bot.py
+    command: python main.py
+    restart: unless-stopped
     networks:
       - app-network
+    logging:
+      options:
+        max-size: 10m
     depends_on:
       - db
-      - lavalink-app
+      - redis
+      - lavalink
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:latest
+    container_name: lavalink
+    restart: unless-stopped
+    env_file:
+      - ./bot/.env
+    environment:
+      - _JAVA_OPTIONS=-Xmx2G
+      - SERVER_PORT=2333
+      - LAVALINK_SERVER_PASSWORD=youshallnotpass
+    volumes:
+      - ./application.yml:/opt/Lavalink/application.yml:ro
+      - ./logs:/opt/Lavalink/logs
+    ports:
+      - "2333:2333"
+    networks:
+      - app-network
+    logging:
+      options:
+        max-size: 10m
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2333/version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   db:
     image: postgres:16
+    env_file:
+      - ./bot/.env
     environment:
       POSTGRES_DB: darkbot
       POSTGRES_USER: postgres
@@ -25,21 +61,28 @@ services:
       - app-network
     ports:
       - "5432:5432"
+    logging:
+      options:
+        max-size: 10m
 
-  lavalink-app:
-    image: openjdk:22-slim
+
+  redis:
+    image: redis:6-alpine
+    container_name: redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    environment:
+      REDIS_ENABLED: "true"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
     volumes:
-      - ./bot/music:/usr/local/share/lavalink
-    working_dir: /usr/local/share/lavalink
-    command: java -jar Lavalink.jar
+      - redisdata:/data
     networks:
       - app-network
-    ports:
-      - "2333:2333"
-    environment:
-      SPRING_CONFIG_LOCATION: file:./application.yml
-    depends_on:
-      - db
+    logging:
+      options:
+        max-size: 10m
 
 networks:
   app-network:
@@ -47,3 +90,4 @@ networks:
 
 volumes:
   pgdata:
+  redisdata:

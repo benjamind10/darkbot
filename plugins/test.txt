@@ -1,0 +1,2 @@
+For now, let's test with SoundCloud instead of YouTube.
+The YouTube plugin has complex dependencies.

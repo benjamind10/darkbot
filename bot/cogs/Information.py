@@ -1,282 +1,328 @@
-import asyncio
-import time
-import discord
+"""
+Information Cog
+===============
+
+Displays general statistics and informational commands about the bot.
+"""
+
 import platform
+import time
+from datetime import datetime, timedelta
+
+import discord
 import distro
 import psutil
 from discord.ext import commands
-from datetime import datetime, timedelta
-from logging_files.information_logging import logger
 
 
 class Information(commands.Cog):
+    """
+    Cog for displaying general statistics and informational commands about the bot.
+    """
+
     def __init__(self, bot):
+        """
+        Initialize the Information cog.
+
+        Args:
+            bot: The instance of the DarkBot.
+        """
         self.bot = bot
-        self.bot_start_time = time.time()
+        self.logger = bot.logger
+        self.redis = bot.redis_manager
 
-    @commands.command(aliases=["commands", "cmds"])
+    @commands.hybrid_command(name="botstats", help="Displays general statistics about the bot.")
+    async def botstats(self, ctx):
+        """
+        Show a summary of in-memory and Redis-backed statistics.
+
+        Fields include uptime, guild count, user count, cogs loaded,
+        commands used, messages seen, and errors logged.
+        """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
+        stats = await self.bot.get_stats()
+        embed = discord.Embed(
+            title="📊 Bot Statistics",
+            color=self.bot.embed_color,
+            timestamp=datetime.utcnow(),
+        )
+        for name, value in stats.items():
+            embed.add_field(name=name.replace("_", " ").title(), value=value, inline=True)
+        await ctx.send(embed=embed)
+        self.logger.info(f"Bot statistics sent to {ctx.author} in {ctx.guild}")
+
+    @commands.hybrid_command(aliases=["commands", "cmds"], help="Shows all available commands.")
     async def robot_commands(self, ctx):
+        """
+        List every command grouped by its cog.
+
+        Uses the current prefix to render each command name.
+        """
+        embed = discord.Embed(
+            title="→ All Available Bot Commands!",
+            color=self.bot.colors["info"],
+            description=(
+                "—\n"
+                "➤ Shows info about all available bot commands!\n"
+                "➤ Capitalization does not matter for the bot prefix.\n"
+                "➤ Use `!help <command>` for more details.\n"
+                "—"
+            ),
+        )
+        embed.set_thumbnail(url="https://i.imgur.com/BUlgakY.png")
+        prefix = ctx.prefix
+        for cog_name, _ in self.bot.cogs.items():
+            cmds = [
+                f"`{prefix}{cmd.name}`"
+                for cmd in self.bot.commands
+                if cmd.cog_name == cog_name and not cmd.hidden
+            ]
+            if cmds:
+                embed.add_field(name=f"• {cog_name} Commands", value=" ".join(cmds), inline=False)
+        await ctx.send(embed=embed)
+        self.logger.info(f"Command list sent to {ctx.author} in {ctx.guild}")
+
+    @commands.hybrid_command(name="help", help="Shows help for a command or lists all commands.")
+    async def help_command(self, ctx, *, command_name: str = None):
+        """
+        Display help for a specific command or list all commands.
+
+        Usage:
+            !help - Shows all commands
+            !help <command> - Shows detailed help for a command
+        """
+        if command_name is None:
+            # Show all commands - delegate to robot_commands
+            await self.robot_commands(ctx)
+            return
+
+        # Show help for specific command
+        cmd = self.bot.get_command(command_name)
+        if cmd is None:
+            await ctx.send(f"❌ Command `{command_name}` not found.")
+            return
+
+        embed = discord.Embed(
+            title=f"→ Help: {cmd.name}",
+            color=self.bot.colors["info"],
+            timestamp=datetime.utcnow(),
+        )
+
+        # Command description
+        if cmd.help:
+            embed.description = cmd.help
+        elif cmd.brief:
+            embed.description = cmd.brief
+        else:
+            embed.description = "No description available."
+
+        # Usage
+        usage = f"{ctx.prefix}{cmd.name}"
+        if cmd.signature:
+            usage += f" {cmd.signature}"
+        embed.add_field(name="• Usage", value=f"`{usage}`", inline=False)
+
+        # Aliases
+        if cmd.aliases:
+            aliases = ", ".join(f"`{alias}`" for alias in cmd.aliases)
+            embed.add_field(name="• Aliases", value=aliases, inline=False)
+
+        # Cog
+        if cmd.cog_name:
+            embed.add_field(name="• Category", value=cmd.cog_name, inline=True)
+
+        await ctx.send(embed=embed)
+        self.logger.info(f"Help for '{command_name}' shown to {ctx.author}")
+
+    @commands.hybrid_command(
+        name="redisget",
+        help="Fetch a specific Redis stat by key. Example: !redisget errors",
+    )
+    async def redisget(self, ctx, key: str):
+        """
+        Retrieve a single Redis-backed statistic by its key.
+
+        Returns an embed showing the key and its integer value.
+        """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
+        if not self.redis or not self.redis.redis:
+            await ctx.send("❌ Redis is not connected.")
+            return
         try:
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ All available bot commands!",
-                description="— "
-                "\n➤ Shows info about all available bot commands!"
-                "\n➤ Capitalization does not matter for the bot prefix." + "\n—",
-            )
-            embed.set_thumbnail(url="https://i.imgur.com/BUlgakY.png")
-            information = "!commands"
-
-            embed.add_field(name="• Information Commands!", inline=False, value=information)
-            print(ctx.author.guild_permissions)
-            print(ctx.channel.permissions_for(ctx.author))
-            await ctx.send(embed=embed)
-
-            logger.info(f"Information | Sent Commands: {ctx.author}")
+            value = await self.redis.get_command_usage(key)
+            if value is None:
+                await ctx.send(f"❓ Redis key `{key}` does not exist or has no value.")
+            else:
+                embed = discord.Embed(
+                    title="📦 Redis Data Lookup",
+                    description=f"**Key:** `{key}`\n**Value:** `{value}`",
+                    color=self.bot.colors["info"],
+                    timestamp=datetime.utcnow(),
+                )
+                await ctx.send(embed=embed)
+                self.logger.info(f"Fetched Redis key '{key}' for {ctx.author} in {ctx.guild}")
         except Exception as e:
-            print(f'There was an error: {e}')
+            await ctx.send("⚠️ Failed to fetch Redis key.")
+            self.logger.exception(f"Error fetching Redis key '{key}': {e}")
 
-    @commands.command()
+    @commands.hybrid_command(help="System & bot info overview.")
     async def info(self, ctx):
+        """
+        Show detailed system and bot information.
+
+        Includes OS, CPU/RAM/Disk usage, uptime, member/guild count,
+        and library versions.
+        """
         try:
-            users = str(len(self.bot.users))
-            guilds = str(len(self.bot.guilds))
-            cpu = str(psutil.cpu_percent())
-            ram = str(psutil.virtual_memory()[3] / 1000000000)
-            ram_round = ram[:3]
-            disk = str(psutil.disk_usage('/')[1] / 1000000000)
-            disk_round = disk[:4]
-            boot_time = str(psutil.boot_time() / 100000000)
-            boot_time_round = boot_time[:4]
-            linux_distro = distro.os_release_info()
-            # get_news = self.bot.cursor.execute("SELECT rowid, * FROM bot_information")
-            # news = get_news.fetchall()[0][3]
+            distro_info = distro.os_release_info().get("pretty_name", "Unknown OS")
+            cpu = psutil.cpu_percent()
+            ram = psutil.virtual_memory().used / (1024**3)
+            disk = psutil.disk_usage("/").used / (1024**3)
+            uptime_td = self.bot.uptime
+            users = len(self.bot.users)
+            guilds = len(self.bot.guilds)
 
             embed = discord.Embed(
+                title="→ DarkBot System Info",
                 color=self.bot.embed_color,
-                title=f"→ DarkBot",
-                description=f"— "
-                            f"\n ➤ To view my commands run, `!commands`"
-                            + "\n—"
+                timestamp=datetime.utcnow(),
+                description="—\n➤ To view my commands run `!commands`\n—",
             )
             embed.set_thumbnail(url="https://bit.ly/2JGhA94")
-            embed.add_field(name=f"• OPERATING System:", inline=True, value=f":computer: — {linux_distro['pretty_name']}")
-            embed.add_field(name=f"• CPU Usage:", inline=True, value=f":heavy_plus_sign: — {cpu} Percent used")
-            embed.add_field(name=f"• RAM Usage:", inline=True,
-                            value=f":closed_book:  —  {ram_round}  / 4  Gigabytes used")
-            embed.add_field(name=f"• DISK Usage:", inline=True, value=f":white_circle: — {disk_round} / 40 Gigabytes")
-            embed.add_field(name=f"• BOOT Time: ", inline=True, value=f":boot: —  {boot_time_round} seconds")
-            embed.add_field(name=f"• MEMBER Count:", inline=True, value=f":bust_in_silhouette: —  {users} users")
-            embed.add_field(name=f"• GUILD Count:", inline=True, value=f":house: — {guilds} connected guilds")
-            embed.add_field(name=f"• LIBRARY Version:", inline=True,
-                            value=f":gear: — discord.py version {discord.__version__}")
-            embed.add_field(name=f"• PYTHON Version:", inline=True,
-                            value=f":snake:  — Python version {platform.python_version()}")
-            embed.set_footer(text=f"\n\nMade by Shiva187") #icon_url=f"\n\nhttps://i.imgur.com/TiUqRH8.gif")
+            embed.add_field(name="• Operating System", value=distro_info, inline=True)
+            embed.add_field(name="• CPU Usage", value=f"{cpu:.1f}%", inline=True)
+            embed.add_field(name="• RAM Used", value=f"{ram:.2f} GB", inline=True)
+            embed.add_field(name="• Disk Used", value=f"{disk:.2f} GB", inline=True)
+            embed.add_field(name="• Bot Uptime", value=str(uptime_td).split(".")[0], inline=True)
+            embed.add_field(name="• Member Count", value=str(users), inline=True)
+            embed.add_field(name="• Guild Count", value=str(guilds), inline=True)
+            embed.add_field(name="• discord.py Version", value=discord.__version__, inline=True)
+            embed.add_field(name="• Python Version", value=platform.python_version(), inline=True)
+            embed.set_footer(text="Made by Shiva187")
 
             await ctx.send(embed=embed)
-
-            logger.info(f"Information | Sent stats: {ctx.author}")
+            self.logger.info(f"info command run by {ctx.author}")
         except Exception as e:
-            print(f'There was an error: {e}')
+            await ctx.send("⚠️ Failed to gather system info.")
+            self.logger.exception(f"Error in info command: {e}")
 
-    @commands.command()
+    @commands.hybrid_command(help="Sends the bot invite link.")
     async def invite(self, ctx):
-        url = "(http://bit.ly/2Zm5XyP)"
+        """
+        DM the user with an invite link for the bot.
+        """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
+        url = "http://bit.ly/2Zm5XyP"
         embed = discord.Embed(
-            color=self.bot.embed_color,
             title="→ Invite Me To Your Server!",
-            description=f"• [**Click Here**]{url}"
-        )
-        await ctx.message.add_reaction(self.bot.get_emoji(648198008076238862))
-
-        await ctx.author.send(embed=embed)
-
-        logger.info(f"Information | Sent Invite: {ctx.author}")
-
-    @commands.command()
-    async def ping(self, ctx):
-        before = time.monotonic()
-        pong = int(round(self.bot.latency * 1000, 1))
-
-        message = await ctx.send("• **Pong** — :ping_pong:")
-
-        ping = (time.monotonic() - before) * 1000
-        await message.delete(delay=1)
-        await asyncio.sleep(1)
-
-        embed = discord.Embed(
+            description=f"• [**Click Here**]({url})",
             color=self.bot.embed_color,
-            title="→ Ping Command",
         )
-        embed.add_field(name="• WS:", value=f"{pong}ms")
-        embed.add_field(name="• REST:", value=f"{int(ping)}ms")
-        await ctx.send(embed=embed)
-
-        logger.info(f"Information | Sent Ping: {ctx.author}")
-
-    @commands.command()
-    async def uptime(self, ctx):
-        """Command to check the bot's and system's uptime."""
         try:
-            # Bot Uptime
-            current_time = time.time()
-            bot_difference = int(round(current_time - self.bot_start_time))
-            bot_uptime_duration = str(timedelta(seconds=bot_difference))
+            await ctx.author.send(embed=embed)
+        except discord.Forbidden:
+            await ctx.send("❌ I couldn't DM you the invite link. Please check your privacy settings.")
+            self.logger.warning(f"invite DM blocked for {ctx.author}")
+            return
 
-            # System Uptime
-            boot_time_timestamp = psutil.boot_time()
-            boot_time = datetime.fromtimestamp(boot_time_timestamp)
-            system_uptime_duration = str(timedelta(seconds=int(round(current_time - boot_time_timestamp))))
+        if ctx.message:
+            await ctx.message.add_reaction("🤖")
+        else:
+            await ctx.send("✅ I sent you the invite link in DMs.")
 
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Uptime",
-            )
-            embed.add_field(name="Bot Uptime", value=f"→ I have been running for: {bot_uptime_duration}", inline=False)
-            embed.add_field(name="System Uptime", value=f"→ System has been running for: {system_uptime_duration}",
-                            inline=False)
+        self.logger.info(f"invite sent to {ctx.author}")
 
-            await ctx.send(embed=embed)
+    @commands.hybrid_command(help="Check the bot's websocket & API latency.")
+    async def ping(self, ctx):
+        """
+        Measure and display the bot's WS and REST latencies.
+        """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
 
-            logger.info(f"Information | Uptime checked: {ctx.author}")
-        except Exception as e:
-            print(f'There was an error: {e}')
+        before = time.monotonic()
+        ws_ping = int(self.bot.latency * 1000)
+        rest_ping = int((time.monotonic() - before) * 1000)
+        embed = discord.Embed(
+            title="→ Ping",
+            color=self.bot.embed_color,
+            timestamp=datetime.utcnow(),
+        )
+        embed.add_field(name="• WS Latency", value=f"{ws_ping} ms", inline=True)
+        embed.add_field(name="• REST Latency", value=f"{rest_ping} ms", inline=True)
+        await ctx.send(embed=embed)
+        self.logger.info(f"Ping responded to {ctx.author}")
 
-    @commands.command(aliases=['userinfo'])
+    @commands.hybrid_command(help="Command to check the bot's and system's uptime.")
+    async def uptime(self, ctx):
+        """
+        Display both the bot's uptime and the system's uptime.
+        """
+        now = time.time()
+        bot_secs = int(
+            now - self.bot.start_time.timestamp()
+            if hasattr(self.bot.start_time, "timestamp")
+            else now - self.bot.start_time
+        )
+        bot_up = str(timedelta(seconds=bot_secs))
+        sys_secs = int(now - psutil.boot_time())
+        sys_up = str(timedelta(seconds=sys_secs))
+        embed = discord.Embed(
+            title="→ Uptime",
+            color=self.bot.embed_color,
+            timestamp=datetime.utcnow(),
+        )
+        embed.add_field(name="• Bot Uptime", value=bot_up, inline=False)
+        embed.add_field(name="• System Uptime", value=sys_up, inline=False)
+        await ctx.send(embed=embed)
+        self.logger.info(f"Uptime checked by {ctx.author}")
+
+    @commands.hybrid_command(aliases=["userinfo"], help="Show information about a member.")
     async def whois(self, ctx, member: discord.Member):
-        embed = discord.Embed(
-            color=self.bot.embed_color,
-            title=f"→ Userinfo For {member}",
-            description="— "
-                        "\n➤ Shows all information about a user. "
-                        "\n➤ The information will be listed below!"
-                        "\n —"
-        )
-
-        status = {
-            "online": "<:online:648195346186502145>",
-            "idle": "<:idle:648195345800757260>",
-            "offline": "<:offline:648195346127912970>",
-            "dnd": "<:dnd:648195345985175554>"
+        """
+        Display detailed information about a guild member.
+        """
+        status_icons = {
+            "online": "🟢",
+            "idle": "🌙",
+            "dnd": "⛔",
+            "offline": "⚪",
         }
-
-        roles = [role for role in member.roles]
-        roles = " ".join([f"`{role.name}`" for role in roles])
-
-        embed.set_thumbnail(url=member.avatar_url_as(size=1024, format=None, static_format="png"))
-        embed.add_field(name="• Account name: ", value=str(member))
-        embed.add_field(name="• Discord ID: ", value=str(member.id))
-        embed.add_field(name="• Nickname: ", value=member.nick or "No nickname!")
-        embed.add_field(name="• Account created at: ", value=member.created_at.strftime("%A %d, %B %Y."))
-        embed.add_field(name="• Account joined at: ", value=member.joined_at.strftime("%A %d, %B %Y"))
-
-        # - TODO: See why this is returning "None" even though there is an if statement to check this
-        if member.activity is None:
-            embed.add_field(name="• Activity: ", value="No activity!")
-        else:
-            embed.add_field(name="• Activity: ", value=member.activity.name)
-        if member.bot is True:
-            embed.add_field(name="• Discord bot? ",
-                            value="<:bot_tag:648198074094583831> = <:tick_yes:648198008076238862>")
-        else:
-            embed.add_field(name="• Discord bot?",
-                            value="<:bot_tag:648198074094583831> = <:tick_no:648198035435945985>")
-        if member.is_on_mobile() is True:
-            embed.add_field(name="• On mobile? ", value=":iphone:")
-        else:
-            embed.add_field(name="• On mobile? ", value=":no_mobile_phones:")
-
-        embed.add_field(name="• Status: ", value=status[member.status.name])
-        embed.add_field(name="• Top role: ", value=f"`{member.top_role.name}`")
-        embed.add_field(name="• Roles: ", inline=False, value=roles)
-
-        await ctx.send(embed=embed)
-
-        logger.info(f"Information | Sent Whois: {ctx.author}")
-
-    @whois.error
-    async def whois_error(self, ctx, error):
-        if isinstance(error, commands.BadArgument):
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Invalid Member!",
-                description="• Please mention a valid member! Example: `l!whois @user`"
-            )
-            await ctx.send(embed=embed)
-        elif isinstance(error, commands.MissingRequiredArgument):
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `l!whois @user`"
-            )
-            await ctx.send(embed=embed)
-
-    @commands.command()
-    async def status(self, ctx, online_status):
-        if str(online_status).lower() == "dnd":
-            await self.bot.change_presence(status=discord.Status.dnd)
-        elif str(online_status).lower() == "idle":
-            await self.bot.change_presence(status=discord.Status.idle)
-        elif str(online_status).lower() == "offline":
-            await self.bot.change_presence(status=discord.Status.offline)
-        else:
-            await self.bot.change_presence(status=discord.Status.online)
-
+        roles = ", ".join(role.name for role in member.roles if role.name != "@everyone")
         embed = discord.Embed(
+            title=f"→ User Info: {member}",
             color=self.bot.embed_color,
-            title="→ Online Status Changed!",
-            description=f"• My status has been updated to: `{online_status.lower()}`"
+            timestamp=datetime.utcnow(),
         )
-
-        await ctx.send(embed=embed)
-
-        logger.info(f"Owner | Sent Status: {ctx.author} | Online Status: {online_status}")
-
-    @status.error
-    async def change_status_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `l!status <online status>`"
-            )
-            await ctx.send(embed=embed)
-
-    @commands.is_owner()
-    @commands.command()
-    async def name(self, ctx, name):
-        await self.bot.user.edit(username=name)
-
-        embed = discord.Embed(
-            color=self.bot.embed_color,
-            title="→ Bot Name Changed!",
-            description=f"• My name has been updated to: `{name}`"
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(name="• Username", value=str(member), inline=True)
+        embed.add_field(name="• ID", value=member.id, inline=True)
+        embed.add_field(name="• Nickname", value=member.nick or "None", inline=True)
+        embed.add_field(
+            name="• Created At",
+            value=member.created_at.strftime("%Y-%m-%d"),
+            inline=True,
         )
-
+        embed.add_field(
+            name="• Joined At", value=member.joined_at.strftime("%Y-%m-%d"), inline=True
+        )
+        embed.add_field(
+            name="• Status",
+            value=status_icons.get(member.status.name, member.status.name),
+            inline=True,
+        )
+        embed.add_field(name="• Top Role", value=member.top_role.name, inline=True)
+        embed.add_field(name="• Roles", value=roles or "None", inline=False)
         await ctx.send(embed=embed)
-
-        logger.info(f"Owner | Sent Name: {ctx.author} | Name: {name}")
-
-    @name.error
-    async def name_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Invalid Argument!",
-                description="• Please put a valid option! Example: `l!name <name>`"
-            )
-            await ctx.send(embed=embed)
-        elif isinstance(error, commands.CommandError):
-            embed = discord.Embed(
-                color=self.bot.embed_color,
-                title="→ Unknown Error Has Occurred ",
-                description=f"```python"
-                            f"{error}"
-                            f"```"
-            )
-            await ctx.send(embed=embed)
+        self.logger.info(f"whois run for {member} by {ctx.author}")
 
 
 async def setup(bot):
+    """Register the Information cog with the bot."""
     await bot.add_cog(Information(bot))

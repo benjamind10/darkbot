@@ -2,6 +2,12 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+myenv
+
+.idea/*
 
 darkbot_new.ppk
 
