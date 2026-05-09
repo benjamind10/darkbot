@@ -12,7 +12,7 @@ import pytest_asyncio
 # Add bot/ so relative cog imports (e.g. `from cogs.Owner import Owner`) resolve
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bot"))
 
-from bot.utils.log_buffer import RollingLogHandler  # noqa: E402
+from bot.utils.log_buffer import RollingLogHandler, _sanitize  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -170,3 +170,88 @@ async def test_logs_defers_for_slash(owner_cog):
 
     ctx.defer.assert_awaited_once()
     ctx.send.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _sanitize() redaction tests
+#
+# Fake secrets below are split across concatenation so no single string
+# literal triggers GitHub push protection or other secret scanners.
+# ---------------------------------------------------------------------------
+
+# Reassembled at runtime; neither half matches a secret pattern on its own.
+_FAKE_DISCORD_TOKEN = "MTE4NzQ5ODcy" + "MjQxNzg2NTQ4.GabCde.abcdefghijklmnopqrstuvwxyz123"
+_FAKE_OPENAI_KEY = "sk-" + "abcdefghijklmnopqrstuvwxyz123456"
+_FAKE_OPENAI_PROJ_KEY = "sk-proj-" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdef"
+_FAKE_JWT = "eyJhbGciOiJS" + "UzI1NiIsInR5cCI6IkpXVCJ9"
+
+
+def test_sanitize_discord_token():
+    token = _FAKE_DISCORD_TOKEN
+    result = _sanitize(f"Bot token: {token}")
+    assert token not in result
+    assert "[REDACTED]" in result
+
+
+def test_sanitize_openai_key():
+    key = _FAKE_OPENAI_KEY
+    result = _sanitize(f"Using OpenAI key {key} for request")
+    assert key not in result
+    assert "[REDACTED]" in result
+
+
+def test_sanitize_openai_proj_key():
+    key = _FAKE_OPENAI_PROJ_KEY
+    result = _sanitize(f"API call with {key}")
+    assert key not in result
+    assert "[REDACTED]" in result
+
+
+def test_sanitize_bearer_token():
+    jwt = _FAKE_JWT
+    result = _sanitize(f"Authorization: Bearer {jwt}")
+    assert jwt not in result
+    assert "[REDACTED]" in result
+
+
+def test_sanitize_authorization_header():
+    result = _sanitize("Sending header Authorization: Token abc123secretxyz")
+    assert "abc123secretxyz" not in result
+    assert "[REDACTED]" in result
+
+
+def test_sanitize_password_field():
+    result = _sanitize("Connecting with password=supersecret123")
+    assert "supersecret123" not in result
+    assert "[REDACTED]" in result
+
+
+def test_sanitize_api_key_field():
+    result = _sanitize("weather api_key=a1b2c3d4e5f6g7h8")
+    assert "a1b2c3d4e5f6g7h8" not in result
+    assert "[REDACTED]" in result
+
+
+def test_sanitize_client_secret_field():
+    result = _sanitize("spotify client_secret: xyzSpotifySecretABC")
+    assert "xyzSpotifySecretABC" not in result
+    assert "[REDACTED]" in result
+
+
+def test_sanitize_db_url():
+    result = _sanitize("Connecting to postgresql://darkbot:hunter2@db:5432/darkbot")
+    assert "hunter2" not in result
+    assert "[REDACTED]" in result
+    assert "@db:5432" in result
+
+
+def test_sanitize_clean_message_unchanged():
+    msg = "Command !ping executed by user#1234 in guild MyServer"
+    assert _sanitize(msg) == msg
+
+
+def test_sanitize_redacts_in_buffer(owner_cog):
+    owner_cog.logger.error("DB error password=topsecret reason=timeout")
+    entries = owner_cog.bot.log_buffer.get_entries(1)
+    assert "topsecret" not in entries[0]
+    assert "[REDACTED]" in entries[0]
