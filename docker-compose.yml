@@ -52,6 +52,7 @@ services:
     env_file:
       - ./bot/.env
     environment:
+      POSTGRES_DB: darkbot
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASS}
     volumes:

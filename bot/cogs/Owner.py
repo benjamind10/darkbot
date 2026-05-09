@@ -3,8 +3,10 @@ Owner Cog
 =========
 
 Handles owner-only commands such as changing the bot's presence status,
-username, and playing message.
+username, playing message, and guild/member utilities.
 """
+
+import random
 
 import discord
 from discord.ext import commands
@@ -114,6 +116,77 @@ class Owner(commands.Cog):
 
         for chunk in chunks:
             await ctx.send(f"```\n{chunk}\n```")
+
+    @commands.hybrid_command(help="Generate a single-use invite from a guild (owner only).")
+    @commands.is_owner()
+    async def get_invite(self, ctx, id: int):
+        """
+        Create a single-use invite from a random text channel in the target guild.
+        Usage: !get_invite <guild_id>
+        """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer(ephemeral=True)
+
+        guild = self.bot.get_guild(id)
+        if guild is None:
+            await ctx.send("❌ Guild not found.")
+            return
+
+        channels = [c.id for c in guild.text_channels]
+        if not channels:
+            await ctx.send("❌ No text channels available.")
+            return
+
+        channel = self.bot.get_channel(random.choice(channels))
+        invite = await channel.create_invite(max_uses=1)
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title="Invite From Guild",
+            description=f"• Invite: {invite}",
+        )
+        await ctx.author.send(embed=embed)
+        await ctx.send("✅ Invite sent to your DMs.")
+        self.logger.info(f"get_invite for guild {id} by {ctx.author}")
+
+    @commands.hybrid_command(help="List all roles for a member (owner only).")
+    @commands.is_owner()
+    async def check_roles(self, ctx, user: discord.Member):
+        """
+        Display all roles assigned to a guild member.
+        Usage: !check_roles <member>
+        """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
+        role_mentions = [r.mention for r in user.roles if r != ctx.guild.default_role]
+        description = " ".join(role_mentions) if role_mentions else "This user has no roles."
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title=f"Roles for {user.display_name}",
+            description=description,
+        )
+        await ctx.send(embed=embed)
+        self.logger.info(f"check_roles for {user} by {ctx.author}")
+
+    @commands.hybrid_command(help="List all permissions for a member (owner only).")
+    @commands.is_owner()
+    async def check_permissions(self, ctx, user: discord.Member):
+        """
+        Display all guild permissions granted to a member.
+        Usage: !check_permissions <member>
+        """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
+        true_perms = [p[0] for p in user.guild_permissions if p[1]]
+        description = ", ".join(true_perms).replace("_", " ").title() or "No permissions."
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title=f"Permissions for {user.display_name}",
+            description=description,
+        )
+        await ctx.send(embed=embed)
+        self.logger.info(f"check_permissions for {user} by {ctx.author}")
 
 
 async def setup(bot):
