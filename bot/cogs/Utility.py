@@ -44,6 +44,7 @@ except ImportError:
     IPINFO_AVAILABLE = False
 
 from utils.color_converting import rgb_to_cmyk, rgb_to_hsl, rgb_to_hsv
+from utils.discord_context import defer_if_interaction, has_origin_message, send_for_context
 from utils.decimal_formatting import truncate
 
 
@@ -75,11 +76,10 @@ class Utility(commands.Cog):
         Usage: !bitcoin [currency]
         Example: !bitcoin CAD
         """
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         if not FOREX_AVAILABLE:
-            await ctx.send("❌ forex-python library not installed.")
+            await send_for_context(ctx, "❌ forex-python library not installed.")
             return
 
         try:
@@ -91,7 +91,7 @@ class Utility(commands.Cog):
                 title="→ BTC to Currency",
                 description=f"• One Bitcoin is: `{amount}` {currency}",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"Utility | Sent Bitcoin: {ctx.author}")
         except Exception as e:
             embed = discord.Embed(
@@ -99,7 +99,7 @@ class Utility(commands.Cog):
                 title="→ Currency error!",
                 description="• Not a valid currency type!\n• Example: `!bitcoin CAD`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.error(f"Utility | Bitcoin error: {e}")
 
     @commands.hybrid_command(aliases=["ltc"])
@@ -110,7 +110,7 @@ class Utility(commands.Cog):
         Usage: !litecoin
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         try:
             async with self.bot.http_session.get("https://api.coincap.io/v2/rates/litecoin") as r:
@@ -121,10 +121,10 @@ class Utility(commands.Cog):
                     title="→ Current Litecoin Price",
                     description=f"• One Litecoin is: `{litecoin_price[:-14]}` USD",
                 )
-                await ctx.send(embed=embed)
+                await send_for_context(ctx, embed=embed)
                 self.logger.info(f"Utility | Sent Litecoin: {ctx.author}")
         except Exception as e:
-            await ctx.send("❌ Failed to fetch Litecoin price.")
+            await send_for_context(ctx, "❌ Failed to fetch Litecoin price.")
             self.logger.error(f"Utility | Litecoin error: {e}")
 
     # ========== Currency Conversion ==========
@@ -138,10 +138,10 @@ class Utility(commands.Cog):
         Example: !currency 10 USD CAD
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not FOREX_AVAILABLE:
-            await ctx.send("❌ forex-python library not installed.")
+            await send_for_context(ctx, "❌ forex-python library not installed.")
             return
 
         try:
@@ -156,7 +156,7 @@ class Utility(commands.Cog):
                 title="→ Currency Converting",
                 description=f"• {amount_float} {currency1} is about {truncate(converted, 2)} {currency2}!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"Utility | Sent Currency: {ctx.author}")
         except ValueError:
             embed = discord.Embed(
@@ -164,14 +164,14 @@ class Utility(commands.Cog):
                 title="→ Money Error!",
                 description="• Not a valid amount of money!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         except Exception as e:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Currency Error!",
                 description="• Not a valid currency type!\n• Example: `!currency 10 USD CAD`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.error(f"Utility | Currency conversion error: {e}")
 
     @currency.error
@@ -183,7 +183,7 @@ class Utility(commands.Cog):
                 title="→ Invalid Argument!",
                 description="• Please put in a valid option! Example: `!currency 10 USD CAD`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     @commands.hybrid_command(aliases=["tobtc"])
     async def currency_to_bitcoin(self, ctx, amount, currency="USD"):
@@ -194,10 +194,10 @@ class Utility(commands.Cog):
         Example: !tobtc 100 USD
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not FOREX_AVAILABLE:
-            await ctx.send("❌ forex-python library not installed.")
+            await send_for_context(ctx, "❌ forex-python library not installed.")
             return
 
         try:
@@ -211,7 +211,7 @@ class Utility(commands.Cog):
                 title="→ Currency To Bitcoin!",
                 description=f"• {amount_int} {currency} is around {btc} Bitcoin!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"Utility | Sent Currency_To_btc: {ctx.author}")
         except ValueError:
             embed = discord.Embed(
@@ -219,14 +219,14 @@ class Utility(commands.Cog):
                 title="→ Money Error!",
                 description="• Not a valid amount of money!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         except Exception as e:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Currency Error!",
                 description="• Not a valid currency!\n• Example: `!tobtc 10 CAD`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.error(f"Utility | Currency to BTC error: {e}")
 
     @currency_to_bitcoin.error
@@ -238,7 +238,7 @@ class Utility(commands.Cog):
                 title="→ Invalid Argument!",
                 description="• Please put in a valid option! Example: `!tobtc 10 CAD`\n• Pro Tip: If you use USD currency, you do not have to specify the currency.",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     # ========== Urban Dictionary ==========
 
@@ -250,16 +250,16 @@ class Utility(commands.Cog):
             title="→ Invalid Argument!",
             description="• Please put in a valid option! Example: `!word <random / search> [Word name]`",
         )
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
 
     @word.command()
     async def random(self, ctx):
         """Get a random Urban Dictionary word."""
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not ASYNCURBAN_AVAILABLE:
-            await ctx.send("❌ asyncurban library not installed.")
+            await send_for_context(ctx, "❌ asyncurban library not installed.")
             return
 
         try:
@@ -269,20 +269,20 @@ class Utility(commands.Cog):
                 title="→ Random Word",
                 description=f"Word: `{word}`\nDefinition: `{word.definition}`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"Utility | Sent Word Random: {ctx.author}")
         except Exception as e:
-            await ctx.send("❌ Failed to fetch random word.")
+            await send_for_context(ctx, "❌ Failed to fetch random word.")
             self.logger.error(f"Utility | Random word error: {e}")
 
     @word.command()
     async def search(self, ctx, *, query):
         """Search for a word in Urban Dictionary."""
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not ASYNCURBAN_AVAILABLE:
-            await ctx.send("❌ asyncurban library not installed.")
+            await send_for_context(ctx, "❌ asyncurban library not installed.")
             return
 
         try:
@@ -292,10 +292,10 @@ class Utility(commands.Cog):
                 title="→ Searched word",
                 description=f"Word: `{word}`\nDefinition: `{word.definition}`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"Utility | Sent Word Search: {ctx.author} | Searched: {query}")
         except Exception as e:
-            await ctx.send(f"❌ Couldn't find word: {query}")
+            await send_for_context(ctx, f"❌ Couldn't find word: {query}")
             self.logger.error(f"Utility | Word search error: {e}")
 
     # ========== IP Lookup ==========
@@ -309,14 +309,14 @@ class Utility(commands.Cog):
         Example: !ip 8.8.8.8
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not IPINFO_AVAILABLE:
-            await ctx.send("❌ ipinfo library not installed.")
+            await send_for_context(ctx, "❌ ipinfo library not installed.")
             return
 
         if not self.ip_info_token:
-            await ctx.send("❌ IP_INFO token not configured.")
+            await send_for_context(ctx, "❌ IP_INFO token not configured.")
             return
 
         try:
@@ -343,7 +343,7 @@ class Utility(commands.Cog):
             embed.add_field(name="• Postal code:", value=f"`{info.get('postal', 'Not found')}`")
             embed.add_field(name="• ISP-Name:", value=f"`{info.get('org', 'Not found')}`")
 
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"Utility | Sent IP: {ctx.author} | IP Address: {ip}")
 
         except Exception as e:
@@ -352,7 +352,7 @@ class Utility(commands.Cog):
                 title="→ Invalid IP Address!",
                 description="• The IP address you entered is not valid.",
             )
-            await ctx.send(embed_error)
+            await send_for_context(ctx, embed_error)
             self.logger.error(f"Utility | IP lookup error: {e}")
 
     @ip_lookup.error
@@ -364,7 +364,7 @@ class Utility(commands.Cog):
                 title="→ Invalid Argument!",
                 description="• Please put in a IP Address! Example: `!ip 172.217.2.238`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     # ========== Poll Command ==========
 
@@ -376,14 +376,14 @@ class Utility(commands.Cog):
         Usage: !poll <#channel> <question>
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         sender = ctx.author
         embed = discord.Embed(color=self.bot.embed_color, title="→ Quick Poll 📊")
         embed.add_field(name="• Question", inline=False, value=question)
         embed.set_footer(text=f"— Poll from {sender}", icon_url=ctx.author.display_avatar.url)
 
-        if ctx.message:
+        if has_origin_message(ctx):
             await ctx.message.delete()
         message = await channel.send(embed=embed)
         await message.add_reaction("👍")
@@ -400,14 +400,14 @@ class Utility(commands.Cog):
                 title="→ Invalid Channel!",
                 description="• Please put in a channel! Example: `!poll #channel <question>`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
                 description="• Please put in a valid option! Example: `!poll #channel <question>`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     # ========== Color Commands ==========
 
@@ -439,7 +439,7 @@ class Utility(commands.Cog):
         )
         embed.add_field(name="• COLOR accuracy:", inline=True, value=f"`{random.randint(96, 99)}%`")
 
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"Utility | Sent Random Color: {ctx.author}")
 
     # ========== Reminder Command ==========
@@ -470,7 +470,7 @@ class Utility(commands.Cog):
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!remind <time> <time measurement> <reminder>`\n• Units of time: `s = seconds`, `m = minutes`, `h = hours`\n• Real world example: `!remind 20 m this reminder will go off in 20 minutes.`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             return
 
         embed = discord.Embed(
@@ -478,7 +478,7 @@ class Utility(commands.Cog):
             title=f"→ Reminder Set For {time} {unit_name}!",
             description=f"• Reminder: `{reminder}`",
         )
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
 
         await asyncio.sleep(sleep_seconds)
 
@@ -487,9 +487,9 @@ class Utility(commands.Cog):
             title="→ Time Is Up!",
             description=f"• Reminder set: `{reminder}`\n• Time set for: `{time} {unit_name}`",
         )
-        await ctx.send(embed2)
+        await send_for_context(ctx, embed2)
 
-        ping = await ctx.send(ctx.author.mention)
+        ping = await send_for_context(ctx, ctx.author.mention)
         await ping.delete()
 
         self.logger.info(
@@ -505,7 +505,7 @@ class Utility(commands.Cog):
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!remind <time> <time measurement> <reminder>`\n• Units of time: `s = seconds`, `m = minutes`, `h = hours`\n• Real world example: `!remind 20 m this reminder will go off in 20 minutes.`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     # ========== Temperature Conversion ==========
 
@@ -517,7 +517,7 @@ class Utility(commands.Cog):
             title="→ Invalid Argument!",
             description="• Please put in a valid option! Example: `!temperature <fahrenheit / celsius> <number>`",
         )
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
 
     @temperature.command(aliases=["fahrenheit"])
     async def fahrenheit_to_celsius(self, ctx, fahrenheit):
@@ -528,7 +528,7 @@ class Utility(commands.Cog):
             title="→ Fahrenheit To Celsius",
             description=f"• Celsius Temperature: `{int(celsius)}`",
         )
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"Utility | Sent Temperatures: {ctx.author}")
 
     @temperature.command(aliases=["celsius"])
@@ -540,7 +540,7 @@ class Utility(commands.Cog):
             title="→ Celsius To Fahrenheit",
             description=f"• Fahrenheit Temperature: `{int(fahrenheit)}`",
         )
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"Utility | Sent Temperatures: {ctx.author}")
 
     # ========== Translation ==========
@@ -554,10 +554,10 @@ class Utility(commands.Cog):
         Example: !translate es Hello world
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not TRANSLATOR_AVAILABLE:
-            await ctx.send("❌ aiogoogletrans library not installed.")
+            await send_for_context(ctx, "❌ aiogoogletrans library not installed.")
             return
 
         try:
@@ -572,12 +572,12 @@ class Utility(commands.Cog):
                 title="→ Translation",
                 description=f"• Input Language: `{translated_from}`\n• Translated Language: `{language}`\n• Translated Text: `{translation}`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(
                 f"Utility | Sent Translate: {ctx.author} | Language: {lang} | Sentence: {sentence}"
             )
         except Exception as e:
-            await ctx.send("❌ Translation failed.")
+            await send_for_context(ctx, "❌ Translation failed.")
             self.logger.error(f"Utility | Translation error: {e}")
 
     @translate.error
@@ -589,7 +589,7 @@ class Utility(commands.Cog):
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!translate <language> <message>`\n• Real world example: `!translate en Hola`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     # ========== Weather ==========
 
@@ -602,10 +602,10 @@ class Utility(commands.Cog):
         Example: !weather New York
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not self.openweather_api_key:
-            await ctx.send("❌ OpenWeather API key not configured (KSOFT_API).")
+            await send_for_context(ctx, "❌ OpenWeather API key not configured (KSOFT_API).")
             return
 
         try:
@@ -635,7 +635,7 @@ class Utility(commands.Cog):
                 embed.add_field(name="• Cloud coverage:", value=f"{cloud_coverage}%")
                 embed.add_field(name="• Location:", value=res["name"])
 
-                await ctx.send(embed=embed)
+                await send_for_context(ctx, embed=embed)
                 self.logger.info(f"Utility | Sent Weather: {ctx.author}")
         except Exception as e:
             embed = discord.Embed(
@@ -643,7 +643,7 @@ class Utility(commands.Cog):
                 title="→ Invalid City / Zip code",
                 description=f"• The city or zip code you put is not valid. Error: {e}",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.error(f"Utility | Weather error: {e}")
 
     @weather.error
@@ -655,7 +655,7 @@ class Utility(commands.Cog):
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!weather <city>`\n• You can also use a zip code! Example: `!weather <zip-code>`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
 
 async def setup(bot):

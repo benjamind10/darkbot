@@ -14,6 +14,8 @@ import distro
 import psutil
 from discord.ext import commands
 
+from utils.discord_context import defer_if_interaction, has_origin_message, send_for_context
+
 
 class Information(commands.Cog):
     """
@@ -39,8 +41,7 @@ class Information(commands.Cog):
         Fields include uptime, guild count, user count, cogs loaded,
         commands used, messages seen, and errors logged.
         """
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         stats = await self.bot.get_stats()
         embed = discord.Embed(
@@ -50,7 +51,7 @@ class Information(commands.Cog):
         )
         for name, value in stats.items():
             embed.add_field(name=name.replace("_", " ").title(), value=value, inline=True)
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"Bot statistics sent to {ctx.author} in {ctx.guild}")
 
     @commands.hybrid_command(aliases=["commands", "cmds"], help="Shows all available commands.")
@@ -81,7 +82,7 @@ class Information(commands.Cog):
             ]
             if cmds:
                 embed.add_field(name=f"• {cog_name} Commands", value=" ".join(cmds), inline=False)
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"Command list sent to {ctx.author} in {ctx.guild}")
 
     @commands.hybrid_command(name="help", help="Shows help for a command or lists all commands.")
@@ -101,7 +102,7 @@ class Information(commands.Cog):
         # Show help for specific command
         cmd = self.bot.get_command(command_name)
         if cmd is None:
-            await ctx.send(f"❌ Command `{command_name}` not found.")
+            await send_for_context(ctx, f"❌ Command `{command_name}` not found.")
             return
 
         embed = discord.Embed(
@@ -133,7 +134,7 @@ class Information(commands.Cog):
         if cmd.cog_name:
             embed.add_field(name="• Category", value=cmd.cog_name, inline=True)
 
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"Help for '{command_name}' shown to {ctx.author}")
 
     @commands.hybrid_command(
@@ -146,16 +147,15 @@ class Information(commands.Cog):
 
         Returns an embed showing the key and its integer value.
         """
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         if not self.redis or not self.redis.redis:
-            await ctx.send("❌ Redis is not connected.")
+            await send_for_context(ctx, "❌ Redis is not connected.")
             return
         try:
             value = await self.redis.get_command_usage(key)
             if value is None:
-                await ctx.send(f"❓ Redis key `{key}` does not exist or has no value.")
+                await send_for_context(ctx, f"❓ Redis key `{key}` does not exist or has no value.")
             else:
                 embed = discord.Embed(
                     title="📦 Redis Data Lookup",
@@ -163,10 +163,10 @@ class Information(commands.Cog):
                     color=self.bot.colors["info"],
                     timestamp=datetime.utcnow(),
                 )
-                await ctx.send(embed=embed)
+                await send_for_context(ctx, embed=embed)
                 self.logger.info(f"Fetched Redis key '{key}' for {ctx.author} in {ctx.guild}")
         except Exception as e:
-            await ctx.send("⚠️ Failed to fetch Redis key.")
+            await send_for_context(ctx, "⚠️ Failed to fetch Redis key.")
             self.logger.exception(f"Error fetching Redis key '{key}': {e}")
 
     @commands.hybrid_command(help="System & bot info overview.")
@@ -204,10 +204,10 @@ class Information(commands.Cog):
             embed.add_field(name="• Python Version", value=platform.python_version(), inline=True)
             embed.set_footer(text="Made by Shiva187")
 
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"info command run by {ctx.author}")
         except Exception as e:
-            await ctx.send("⚠️ Failed to gather system info.")
+            await send_for_context(ctx, "⚠️ Failed to gather system info.")
             self.logger.exception(f"Error in info command: {e}")
 
     @commands.hybrid_command(help="Sends the bot invite link.")
@@ -215,8 +215,7 @@ class Information(commands.Cog):
         """
         DM the user with an invite link for the bot.
         """
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         url = "http://bit.ly/2Zm5XyP"
         embed = discord.Embed(
@@ -227,14 +226,14 @@ class Information(commands.Cog):
         try:
             await ctx.author.send(embed=embed)
         except discord.Forbidden:
-            await ctx.send("❌ I couldn't DM you the invite link. Please check your privacy settings.")
+            await send_for_context(ctx, "❌ I couldn't DM you the invite link. Please check your privacy settings.")
             self.logger.warning(f"invite DM blocked for {ctx.author}")
             return
 
-        if ctx.message:
+        if has_origin_message(ctx):
             await ctx.message.add_reaction("🤖")
         else:
-            await ctx.send("✅ I sent you the invite link in DMs.")
+            await send_for_context(ctx, "✅ I sent you the invite link in DMs.")
 
         self.logger.info(f"invite sent to {ctx.author}")
 
@@ -243,8 +242,7 @@ class Information(commands.Cog):
         """
         Measure and display the bot's WS and REST latencies.
         """
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         before = time.monotonic()
         ws_ping = int(self.bot.latency * 1000)
@@ -256,7 +254,7 @@ class Information(commands.Cog):
         )
         embed.add_field(name="• WS Latency", value=f"{ws_ping} ms", inline=True)
         embed.add_field(name="• REST Latency", value=f"{rest_ping} ms", inline=True)
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"Ping responded to {ctx.author}")
 
     @commands.hybrid_command(help="Command to check the bot's and system's uptime.")
@@ -280,7 +278,7 @@ class Information(commands.Cog):
         )
         embed.add_field(name="• Bot Uptime", value=bot_up, inline=False)
         embed.add_field(name="• System Uptime", value=sys_up, inline=False)
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"Uptime checked by {ctx.author}")
 
     @commands.hybrid_command(aliases=["userinfo"], help="Show information about a member.")
@@ -319,7 +317,7 @@ class Information(commands.Cog):
         )
         embed.add_field(name="• Top Role", value=member.top_role.name, inline=True)
         embed.add_field(name="• Roles", value=roles or "None", inline=False)
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"whois run for {member} by {ctx.author}")
 
 

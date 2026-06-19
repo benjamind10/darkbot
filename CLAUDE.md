@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DarkBot is a Discord bot built with discord.py 2.3.2. It uses a cog-based architecture for modular features. All commands are **hybrid commands** supporting both prefix (`!`) and slash (`/`) syntax. The bot runs in Docker alongside PostgreSQL, Redis, and Lavalink (music server).
+DarkBot is a Discord bot built with discord.py 2.6.4. It uses a cog-based architecture for modular features. All commands are **hybrid commands** supporting both prefix (`!`) and slash (`/`) syntax. The bot runs in Docker alongside PostgreSQL, Redis, and Lavalink (music server).
 
 ## Running the Bot
 

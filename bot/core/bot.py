@@ -8,6 +8,7 @@ Main bot class with events moved to EventManager.
 import asyncio
 import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -22,6 +23,14 @@ from .events import EventManager
 from .exceptions import ConfigurationError, DarkBotException
 
 
+@dataclass(frozen=True)
+class CogLoadResult:
+    name: str
+    loaded: bool
+    required: bool
+    error: Exception | None = None
+
+
 class DarkBot(commands.Bot):
     """
     Main DarkBot class extending discord.py's Bot class.
@@ -32,6 +41,21 @@ class DarkBot(commands.Bot):
     - Database connections
     - Error handling
     """
+
+    REQUIRED_COGS = {
+        "cogs.BoardGames",
+        "cogs.Chatgpt",
+        "cogs.Database",
+        "cogs.Events",
+        "cogs.Information",
+        "cogs.ModLog",
+        "cogs.Moderation",
+        "cogs.Mtg",
+        "cogs.Owner",
+        "cogs.Spotify",
+        "cogs.Utility",
+    }
+    OPTIONAL_COGS = {"cogs.Music"}
 
     def __init__(self, config: dict[str, Any], **kwargs):
         """
@@ -164,12 +188,7 @@ class DarkBot(commands.Bot):
         await self.load_cogs()
 
         # Sync slash commands to Discord
-        try:
-            synced = await self.tree.sync()
-            self.logger.info(f"Synced {len(synced)} slash command(s) to Discord")
-        except Exception:
-            # Boundary guard: don't crash startup if Discord rejects the sync
-            self.logger.exception("Failed to sync slash commands")
+        await self.sync_command_tree()
 
         self.logger.info("DarkBot setup complete")
 
@@ -178,15 +197,19 @@ class DarkBot(commands.Bot):
 
         This gives clearer feedback at startup which keys to check in .env or deployment.
         """
+        music_enabled = self.config.music.enabled and self.config.lavalink.enabled
         youtube_configured = self.config.services.youtube_api_key or (
             self.config.services.youtube_email and self.config.services.youtube_password
         )
         checks = {
             "DISCORD_TOKEN": self.config.token,
-            "LAVALINK_PASS": self.config.lavalink.password,
-            "LAVALINK_SERVER": self.config.lavalink.host,
-            "SPOTIFY_CLIENTS": self.config.services.spotify_client_id
-            and self.config.services.spotify_client_secret,
+            "LAVALINK_PASS": self.config.lavalink.password if music_enabled else True,
+            "LAVALINK_SERVER": self.config.lavalink.host if music_enabled else True,
+            "SPOTIFY_CLIENTS": (
+                self.config.services.spotify_client_id and self.config.services.spotify_client_secret
+            )
+            if music_enabled
+            else True,
             "CHATGPT_SECRET": self.config.services.chatgpt_secret,
             "KSOFT_API": self.config.services.ksoft_api,
             "IP_INFO": self.config.services.ip_info,
@@ -199,23 +222,49 @@ class DarkBot(commands.Bot):
         else:
             self.logger.info("All expected API env keys appear present")
 
-    async def load_cogs(self):
+    async def load_cogs(self) -> list[CogLoadResult]:
         """Load all cogs from the cogs directory."""
         cogs_dir = "cogs"
         cog_files = [
             f for f in os.listdir(cogs_dir) if f.endswith(".py") and not f.startswith("__")
         ]
+        results: list[CogLoadResult] = []
         # # Setup event handlers
         # await self.event_manager.setup()
 
         for cog_file in cog_files:
             cog_name = f"cogs.{cog_file[:-3]}"
+            required = cog_name in self.REQUIRED_COGS or cog_name not in self.OPTIONAL_COGS
             try:
                 await self.load_extension(cog_name)
                 self.logger.info(f"Loaded cog: {cog_name}")
-            except Exception:
-                # Boundary guard: one bad cog should not abort startup
-                self.logger.exception("Failed to load cog %s", cog_name)
+                results.append(CogLoadResult(cog_name, True, required))
+            except Exception as exc:
+                results.append(CogLoadResult(cog_name, False, required, exc))
+                if required:
+                    self.logger.exception("Failed to load required cog %s", cog_name)
+                else:
+                    self.logger.warning("Optional cog %s failed to load", cog_name, exc_info=True)
+
+        failed_required = sorted(result.name for result in results if result.required and not result.loaded)
+        if failed_required:
+            raise DarkBotException("Required cog(s) failed to load: " + ", ".join(failed_required))
+
+        return results
+
+    async def sync_command_tree(self) -> int:
+        """Sync application commands and return the number of synced commands."""
+        try:
+            synced = await self.tree.sync()
+        except discord.HTTPException:
+            self.logger.exception("Discord rejected slash command sync")
+            return 0
+        except Exception:
+            self.logger.exception("Failed to sync slash commands")
+            return 0
+
+        self.logger.info("Synced %s slash command(s) to Discord", len(synced))
+        return len(synced)
 
     async def setup_database(self):
         """Initialize database connection pool."""

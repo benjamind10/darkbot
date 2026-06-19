@@ -12,6 +12,8 @@ from typing import cast
 import discord
 from discord.ext import commands
 
+from utils.discord_context import defer_if_interaction, send_for_context
+
 try:
     import wavelink
 
@@ -27,13 +29,16 @@ class Music(commands.Cog):
         self.bot = bot
         self.logger = bot.logger
         self.redis = bot.redis_manager
+        self.music_enabled = bot.config.music.enabled and bot.config.lavalink.enabled
 
         if not WAVELINK_AVAILABLE:
             self.logger.error("Music | Wavelink not installed - music commands disabled")
+        elif not self.music_enabled:
+            self.logger.info("Music | Disabled by configuration")
 
     async def cog_load(self):
         """Called when the cog is loaded. Sets up Wavelink nodes."""
-        if not WAVELINK_AVAILABLE:
+        if not WAVELINK_AVAILABLE or not self.music_enabled:
             return
 
         try:
@@ -105,15 +110,14 @@ class Music(commands.Cog):
             !play https://www.youtube.com/watch?v=...
             !play spotify:track:...
         """
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         if not WAVELINK_AVAILABLE:
-            await ctx.send("❌ Wavelink is not installed. Please run `pip install wavelink`")
+            await send_for_context(ctx, "❌ Wavelink is not installed. Please run `pip install wavelink`")
             return
 
         if not ctx.author.voice:
-            await ctx.send("❌ You need to be in a voice channel to play music!")
+            await send_for_context(ctx, "❌ You need to be in a voice channel to play music!")
             return
 
         # Get or create player
@@ -126,7 +130,7 @@ class Music(commands.Cog):
                     f"Music | Connected to voice channel: {ctx.author.voice.channel.name}"
                 )
             except Exception as e:
-                await ctx.send(f"❌ Failed to connect to voice channel: {e}")
+                await send_for_context(ctx, f"❌ Failed to connect to voice channel: {e}")
                 self.logger.error(f"Music | Failed to connect: {e}")
                 return
 
@@ -138,13 +142,13 @@ class Music(commands.Cog):
             tracks: wavelink.Search = await wavelink.Playable.search(query)
 
             if not tracks:
-                await ctx.send(f"❌ No tracks found for: `{query}`")
+                await send_for_context(ctx, f"❌ No tracks found for: `{query}`")
                 return
 
             # If it's a playlist, add all tracks
             if isinstance(tracks, wavelink.Playlist):
                 added: int = await player.queue.put_wait(tracks)
-                await ctx.send(
+                await send_for_context(ctx, 
                     f"✅ Added playlist **{tracks.name}** with `{added}` tracks to the queue."
                 )
 
@@ -158,90 +162,89 @@ class Music(commands.Cog):
                 if player.playing:
                     # Add to queue if already playing
                     await player.queue.put_wait(track)
-                    await ctx.send(f"✅ Added to queue: **{track.title}**")
+                    await send_for_context(ctx, f"✅ Added to queue: **{track.title}**")
                 else:
                     # Play immediately if nothing is playing
                     await player.play(track, volume=30)
-                    await ctx.send(f"🎵 Playing: **{track.title}**")
+                    await send_for_context(ctx, f"🎵 Playing: **{track.title}**")
 
             self.logger.info(f"Music | {ctx.author} requested: {query}")
 
         except Exception as e:
-            await ctx.send(f"❌ An error occurred: {e}")
+            await send_for_context(ctx, f"❌ An error occurred: {e}")
             self.logger.error(f"Music | Play error: {e}", exc_info=True)
 
     @commands.hybrid_command(name="pause", help="Pause the currently playing track.")
     async def pause(self, ctx: commands.Context):
         """Pause the current track."""
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         if not WAVELINK_AVAILABLE:
-            await ctx.send("❌ Wavelink not available.")
+            await send_for_context(ctx, "❌ Wavelink not available.")
             return
 
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
         if not player:
-            await ctx.send("❌ Not connected to a voice channel.")
+            await send_for_context(ctx, "❌ Not connected to a voice channel.")
             return
 
         await player.pause(not player.paused)
 
         if player.paused:
-            await ctx.send("⏸️ Paused playback.")
+            await send_for_context(ctx, "⏸️ Paused playback.")
         else:
-            await ctx.send("▶️ Resumed playback.")
+            await send_for_context(ctx, "▶️ Resumed playback.")
 
     @commands.hybrid_command(name="skip", aliases=["next"], help="Skip the current track.")
     async def skip(self, ctx: commands.Context):
         """Skip to the next track in the queue."""
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not WAVELINK_AVAILABLE:
-            await ctx.send("❌ Wavelink not available.")
+            await send_for_context(ctx, "❌ Wavelink not available.")
             return
 
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
         if not player:
-            await ctx.send("❌ Not connected to a voice channel.")
+            await send_for_context(ctx, "❌ Not connected to a voice channel.")
             return
 
         await player.skip(force=True)
-        await ctx.send("⏭️ Skipped to next track.")
+        await send_for_context(ctx, "⏭️ Skipped to next track.")
 
     @commands.hybrid_command(name="stop", help="Stop playback and clear the queue.")
     async def stop(self, ctx: commands.Context):
         """Stop playback and disconnect."""
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not WAVELINK_AVAILABLE:
-            await ctx.send("❌ Wavelink not available.")
+            await send_for_context(ctx, "❌ Wavelink not available.")
             return
 
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
         if not player:
-            await ctx.send("❌ Not connected to a voice channel.")
+            await send_for_context(ctx, "❌ Not connected to a voice channel.")
             return
 
         await player.disconnect()
-        await ctx.send("⏹️ Stopped playback and disconnected.")
+        await send_for_context(ctx, "⏹️ Stopped playback and disconnected.")
 
     @commands.hybrid_command(name="queue", aliases=["q"], help="Show the current queue.")
     async def queue(self, ctx: commands.Context):
         """Display the current queue."""
         if not WAVELINK_AVAILABLE:
-            await ctx.send("❌ Wavelink not available.")
+            await send_for_context(ctx, "❌ Wavelink not available.")
             return
 
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
         if not player:
-            await ctx.send("❌ Not connected to a voice channel.")
+            await send_for_context(ctx, "❌ Not connected to a voice channel.")
             return
 
         if player.queue.is_empty:
-            await ctx.send("📭 The queue is empty.")
+            await send_for_context(ctx, "📭 The queue is empty.")
             return
 
         embed = discord.Embed(
@@ -274,7 +277,7 @@ class Music(commands.Cog):
         if len(player.queue) > 10:
             embed.set_footer(text=f"And {len(player.queue) - 10} more tracks...")
 
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
 
     @commands.hybrid_command(
         name="nowplaying", aliases=["np"], help="Show the currently playing track."
@@ -282,12 +285,12 @@ class Music(commands.Cog):
     async def nowplaying(self, ctx: commands.Context):
         """Display information about the current track."""
         if not WAVELINK_AVAILABLE:
-            await ctx.send("❌ Wavelink not available.")
+            await send_for_context(ctx, "❌ Wavelink not available.")
             return
 
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
         if not player or not player.current:
-            await ctx.send("❌ Nothing is playing right now.")
+            await send_for_context(ctx, "❌ Nothing is playing right now.")
             return
 
         track = player.current
@@ -316,7 +319,7 @@ class Music(commands.Cog):
             bar = "▬" * progress + "🔘" + "▬" * (20 - progress)
             embed.add_field(name="Progress", value=bar, inline=False)
 
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
 
     @commands.hybrid_command(name="volume", aliases=["vol"], help="Set the player volume (0-100).")
     async def volume(self, ctx: commands.Context, volume: int):
@@ -326,23 +329,23 @@ class Music(commands.Cog):
         Usage: !volume <0-100>
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not WAVELINK_AVAILABLE:
-            await ctx.send("❌ Wavelink not available.")
+            await send_for_context(ctx, "❌ Wavelink not available.")
             return
 
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
         if not player:
-            await ctx.send("❌ Not connected to a voice channel.")
+            await send_for_context(ctx, "❌ Not connected to a voice channel.")
             return
 
         if not 0 <= volume <= 100:
-            await ctx.send("❌ Volume must be between 0 and 100.")
+            await send_for_context(ctx, "❌ Volume must be between 0 and 100.")
             return
 
         await player.set_volume(volume)
-        await ctx.send(f"🔊 Set volume to {volume}%")
+        await send_for_context(ctx, f"🔊 Set volume to {volume}%")
 
     @commands.hybrid_command(
         name="disconnect", aliases=["dc", "leave"], help="Disconnect the bot from voice."
@@ -350,55 +353,58 @@ class Music(commands.Cog):
     async def disconnect(self, ctx: commands.Context):
         """Disconnect from the voice channel."""
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not WAVELINK_AVAILABLE:
-            await ctx.send("❌ Wavelink not available.")
+            await send_for_context(ctx, "❌ Wavelink not available.")
             return
 
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
         if not player:
-            await ctx.send("❌ Not connected to a voice channel.")
+            await send_for_context(ctx, "❌ Not connected to a voice channel.")
             return
 
         await player.disconnect()
-        await ctx.send("👋 Disconnected from voice channel.")
+        await send_for_context(ctx, "👋 Disconnected from voice channel.")
 
     @commands.hybrid_command(name="clear", help="Clear the queue.")
     async def clear(self, ctx: commands.Context):
         """Clear all tracks from the queue."""
         if not WAVELINK_AVAILABLE:
-            await ctx.send("❌ Wavelink not available.")
+            await send_for_context(ctx, "❌ Wavelink not available.")
             return
 
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
         if not player:
-            await ctx.send("❌ Not connected to a voice channel.")
+            await send_for_context(ctx, "❌ Not connected to a voice channel.")
             return
 
         player.queue.clear()
-        await ctx.send("🗑️ Cleared the queue.")
+        await send_for_context(ctx, "🗑️ Cleared the queue.")
 
     @commands.hybrid_command(name="shuffle", help="Shuffle the queue.")
     async def shuffle(self, ctx: commands.Context):
         """Shuffle the current queue."""
         if not WAVELINK_AVAILABLE:
-            await ctx.send("❌ Wavelink not available.")
+            await send_for_context(ctx, "❌ Wavelink not available.")
             return
 
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
         if not player:
-            await ctx.send("❌ Not connected to a voice channel.")
+            await send_for_context(ctx, "❌ Not connected to a voice channel.")
             return
 
         if player.queue.is_empty:
-            await ctx.send("❌ The queue is empty.")
+            await send_for_context(ctx, "❌ The queue is empty.")
             return
 
         player.queue.shuffle()
-        await ctx.send("🔀 Shuffled the queue.")
+        await send_for_context(ctx, "🔀 Shuffled the queue.")
 
 
 async def setup(bot):
     """Load the Music cog."""
+    if not bot.config.music.enabled or not bot.config.lavalink.enabled:
+        bot.logger.info("Music | Skipping cog load because music is disabled in config")
+        return
     await bot.add_cog(Music(bot))

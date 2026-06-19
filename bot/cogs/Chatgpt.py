@@ -6,6 +6,7 @@ Handles ChatGPT integration for asking questions using OpenAI's API.
 """
 
 from discord.ext import commands
+from utils.discord_context import defer_if_interaction, send_for_context
 
 try:
     import openai
@@ -38,16 +39,16 @@ class ChatGPT(commands.Cog):
         Usage: !askgpt <your question>
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if not OPENAI_AVAILABLE:
-            await ctx.send(
+            await send_for_context(ctx, 
                 "❌ OpenAI package is not installed. Please install it with `pip install openai`"
             )
             return
 
         if not openai.api_key:
-            await ctx.send(
+            await send_for_context(ctx, 
                 "❌ ChatGPT API key not configured. Please set CHATGPT_SECRET environment variable."
             )
             return
@@ -65,11 +66,11 @@ class ChatGPT(commands.Cog):
 
             # Extract the response text
             answer = response.choices[0].message["content"]
-            await ctx.send(answer)
+            await send_for_context(ctx, answer)
 
         except (openai.OpenAIError, TimeoutError):
             self.logger.exception("ChatGPT | Error occurred while processing request")
-            await ctx.send("❌ Sorry, I couldn't process your request. Please try again later.")
+            await send_for_context(ctx, "❌ Sorry, I couldn't process your request. Please try again later.")
 
 
 async def setup(bot):

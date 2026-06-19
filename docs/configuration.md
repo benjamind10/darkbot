@@ -65,6 +65,15 @@ Feature flags in `bot.config.features` control which subsystems load:
 - `MODERATION_ENABLED`
 - And others per cog
 
+## Discord Application Settings
+
+DarkBot targets `discord.py==2.6.4` and relies on hybrid commands, gateway intents, and application command sync.
+
+- Enable the `MESSAGE CONTENT INTENT` if you want prefix commands such as `!ping` and `!play` to work.
+- Enable the `SERVER MEMBERS INTENT` so moderation and member-event features can see join/leave and role-related state.
+- Enable the `GUILD SCHEDULED EVENTS` intent so the scheduled-event listeners in `bot/cogs/Events.py` receive create, update, and delete events.
+- Invite the bot with the `applications.commands` scope in addition to `bot` so slash commands can sync and appear in guilds.
+
 ## Database Schemas
 
 Three SQL schema files must be applied to PostgreSQL:

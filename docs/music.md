@@ -2,6 +2,8 @@
 
 DarkBot uses **Wavelink 3.4.1** as a client for a self-hosted **Lavalink** server to provide music playback in voice channels.
 
+The music commands remain hybrid on `discord.py 2.6.4`, so both `/play` and `!play` should work after the bot finishes application command sync.
+
 ## Architecture
 
 ```
@@ -108,3 +110,9 @@ Check Lavalink logs:
 ```bash
 docker-compose logs -f lavalink
 ```
+
+Manual verification after upgrades:
+
+1. Start the Docker stack and confirm the bot logs either a successful Lavalink connection or a clear non-fatal warning if music is disabled.
+2. Join a voice channel and run `/play`, `/queue`, `/skip`, and `/stop`.
+3. Repeat the same checks with `!play`, `!queue`, `!skip`, and `!stop`.

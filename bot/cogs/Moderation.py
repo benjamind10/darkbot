@@ -11,6 +11,8 @@ import traceback
 import discord
 from discord.ext import commands
 
+from utils.discord_context import defer_if_interaction, send_for_context
+
 logger = logging.getLogger("darkbot.moderation")
 
 
@@ -34,8 +36,7 @@ class Moderation(commands.Cog):
         Usage: !addrole <role> <member>
         Requires: Manage Roles permission
         """
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         if ctx.guild.me.top_role < member.top_role:
             embed = discord.Embed(
@@ -43,14 +44,14 @@ class Moderation(commands.Cog):
                 title="→ User Information",
                 description="• The user has higher permissions than me!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif ctx.author.top_role <= member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ User Information",
                 description="• The user has higher permissions than you or equal permissions!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif ctx.guild.me.top_role > member.top_role:
             await member.add_roles(role)
             embed = discord.Embed(
@@ -58,7 +59,7 @@ class Moderation(commands.Cog):
                 title="• Add Role Command!",
                 description=f"{member.mention} → Has been given the role `{role}`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(
                 f"Moderation | Sent Addrole: {ctx.author} | Role added: {role} | To: {member}"
             )
@@ -74,28 +75,28 @@ class Moderation(commands.Cog):
                 title="→ Invalid Role / Member!",
                 description="• Please select a valid role / member! Example: `!addrole <role ID / rolename> @user`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!addrole <Role ID / Rolename> @user`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Missing Permissions",
                 description="• You do not have permissions to run this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.BotMissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Bot Missing Permissions!",
                 description="• Please give me permissions to use this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     @commands.hybrid_command(aliases=["removerole", "delrole"])
     @commands.has_permissions(manage_roles=True)
@@ -107,8 +108,7 @@ class Moderation(commands.Cog):
         Usage: !removerole <role> <member>
         Requires: Manage Roles permission
         """
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         if ctx.guild.me.top_role < member.top_role:
             embed = discord.Embed(
@@ -116,14 +116,14 @@ class Moderation(commands.Cog):
                 title="→ User Information",
                 description="• The user has higher permissions than me!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif ctx.author.top_role <= member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ User Information",
                 description="• The user has higher permissions than you or equal permissions!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif ctx.guild.me.top_role > member.top_role:
             await member.remove_roles(role)
             embed = discord.Embed(
@@ -131,7 +131,7 @@ class Moderation(commands.Cog):
                 title="• Remove Role Command",
                 description=f"{member.mention} → Lost the role `{role}`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(
                 f"Moderation | Sent Remove Role: {ctx.author} | Removed Role: {role} | To: {member}"
             )
@@ -147,28 +147,28 @@ class Moderation(commands.Cog):
                 title="→ Invalid Role / Member!",
                 description="• Please select a valid role / member! Example: `!delrole <role ID / rolename> @user`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!delrole <Role ID / Rolename> @user`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Missing Permissions",
                 description="• You do not have permissions to run this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.BotMissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Bot Missing Permissions!",
                 description="• Please give me permissions to use this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     # ========== Ban Commands ==========
 
@@ -183,7 +183,7 @@ class Moderation(commands.Cog):
         Requires: Ban Members permission
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if ctx.guild.me.top_role < member.top_role:
             embed = discord.Embed(
@@ -191,14 +191,14 @@ class Moderation(commands.Cog):
                 title="→ User Information",
                 description="• The user has higher permissions than me!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif ctx.author.top_role <= member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ User Information",
                 description="• The user has higher permissions than you or equal permissions!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif ctx.guild.me.top_role > member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -220,7 +220,7 @@ class Moderation(commands.Cog):
                 logger.exception("Moderation | Failed to DM user before ban: %s", member)
 
             await member.ban(reason=reason)
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
             self.logger.info(
                 f"Moderation | Sent Ban: {ctx.author} | Banned: {member} | Reason: {reason}"
@@ -237,28 +237,28 @@ class Moderation(commands.Cog):
                 title="→ Invalid Member!",
                 description="• Please mention a valid member! Example: `!ban @user [reason]`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!ban @user [reason]`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Missing Permissions",
                 description="• You do not have permissions to run this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.BotMissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Bot Missing Permissions!",
                 description="• Please give me permissions to use this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     @commands.hybrid_command()
     @commands.has_permissions(ban_members=True)
@@ -271,7 +271,7 @@ class Moderation(commands.Cog):
         Requires: Ban Members permission
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         await ctx.guild.ban(discord.Object(id))
         embed = discord.Embed(
@@ -279,7 +279,7 @@ class Moderation(commands.Cog):
             title="• Forceban Command",
             description=f"<@{id}> → has been **Forcefully banned!** Bye bye! :wave:",
         )
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"Moderation | Sent Force Ban: {ctx.author} | Force Banned: {id}")
 
     @forceban.error
@@ -291,28 +291,28 @@ class Moderation(commands.Cog):
                 title="→ Invalid ID!",
                 description="• Please use a valid Discord ID! Example: `!forceban <ID>`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
                 description="• Please put a valid argument! Example: `!forceban <ID>`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Missing Permissions",
                 description="• You do not have permissions to run this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.BotMissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Bot Missing Permissions!",
                 description="• Please give me permissions to use this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     @commands.hybrid_command()
     @commands.has_permissions(ban_members=True)
@@ -325,7 +325,7 @@ class Moderation(commands.Cog):
         Requires: Ban Members permission
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         await ctx.guild.unban(discord.Object(id))
         embed = discord.Embed(
@@ -333,7 +333,7 @@ class Moderation(commands.Cog):
             title="• Unban Command",
             description=f"<@{id}> → has been **Unbanned!** Welcome back! :wave:",
         )
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"Moderation | Sent Unban: {ctx.author} | Unbanned: {id}")
 
     @unban.error
@@ -345,28 +345,28 @@ class Moderation(commands.Cog):
                 title="→ Invalid ID!",
                 description="• Please use a valid Discord ID! Example: `!unban <ID>`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
                 description="• Please put a valid Discord ID! Example: `!unban 546812331213062144`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Missing Permissions",
                 description="• You do not have permissions to run this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.BotMissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Bot Missing Permissions!",
                 description="• Please give me permissions to use this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     # ========== Kick Commands ==========
 
@@ -381,7 +381,7 @@ class Moderation(commands.Cog):
         Requires: Kick Members permission
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if ctx.guild.me.top_role < member.top_role:
             embed = discord.Embed(
@@ -389,14 +389,14 @@ class Moderation(commands.Cog):
                 title="→ User Information",
                 description="• The user has higher permissions than me!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif ctx.author.top_role <= member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ User Information",
                 description="• The user has higher permissions than you or equal permissions!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif ctx.guild.me.top_role > member.top_role:
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -418,7 +418,7 @@ class Moderation(commands.Cog):
                 logger.exception("Moderation | Failed to DM user before kick: %s", member)
 
             await member.kick(reason=reason)
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
             self.logger.info(
                 f"Moderation | Sent Kick: {ctx.author} | Kicked: {member} | Reason: {reason}"
@@ -435,28 +435,28 @@ class Moderation(commands.Cog):
                 title="→ Invalid Member!",
                 description="• Please mention a valid member! Example: `!kick @user [reason]`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!kick @user [reason]`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Missing Permissions",
                 description="• You do not have permissions to run this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.BotMissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Bot Missing Permissions!",
                 description="• Please give me permissions to use this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         else:
             raise error
 
@@ -473,7 +473,7 @@ class Moderation(commands.Cog):
         Requires: Manage Messages permission
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if ctx.guild.me.top_role < member.top_role:
             embed = discord.Embed(
@@ -481,7 +481,7 @@ class Moderation(commands.Cog):
                 title="→ User Information",
                 description="• The user has higher permissions than me!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif ctx.guild.me.top_role > member.top_role:
             sender = ctx.author
             embed = discord.Embed(
@@ -489,7 +489,7 @@ class Moderation(commands.Cog):
                 title="• Warn Command",
                 description=f"{member.mention} → has been **Warned!**",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
             try:
                 embed2 = discord.Embed(
@@ -515,28 +515,28 @@ class Moderation(commands.Cog):
                 title="→ Invalid Member!",
                 description="• Please mention a valid member! Example: `!warn @user [reason]`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         if isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!warn @user [reason]`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Missing Permissions",
                 description="• You do not have permissions to run this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.BotMissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Bot Missing Permissions!",
                 description="• Please give me permissions to use this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     # ========== Message Management ==========
 
@@ -551,7 +551,7 @@ class Moderation(commands.Cog):
         Requires: Manage Messages permission
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         await ctx.channel.purge(limit=amount)
         self.logger.info(f"Moderation | Sent Purge: {ctx.author} | Purged: {amount} messages")
@@ -565,28 +565,28 @@ class Moderation(commands.Cog):
                 title="→ Invalid Amount Of Messages!",
                 description="• Please put a valid number! Example: `!purge <number>`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingRequiredArgument):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Invalid Argument!",
                 description="• Please put a valid option! Example: `!purge <number>`",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.MissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Missing Permissions",
                 description="• You do not have permissions to run this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         elif isinstance(error, commands.BotMissingPermissions):
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Bot Missing Permissions!",
                 description="• Please give me permissions to use this command!",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
     # ========== Voice Channel Management ==========
 
@@ -600,14 +600,14 @@ class Moderation(commands.Cog):
         Requires: Move Members permission
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         if member.voice is None or member.voice.channel is None:
-            await ctx.send(f"{member.mention} is not in a voice channel!")
+            await send_for_context(ctx, f"{member.mention} is not in a voice channel!")
             return
 
         await member.move_to(None)
-        await ctx.send(f"Disconnected {member.mention} from their voice channel.")
+        await send_for_context(ctx, f"Disconnected {member.mention} from their voice channel.")
         self.logger.info(f"Moderation | Disconnected: {member} | By: {ctx.author}")
 
 

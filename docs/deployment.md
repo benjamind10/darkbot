@@ -8,14 +8,15 @@
 
 ## Services
 
-DarkBot runs four Docker containers via `docker-compose.yml`:
+DarkBot runs three Docker containers via `docker-compose.yml` by default:
 
 | Service | Image | Purpose |
 |---------|-------|---------|
 | `python-app` | Custom (Dockerfile) | The bot |
-| `lavalink` | `ghcr.io/lavalink-devs/lavalink:latest` | Music audio server |
 | `db` | `postgres:16` | PostgreSQL database |
 | `redis` | `redis:6-alpine` | Caching and cooldowns |
+
+The default Docker stack disables the music/Lavalink path by setting `MUSIC_ENABLED=false` and `LAVALINK_ENABLED=false` on `python-app`.
 
 ## Setup
 
@@ -130,6 +131,6 @@ Only expose these ports if needed:
 | Issue | Check |
 |-------|-------|
 | Bot not responding | `docker-compose ps` and `docker-compose logs python-app` |
-| Music not playing | `docker-compose logs lavalink`, verify PyNaCl installed |
+| Music commands unavailable | Expected in the default Docker stack; re-enable `MUSIC_ENABLED` and connect an external Lavalink service if you need playback |
 | Database errors | Verify `.env` credentials, check schemas are applied |
 | Slash commands not appearing | Wait up to 1 hour for global sync, check `applications.commands` OAuth2 scope |

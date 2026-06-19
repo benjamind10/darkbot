@@ -10,6 +10,7 @@ import random
 
 import discord
 from discord.ext import commands
+from utils.discord_context import defer_if_interaction, send_for_context
 
 
 class Owner(commands.Cog):
@@ -26,7 +27,7 @@ class Owner(commands.Cog):
         Usage: !status <online|idle|dnd|offline>
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         st = new_status.lower()
         mapping = {
@@ -37,10 +38,10 @@ class Owner(commands.Cog):
         }
         if st in mapping:
             await self.bot.change_presence(status=mapping[st])
-            await ctx.send(f"✅ Status changed to `{st}`.")
+            await send_for_context(ctx, f"✅ Status changed to `{st}`.")
             self.logger.info(f"Status changed to {st} by {ctx.author}")
         else:
-            await ctx.send("❌ Invalid status. Choose: online, idle, dnd, offline.")
+            await send_for_context(ctx, "❌ Invalid status. Choose: online, idle, dnd, offline.")
 
     @commands.hybrid_command(help="Change the bot's username (owner only).")
     @commands.is_owner()
@@ -50,10 +51,10 @@ class Owner(commands.Cog):
         Usage: !name <new_username>
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         await self.bot.user.edit(username=new_name)
-        await ctx.send(f"✅ Username changed to `{new_name}`.")
+        await send_for_context(ctx, f"✅ Username changed to `{new_name}`.")
         self.logger.info(f"Username changed to {new_name} by {ctx.author}")
 
     @commands.hybrid_command(help="Sync slash commands to this server (owner only).")
@@ -64,11 +65,11 @@ class Owner(commands.Cog):
         Usage: !sync
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         self.bot.tree.copy_global_to(guild=ctx.guild)
         synced = await self.bot.tree.sync(guild=ctx.guild)
-        await ctx.send(f"✅ Synced {len(synced)} slash command(s) to this server.")
+        await send_for_context(ctx, f"✅ Synced {len(synced)} slash command(s) to this server.")
         self.logger.info(f"Synced {len(synced)} commands to {ctx.guild.name} by {ctx.author}")
 
     @commands.hybrid_command(help="Change the bot's playing message (owner only).")
@@ -79,10 +80,10 @@ class Owner(commands.Cog):
         Usage: !playing <message>
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         await self.bot.change_presence(activity=discord.Game(name=message))
-        await ctx.send(f"✅ Playing message set to: `{message}`")
+        await send_for_context(ctx, f"✅ Playing message set to: `{message}`")
         self.logger.info(f"Playing message changed to '{message}' by {ctx.author}")
 
     @commands.hybrid_command(help="Show last N bot log entries (owner only).")
@@ -93,13 +94,13 @@ class Owner(commands.Cog):
         Usage: !logs [n]  (default 20, max 100)
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         n = max(1, min(n, 100))
         entries = self.bot.log_buffer.get_entries(n)
 
         if not entries:
-            await ctx.send("No log entries recorded yet.")
+            await send_for_context(ctx, "No log entries recorded yet.")
             return
 
         text = "\n".join(entries)
@@ -115,7 +116,7 @@ class Owner(commands.Cog):
             text = text[split_at:].lstrip("\n")
 
         for chunk in chunks:
-            await ctx.send(f"```\n{chunk}\n```")
+            await send_for_context(ctx, f"```\n{chunk}\n```")
 
     @commands.hybrid_command(help="Generate a single-use invite from a guild (owner only).")
     @commands.is_owner()
@@ -125,16 +126,16 @@ class Owner(commands.Cog):
         Usage: !get_invite <guild_id>
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer(ephemeral=True)
+            await defer_if_interaction(ctx, ephemeral=True)
 
         guild = self.bot.get_guild(id)
         if guild is None:
-            await ctx.send("❌ Guild not found.")
+            await send_for_context(ctx, "❌ Guild not found.")
             return
 
         channels = [c.id for c in guild.text_channels]
         if not channels:
-            await ctx.send("❌ No text channels available.")
+            await send_for_context(ctx, "❌ No text channels available.")
             return
 
         channel = self.bot.get_channel(random.choice(channels))
@@ -145,7 +146,7 @@ class Owner(commands.Cog):
             description=f"• Invite: {invite}",
         )
         await ctx.author.send(embed=embed)
-        await ctx.send("✅ Invite sent to your DMs.")
+        await send_for_context(ctx, "✅ Invite sent to your DMs.")
         self.logger.info(f"get_invite for guild {id} by {ctx.author}")
 
     @commands.hybrid_command(help="List all roles for a member (owner only).")
@@ -156,7 +157,7 @@ class Owner(commands.Cog):
         Usage: !check_roles <member>
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         role_mentions = [r.mention for r in user.roles if r != ctx.guild.default_role]
         description = " ".join(role_mentions) if role_mentions else "This user has no roles."
@@ -165,7 +166,7 @@ class Owner(commands.Cog):
             title=f"Roles for {user.display_name}",
             description=description,
         )
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"check_roles for {user} by {ctx.author}")
 
     @commands.hybrid_command(help="List all permissions for a member (owner only).")
@@ -176,7 +177,7 @@ class Owner(commands.Cog):
         Usage: !check_permissions <member>
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         true_perms = [p[0] for p in user.guild_permissions if p[1]]
         description = ", ".join(true_perms).replace("_", " ").title() or "No permissions."
@@ -185,7 +186,7 @@ class Owner(commands.Cog):
             title=f"Permissions for {user.display_name}",
             description=description,
         )
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
         self.logger.info(f"check_permissions for {user} by {ctx.author}")
 
 
