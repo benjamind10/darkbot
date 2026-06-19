@@ -10,6 +10,7 @@ from datetime import datetime
 
 import discord
 from discord.ext import commands
+from utils.discord_context import defer_if_interaction, send_for_context
 from psycopg.rows import dict_row
 
 
@@ -82,7 +83,7 @@ class ModLog(commands.Cog):
             channel: The channel to use for moderation logs
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         try:
             async with self.bot.db_pool.connection() as conn:
@@ -98,18 +99,18 @@ class ModLog(commands.Cog):
                 description=f"Moderation logs will now be sent to {channel.mention}",
                 color=discord.Color.green(),
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"ModLog | Set modlog channel for {ctx.guild.name} to #{channel.name}")
         except Exception as e:
             self.logger.error(f"ModLog | Error setting modlog channel: {e}")
-            await ctx.send("❌ Failed to set modlog channel. Check database connection.")
+            await send_for_context(ctx, "❌ Failed to set modlog channel. Check database connection.")
 
     @modlog.command(name="disable")
     @commands.has_permissions(administrator=True)
     async def modlog_disable(self, ctx):
         """Disable moderation logging for this server."""
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         try:
             async with self.bot.db_pool.connection() as conn:
@@ -124,23 +125,23 @@ class ModLog(commands.Cog):
                 description="Moderation logging has been disabled for this server.",
                 color=discord.Color.gold(),
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"ModLog | Disabled modlog for {ctx.guild.name}")
         except Exception as e:
             self.logger.error(f"ModLog | Error disabling modlog: {e}")
-            await ctx.send("❌ Failed to disable modlog.")
+            await send_for_context(ctx, "❌ Failed to disable modlog.")
 
     @modlog.command(name="status")
     @commands.has_permissions(administrator=True)
     async def modlog_status(self, ctx):
         """Check the current modlog configuration."""
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         config = await self.get_guild_config(ctx.guild.id)
 
         if not config:
-            await ctx.send("❌ Failed to fetch guild configuration.")
+            await send_for_context(ctx, "❌ Failed to fetch guild configuration.")
             return
 
         embed = discord.Embed(
@@ -180,7 +181,7 @@ class ModLog(commands.Cog):
         # Prefix
         embed.add_field(name="Prefix", value=f"`{config.get('prefix', '!')}`", inline=True)
 
-        await ctx.send(embed=embed)
+        await send_for_context(ctx, embed=embed)
 
     @commands.hybrid_command(name="cases")
     @commands.has_permissions(manage_messages=True)
@@ -192,7 +193,7 @@ class ModLog(commands.Cog):
             member: The member to view cases for (optional)
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         try:
             async with self.bot.db_pool.connection() as conn:
@@ -215,7 +216,7 @@ class ModLog(commands.Cog):
                     cases = await cursor.fetchall()
 
             if not cases:
-                await ctx.send("No moderation cases found.")
+                await send_for_context(ctx, "No moderation cases found.")
                 return
 
             embed = discord.Embed(
@@ -238,11 +239,11 @@ class ModLog(commands.Cog):
             if len(cases) == 10:
                 embed.set_footer(text="Showing 10 most recent cases")
 
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
         except Exception as e:
             self.logger.error(f"ModLog | Error fetching cases: {e}")
-            await ctx.send("❌ Failed to fetch moderation cases.")
+            await send_for_context(ctx, "❌ Failed to fetch moderation cases.")
 
 
 async def setup(bot):

@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 
 import discord
 from discord.ext import commands
+from utils.discord_context import defer_if_interaction, send_for_context
 from utils import boardgames as bg_utils
 
 
@@ -57,7 +58,7 @@ class BoardGames(commands.Cog):
                 description=description,
                 color=color,
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.bot.logger.info(f"Sent page {i + 1} of {len(pages)} for {title}")
 
     @commands.hybrid_command(
@@ -72,7 +73,7 @@ class BoardGames(commands.Cog):
             search_query (str): The name or keyword to search.
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         search_url = f"{self.BASE_URL}search?search={search_query}"
         self.bot.logger.info(f"BGG search query: {search_query}")
@@ -99,14 +100,14 @@ class BoardGames(commands.Cog):
                             value=f"ID: {obj_id}",
                             inline=False,
                         )
-                    await ctx.send(embed=embed)
+                    await send_for_context(ctx, embed=embed)
                     self.bot.logger.info("BGG search succeeded")
                 else:
-                    await ctx.send("No games found.")
+                    await send_for_context(ctx, "No games found.")
                     self.bot.logger.warning("No results from BGG search")
             else:
                 self.bot.logger.error(f"BGG search failed, status: {response.status}")
-                await ctx.send("Failed to retrieve search results from BGG.")
+                await send_for_context(ctx, "Failed to retrieve search results from BGG.")
 
     @commands.hybrid_command(
         name="bginfo", help="Get BGG board game details by ID. Example: !bginfo 12345"
@@ -120,7 +121,7 @@ class BoardGames(commands.Cog):
             game_id (str): The BGG object ID.
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         self.bot.logger.info(f"Fetching BGG info for ID: {game_id}")
         info_url = f"{self.BASE_URL}boardgame/{game_id}?stats=1"
@@ -162,12 +163,12 @@ class BoardGames(commands.Cog):
                             f"**Average Rating:** {avg_rating}"
                         ),
                     )
-                    await ctx.send(embed=embed)
+                    await send_for_context(ctx, embed=embed)
                 else:
-                    await ctx.send("Game not found.")
+                    await send_for_context(ctx, "Game not found.")
                     self.bot.logger.warning(f"No game found for ID {game_id}")
             else:
-                await ctx.send("Failed to retrieve game info from BGG.")
+                await send_for_context(ctx, "Failed to retrieve game info from BGG.")
                 self.bot.logger.error(
                     f"BGG info fetch failed for {game_id}, status: {response.status}"
                 )
@@ -184,7 +185,7 @@ class BoardGames(commands.Cog):
             username (str): BGG username.
         """
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         collection_url = f"{self.BASE_URL}collection/{username}?own=1&stats=1"
         self.bot.logger.info(f"Fetching BGG collection for: {username}")
@@ -217,16 +218,16 @@ class BoardGames(commands.Cog):
                     )
                     self.bot.logger.info(f"Collection fetched for {username}")
                 elif response.status == 202:
-                    await ctx.send(f"Collection for {username} is being prepared. Try again later.")
+                    await send_for_context(ctx, f"Collection for {username} is being prepared. Try again later.")
                     self.bot.logger.warning(f"BGG collection preparing for {username}")
                 else:
-                    await ctx.send("Failed to fetch collection.")
+                    await send_for_context(ctx, "Failed to fetch collection.")
                     self.bot.logger.error(
                         f"Failed fetch for BGG {username}, status: {response.status}"
                     )
         except Exception as e:
             self.bot.logger.exception(f"Error fetching BGG collection for {username}: {e}")
-            await ctx.send("An error occurred during fetch.")
+            await send_for_context(ctx, "An error occurred during fetch.")
 
     @commands.hybrid_command(
         name="manualbggupdate", help="Trigger manual BGG update for all users."
@@ -235,7 +236,7 @@ class BoardGames(commands.Cog):
         """
         Manually triggers the process to update all users' BGG collections.
         """
-        await ctx.send("Starting manual update of BGG collections. Please wait...")
+        await send_for_context(ctx, "Starting manual update of BGG collections. Please wait...")
         try:
             await bg_utils.process_bgg_users(
                 self.bot.db_pool,
@@ -243,10 +244,10 @@ class BoardGames(commands.Cog):
                 self.bot.logger,
                 cookie_value=self.bot.config.services.bgg_cookie,
             )
-            await ctx.send("BGG collections updated successfully.")
+            await send_for_context(ctx, "BGG collections updated successfully.")
             self.bot.logger.info("Manual BGG update completed.")
         except Exception as e:
-            await ctx.send(f"Failed to update BGG collections: {str(e)}")
+            await send_for_context(ctx, f"Failed to update BGG collections: {str(e)}")
             self.bot.logger.error(f"Manual BGG update failed: {str(e)}")
 
 

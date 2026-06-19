@@ -5,6 +5,9 @@ services:
     build: ./
     env_file:
       - ./.env
+    environment:
+      MUSIC_ENABLED: "false"
+      LAVALINK_ENABLED: "false"
     volumes:
       - ./bot:/usr/local/share/bot
     working_dir: /usr/local/share/bot
@@ -18,34 +21,6 @@ services:
     depends_on:
       - db
       - redis
-      - lavalink
-
-  lavalink:
-    image: ghcr.io/lavalink-devs/lavalink:latest
-    container_name: lavalink
-    restart: unless-stopped
-    env_file:
-      - ./bot/.env
-    environment:
-      - _JAVA_OPTIONS=-Xmx2G
-      - SERVER_PORT=2333
-      - LAVALINK_SERVER_PASSWORD=youshallnotpass
-    volumes:
-      - ./application.yml:/opt/Lavalink/application.yml:ro
-      - ./logs:/opt/Lavalink/logs
-    ports:
-      - "2333:2333"
-    networks:
-      - app-network
-    logging:
-      options:
-        max-size: 10m
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2333/version"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
   db:
     image: postgres:16

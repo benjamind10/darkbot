@@ -13,6 +13,7 @@ from typing import Any
 
 import discord
 from discord.ext import commands
+from utils.discord_context import send_for_context
 
 
 class EventManager:
@@ -197,7 +198,7 @@ class EventManager:
     async def _safe_send_error(self, ctx: commands.Context, message: str) -> None:
         """Send error feedback without crashing if an interaction has expired."""
         try:
-            await ctx.send(message)
+            await send_for_context(ctx, message)
         except discord.NotFound:
             self.logger.warning("Could not send error response because interaction expired")
 

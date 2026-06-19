@@ -2,6 +2,8 @@
 
 DarkBot is a versatile Discord bot designed to enhance server interaction and management. Whether you're looking to moderate your server, play music, or fetch useful information, DarkBot has got you covered.
 
+DarkBot targets `discord.py==2.6.4` and uses hybrid commands, so commands are available through both prefix (`!`) and slash (`/`) syntax after application command sync completes.
+
 ## Features
 - Moderation: Keep your server in check with a variety of moderation features.
 - Music Playback: Enrich your server experience with music playback capabilities.
@@ -54,4 +56,3 @@ Feel free to fork the project, open a PR, or submit issues if you have any sugge
 - Email: benjamind10@pm.me
 
 Explore, enjoy, and contribute to the development of DarkBot!
-

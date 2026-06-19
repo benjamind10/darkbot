@@ -8,6 +8,7 @@ Handles Magic: The Gathering card lookup commands using the MTG API.
 import aiohttp
 import discord
 from discord.ext import commands
+from utils.discord_context import defer_if_interaction, send_for_context
 
 
 class Mtg(commands.Cog):
@@ -43,7 +44,7 @@ class Mtg(commands.Cog):
     async def card(self, ctx, *, card_name):
         """Fetch and display MTG card details."""
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         self.logger.info(f"MTG | Fetching card: {card_name}")
         card_data = await self.fetch_card(card_name)
@@ -61,15 +62,15 @@ class Mtg(commands.Cog):
             if image_url:
                 embed.set_image(url=image_url)
 
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
         else:
-            await ctx.send("❌ Couldn't find the card.")
+            await send_for_context(ctx, "❌ Couldn't find the card.")
 
     @commands.hybrid_command(name="searchcards", help="Search for MTG cards by type and color.")
     async def search_cards(self, ctx, card_type: str, card_color: str):
         """Search for cards by type and color."""
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            await defer_if_interaction(ctx)
 
         self.logger.info(f"MTG | Searching for cards: Type={card_type}, Color={card_color}")
 
@@ -86,13 +87,13 @@ class Mtg(commands.Cog):
             ) as resp:
                 if resp.status != 200:
                     self.logger.error(f"MTG | Failed to search for cards: {resp.status}")
-                    await ctx.send("❌ Failed to fetch card data.")
+                    await send_for_context(ctx, "❌ Failed to fetch card data.")
                     return
                 body = await resp.json()
 
             cards = body.get("cards", [])
             if not cards:
-                await ctx.send("❌ No cards found matching the criteria.")
+                await send_for_context(ctx, "❌ No cards found matching the criteria.")
                 return
 
             for card in cards:
@@ -112,10 +113,10 @@ class Mtg(commands.Cog):
                 if image_url:
                     embed.set_thumbnail(url=image_url)
 
-                await ctx.send(embed=embed)
+                await send_for_context(ctx, embed=embed)
         except Exception as e:
             self.logger.error(f"MTG | Error searching cards: {e}")
-            await ctx.send("❌ An error occurred while searching for cards.")
+            await send_for_context(ctx, "❌ An error occurred while searching for cards.")
 
 
 async def setup(bot):

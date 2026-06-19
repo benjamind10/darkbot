@@ -47,6 +47,27 @@ pyright
 
 Configured via `pyproject.toml`.
 
+## Discord.py Upgrade Verification
+
+Run these checks after changing the discord.py version or before deploying the upgraded bot:
+
+```bash
+python -m pip show discord.py
+pytest
+pyright
+```
+
+Expected package version: `discord.py 2.6.4`.
+
+Live guild checklist:
+
+1. Start the bot and confirm `Loaded cog: ...`, `Synced XX slash command(s) to Discord`, and `DarkBot setup complete` appear in logs.
+2. Run `/info` and confirm the embed reports `discord.py` version `2.6.4`.
+3. Run `/botstats`, `/ping`, `/poll`, and `/play`, then repeat representative commands with `!` prefix.
+4. Delete and edit a message with modlog configured and confirm embeds are delivered.
+5. Create/update/delete a scheduled Discord event and confirm listener logs are emitted.
+6. Run `/play`, `/queue`, `/skip`, and `/stop` in a voice channel with Lavalink running.
+
 ## Manual Testing
 
 ### Startup Verification
@@ -141,5 +162,5 @@ SELECT * FROM events LIMIT 5;
 |-------|----------|
 | Slash commands not appearing | Wait up to 1 hour for global sync, or restart bot for guild sync. Check `applications.commands` OAuth2 scope. |
 | ModLog not logging | Run `/modlog status`, verify channel is set. Check bot has Send Messages + Embed Links + View Audit Log. |
-| Music not playing | Check Lavalink is running: `docker-compose logs lavalink`. Verify bot has voice permissions. |
+| Music commands unavailable | Expected in the default Docker stack because music is disabled. Re-enable `MUSIC_ENABLED` and `LAVALINK_ENABLED` if you want playback testing. |
 | Database errors | Verify schemas are applied (`\dt` in psql). Check `.env` credentials. |

@@ -12,6 +12,8 @@ import discord
 import pytz
 from discord.ext import commands
 
+from utils.discord_context import defer_if_interaction, send_for_context
+
 
 class Events(commands.Cog):
     """Event management and listener cog for Discord scheduled events."""
@@ -54,15 +56,14 @@ class Events(commands.Cog):
     @commands.guild_only()
     async def list_events(self, ctx):
         """List all upcoming Discord scheduled events in this server."""
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         try:
             # Fetch all scheduled events from the guild
             events = await ctx.guild.fetch_scheduled_events(with_counts=True)
 
             if not events:
-                await ctx.send("📅 No scheduled events found in this server.")
+                await send_for_context(ctx, "📅 No scheduled events found in this server.")
                 return
 
             # Filter for upcoming/active events
@@ -73,7 +74,7 @@ class Events(commands.Cog):
             ]
 
             if not active_events:
-                await ctx.send("📅 No upcoming events scheduled.")
+                await send_for_context(ctx, "📅 No upcoming events scheduled.")
                 return
 
             # Sort by start time
@@ -125,16 +126,16 @@ class Events(commands.Cog):
                 )
 
             embed.set_footer(text=f"Showing {len(active_events)} upcoming event(s)")
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(
                 f"Events | Listed {len(active_events)} Discord events | Guild: {ctx.guild.id}"
             )
 
         except discord.Forbidden:
-            await ctx.send("❌ I don't have permission to view events in this server.")
+            await send_for_context(ctx, "❌ I don't have permission to view events in this server.")
         except Exception as e:
             self.logger.error(f"Events | Error listing Discord events: {e}")
-            await ctx.send("❌ Error retrieving events. Please try again later.")
+            await send_for_context(ctx, "❌ Error retrieving events. Please try again later.")
 
     @commands.hybrid_command(name="event", aliases=["eventinfo"])
     @commands.guild_only()
@@ -145,15 +146,14 @@ class Events(commands.Cog):
         Args:
             event_id: The ID of the event
         """
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         try:
             # Fetch the specific event
             try:
                 event = await ctx.guild.fetch_scheduled_event(int(event_id), with_counts=True)
             except (ValueError, discord.NotFound):
-                await ctx.send(f"❌ Event with ID `{event_id}` not found.")
+                await send_for_context(ctx, f"❌ Event with ID `{event_id}` not found.")
                 return
 
             # Create detailed embed
@@ -240,14 +240,14 @@ class Events(commands.Cog):
 
             embed.set_footer(text=f"Event ID: {event.id}")
 
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"Events | Fetched details for event {event.id} | {event.name}")
 
         except discord.Forbidden:
-            await ctx.send("❌ I don't have permission to view this event.")
+            await send_for_context(ctx, "❌ I don't have permission to view this event.")
         except Exception as e:
             self.logger.error(f"Events | Error getting event details: {e}")
-            await ctx.send("❌ Error retrieving event details.")
+            await send_for_context(ctx, "❌ Error retrieving event details.")
 
     @commands.hybrid_command(name="eventusers", aliases=["eventrsvp", "eventattendees"])
     @commands.guild_only()
@@ -258,15 +258,14 @@ class Events(commands.Cog):
         Args:
             event_id: The ID of the event
         """
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         try:
             # Fetch the event
             try:
                 event = await ctx.guild.fetch_scheduled_event(int(event_id))
             except (ValueError, discord.NotFound):
-                await ctx.send(f"❌ Event with ID `{event_id}` not found.")
+                await send_for_context(ctx, f"❌ Event with ID `{event_id}` not found.")
                 return
 
             # Fetch interested users
@@ -275,7 +274,7 @@ class Events(commands.Cog):
                 users.append(user)
 
             if not users:
-                await ctx.send(f"📅 No users are interested in **{event.name}** yet.")
+                await send_for_context(ctx, f"📅 No users are interested in **{event.name}** yet.")
                 return
 
             embed = discord.Embed(
@@ -308,21 +307,20 @@ class Events(commands.Cog):
                 start_time_str = start_time_et.strftime("%B %d, %Y at %I:%M %p %Z")
                 embed.set_footer(text=f"Event starts: {start_time_str}")
 
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"Events | Listed {len(users)} users for event {event.id}")
 
         except discord.Forbidden:
-            await ctx.send("❌ I don't have permission to view this event's users.")
+            await send_for_context(ctx, "❌ I don't have permission to view this event's users.")
         except Exception as e:
             self.logger.error(f"Events | Error getting event users: {e}")
-            await ctx.send("❌ Error retrieving event users.")
+            await send_for_context(ctx, "❌ Error retrieving event users.")
 
     @commands.hybrid_command(name="nextevent")
     @commands.guild_only()
     async def next_event(self, ctx):
         """Show the next upcoming Discord scheduled event."""
-        if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+        await defer_if_interaction(ctx)
 
         try:
             events = await ctx.guild.fetch_scheduled_events(with_counts=True)
@@ -331,7 +329,7 @@ class Events(commands.Cog):
             upcoming = [e for e in events if e.status == discord.EventStatus.scheduled]
 
             if not upcoming:
-                await ctx.send("📅 No upcoming events scheduled.")
+                await send_for_context(ctx, "📅 No upcoming events scheduled.")
                 return
 
             # Sort by start time and get the first one
@@ -378,13 +376,13 @@ class Events(commands.Cog):
 
             embed.set_footer(text=f"Use !event {next_event.id} for full details")
 
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
 
         except discord.Forbidden:
-            await ctx.send("❌ I don't have permission to view events.")
+            await send_for_context(ctx, "❌ I don't have permission to view events.")
         except Exception as e:
             self.logger.error(f"Events | Error getting next event: {e}")
-            await ctx.send("❌ Error retrieving next event.")
+            await send_for_context(ctx, "❌ Error retrieving next event.")
 
 
 async def setup(bot):
