@@ -7,11 +7,10 @@ Logging configuration and utilities for the DarkBot application.
 
 import logging
 import logging.handlers
-import os
 import sys
 from datetime import datetime
-from typing import Optional, Dict, Any, Union
 from pathlib import Path
+from typing import Any
 
 from core.exceptions import ConfigurationError
 
@@ -23,12 +22,12 @@ class ColoredFormatter(logging.Formatter):
 
     # Color codes for different log levels
     COLORS = {
-        'DEBUG': '\033[36m',  # Cyan
-        'INFO': '\033[32m',  # Green
-        'WARNING': '\033[33m',  # Yellow
-        'ERROR': '\033[31m',  # Red
-        'CRITICAL': '\033[35m',  # Magenta
-        'RESET': '\033[0m'  # Reset
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[35m",  # Magenta
+        "RESET": "\033[0m",  # Reset
     }
 
     def format(self, record):
@@ -37,9 +36,9 @@ class ColoredFormatter(logging.Formatter):
         formatted = super().format(record)
 
         # Add colors if this is a console handler
-        if hasattr(self, '_use_colors') and self._use_colors:
-            color = self.COLORS.get(record.levelname, '')
-            reset = self.COLORS['RESET']
+        if hasattr(self, "_use_colors") and self._use_colors:
+            color = self.COLORS.get(record.levelname, "")
+            reset = self.COLORS["RESET"]
             formatted = f"{color}{formatted}{reset}"
 
         return formatted
@@ -50,7 +49,7 @@ class DarkBotLogger:
     Custom logger class for DarkBot with advanced features.
     """
 
-    def __init__(self, name: str, config: Dict[str, Any]):
+    def __init__(self, name: str, config: dict[str, Any]):
         """
         Initialize the DarkBot logger.
 
@@ -69,23 +68,23 @@ class DarkBotLogger:
         self.logger.handlers.clear()
 
         # Set log level
-        level = self.config.get('level', 'INFO').upper()
+        level = self.config.get("level", "INFO").upper()
         self.logger.setLevel(getattr(logging, level))
 
         # Add console handler
-        if self.config.get('console', True):
+        if self.config.get("console", True):
             self._add_console_handler()
 
         # Add file handler
-        if self.config.get('file', True):
+        if self.config.get("file", True):
             self._add_file_handler()
 
         # Add rotating file handler
-        if self.config.get('rotating_file', False):
+        if self.config.get("rotating_file", False):
             self._add_rotating_file_handler()
 
         # Add error file handler
-        if self.config.get('error_file', True):
+        if self.config.get("error_file", True):
             self._add_error_file_handler()
 
     def _add_console_handler(self):
@@ -94,78 +93,85 @@ class DarkBotLogger:
 
         # Create formatter
         formatter = ColoredFormatter(
-            fmt=self.config.get('console_format',
-                                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'),
-            datefmt=self.config.get('date_format', '%Y-%m-%d %H:%M:%S')
+            fmt=self.config.get(
+                "console_format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            ),
+            datefmt=self.config.get("date_format", "%Y-%m-%d %H:%M:%S"),
         )
 
         # Enable colors for console
         formatter._use_colors = True
 
         console_handler.setFormatter(formatter)
-        console_handler.setLevel(self.config.get('console_level', 'INFO'))
+        console_handler.setLevel(self.config.get("console_level", "INFO"))
 
         self.logger.addHandler(console_handler)
 
     def _add_file_handler(self):
         """Add file handler to the logger."""
-        log_dir = Path(self.config.get('log_directory', 'logs'))
+        log_dir = Path(self.config.get("log_directory", "logs"))
         log_dir.mkdir(exist_ok=True)
 
-        log_file = log_dir / self.config.get('log_file', 'darkbot.log')
+        log_file = log_dir / self.config.get("log_file", "darkbot.log")
 
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
 
         # Create formatter (no colors for file)
         formatter = logging.Formatter(
-            fmt=self.config.get('file_format',
-                                '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'),
-            datefmt=self.config.get('date_format', '%Y-%m-%d %H:%M:%S')
+            fmt=self.config.get(
+                "file_format",
+                "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
+            ),
+            datefmt=self.config.get("date_format", "%Y-%m-%d %H:%M:%S"),
         )
 
         file_handler.setFormatter(formatter)
-        file_handler.setLevel(self.config.get('file_level', 'DEBUG'))
+        file_handler.setLevel(self.config.get("file_level", "DEBUG"))
 
         self.logger.addHandler(file_handler)
 
     def _add_rotating_file_handler(self):
         """Add rotating file handler to the logger."""
-        log_dir = Path(self.config.get('log_directory', 'logs'))
+        log_dir = Path(self.config.get("log_directory", "logs"))
         log_dir.mkdir(exist_ok=True)
 
-        log_file = log_dir / self.config.get('rotating_log_file', 'darkbot_rotating.log')
+        log_file = log_dir / self.config.get("rotating_log_file", "darkbot_rotating.log")
 
         rotating_handler = logging.handlers.RotatingFileHandler(
             log_file,
-            maxBytes=self.config.get('max_file_size', 10 * 1024 * 1024),  # 10MB
-            backupCount=self.config.get('backup_count', 5),
-            encoding='utf-8'
+            maxBytes=self.config.get("max_file_size", 10 * 1024 * 1024),  # 10MB
+            backupCount=self.config.get("backup_count", 5),
+            encoding="utf-8",
         )
 
         formatter = logging.Formatter(
-            fmt=self.config.get('file_format',
-                                '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'),
-            datefmt=self.config.get('date_format', '%Y-%m-%d %H:%M:%S')
+            fmt=self.config.get(
+                "file_format",
+                "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
+            ),
+            datefmt=self.config.get("date_format", "%Y-%m-%d %H:%M:%S"),
         )
 
         rotating_handler.setFormatter(formatter)
-        rotating_handler.setLevel(self.config.get('rotating_file_level', 'DEBUG'))
+        rotating_handler.setLevel(self.config.get("rotating_file_level", "DEBUG"))
 
         self.logger.addHandler(rotating_handler)
 
     def _add_error_file_handler(self):
         """Add error-only file handler to the logger."""
-        log_dir = Path(self.config.get('log_directory', 'logs'))
+        log_dir = Path(self.config.get("log_directory", "logs"))
         log_dir.mkdir(exist_ok=True)
 
-        error_file = log_dir / self.config.get('error_file_name', 'darkbot_errors.log')
+        error_file = log_dir / self.config.get("error_file_name", "darkbot_errors.log")
 
-        error_handler = logging.FileHandler(error_file, encoding='utf-8')
+        error_handler = logging.FileHandler(error_file, encoding="utf-8")
 
         formatter = logging.Formatter(
-            fmt=self.config.get('error_format',
-                                '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s\n%(exc_info)s'),
-            datefmt=self.config.get('date_format', '%Y-%m-%d %H:%M:%S')
+            fmt=self.config.get(
+                "error_format",
+                "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s\n%(exc_info)s",
+            ),
+            datefmt=self.config.get("date_format", "%Y-%m-%d %H:%M:%S"),
         )
 
         error_handler.setFormatter(formatter)
@@ -178,7 +184,7 @@ class DarkBotLogger:
         return self.logger
 
 
-def setup_logging(config: Optional[Dict[str, Any]] = None) -> logging.Logger:
+def setup_logging(config: dict[str, Any] | None = None) -> logging.Logger:
     """
     Set up logging for the DarkBot application.
 
@@ -198,19 +204,19 @@ def setup_logging(config: Optional[Dict[str, Any]] = None) -> logging.Logger:
     _validate_logging_config(config)
 
     # Create logs directory if it doesn't exist
-    log_dir = Path(config.get('log_directory', 'logs'))
+    log_dir = Path(config.get("log_directory", "logs"))
     log_dir.mkdir(exist_ok=True)
 
     # Create DarkBot logger
-    darkbot_logger = DarkBotLogger('darkbot', config)
+    darkbot_logger = DarkBotLogger("darkbot", config)
 
     # Also set up discord.py logger
     discord_config = config.copy()
-    discord_config['console_level'] = config.get('discord_level', 'WARNING')
-    discord_logger = DarkBotLogger('discord', discord_config)
+    discord_config["console_level"] = config.get("discord_level", "WARNING")
+    DarkBotLogger("discord", discord_config)
 
     # Set up asyncio logger (reduce noise)
-    asyncio_logger = logging.getLogger('asyncio')
+    asyncio_logger = logging.getLogger("asyncio")
     asyncio_logger.setLevel(logging.WARNING)
 
     # Log startup message
@@ -222,7 +228,7 @@ def setup_logging(config: Optional[Dict[str, Any]] = None) -> logging.Logger:
     return main_logger
 
 
-def get_default_logging_config() -> Dict[str, Any]:
+def get_default_logging_config() -> dict[str, Any]:
     """
     Get the default logging configuration.
 
@@ -230,29 +236,29 @@ def get_default_logging_config() -> Dict[str, Any]:
         Dict[str, Any]: Default logging configuration
     """
     return {
-        'level': 'INFO',
-        'console': True,
-        'console_level': 'INFO',
-        'console_format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        'file': True,
-        'file_level': 'DEBUG',
-        'file_format': '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
-        'rotating_file': False,
-        'rotating_file_level': 'DEBUG',
-        'max_file_size': 10 * 1024 * 1024,  # 10MB
-        'backup_count': 5,
-        'error_file': True,
-        'error_format': '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s\n%(exc_info)s',
-        'log_directory': 'logs',
-        'log_file': 'darkbot.log',
-        'rotating_log_file': 'darkbot_rotating.log',
-        'error_file_name': 'darkbot_errors.log',
-        'date_format': '%Y-%m-%d %H:%M:%S',
-        'discord_level': 'WARNING'
+        "level": "INFO",
+        "console": True,
+        "console_level": "INFO",
+        "console_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        "file": True,
+        "file_level": "DEBUG",
+        "file_format": "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
+        "rotating_file": False,
+        "rotating_file_level": "DEBUG",
+        "max_file_size": 10 * 1024 * 1024,  # 10MB
+        "backup_count": 5,
+        "error_file": True,
+        "error_format": "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s\n%(exc_info)s",
+        "log_directory": "logs",
+        "log_file": "darkbot.log",
+        "rotating_log_file": "darkbot_rotating.log",
+        "error_file_name": "darkbot_errors.log",
+        "date_format": "%Y-%m-%d %H:%M:%S",
+        "discord_level": "WARNING",
     }
 
 
-def _validate_logging_config(config: Dict[str, Any]):
+def _validate_logging_config(config: dict[str, Any]):
     """
     Validate the logging configuration.
 
@@ -262,19 +268,21 @@ def _validate_logging_config(config: Dict[str, Any]):
     Raises:
         ConfigurationError: If configuration is invalid
     """
-    required_keys = ['level', 'log_directory']
+    required_keys = ["level", "log_directory"]
 
     for key in required_keys:
         if key not in config:
             raise ConfigurationError(f"Missing required logging configuration key: {key}")
 
     # Validate log level
-    valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
-    if config['level'].upper() not in valid_levels:
-        raise ConfigurationError(f"Invalid log level: {config['level']}. Must be one of: {valid_levels}")
+    valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    if config["level"].upper() not in valid_levels:
+        raise ConfigurationError(
+            f"Invalid log level: {config['level']}. Must be one of: {valid_levels}"
+        )
 
     # Validate log directory
-    log_dir = Path(config['log_directory'])
+    log_dir = Path(config["log_directory"])
     try:
         log_dir.mkdir(exist_ok=True)
     except Exception as e:
@@ -373,9 +381,13 @@ class LogContext:
         """Exit the context."""
         duration = datetime.now() - self.start_time
         if exc_type:
-            self.logger.error(f"{self.context} failed after {duration.total_seconds():.2f}s: {exc_val}")
+            self.logger.error(
+                f"{self.context} failed after {duration.total_seconds():.2f}s: {exc_val}"
+            )
         else:
-            self.logger.log(self.level, f"{self.context} completed in {duration.total_seconds():.2f}s")
+            self.logger.log(
+                self.level, f"{self.context} completed in {duration.total_seconds():.2f}s"
+            )
 
 
 # Example usage functions
@@ -394,6 +406,7 @@ def example_usage():
         logger.info("Performing database query")
         # Simulate work
         import time
+
         time.sleep(1)
 
     # With decorators

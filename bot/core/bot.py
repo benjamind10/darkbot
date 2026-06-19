@@ -5,19 +5,30 @@ DarkBot Main Bot Class - Refactored
 Main bot class with events moved to EventManager.
 """
 
-import discord
-from discord.ext import commands
-import logging
 import asyncio
-from typing import Optional, Dict, Any
+import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime
-import psycopg2
+from typing import Any
 
+import aiohttp
+import discord
+import psycopg_pool
+from discord.ext import commands
+from utils.log_buffer import RollingLogHandler
 from utils.redis_manager import RedisManager
 
-from .exceptions import DarkBotException, ConfigurationError
 from .events import EventManager
+from .exceptions import ConfigurationError, DarkBotException
+
+
+@dataclass(frozen=True)
+class CogLoadResult:
+    name: str
+    loaded: bool
+    required: bool
+    error: Exception | None = None
 
 
 class DarkBot(commands.Bot):
@@ -31,7 +42,22 @@ class DarkBot(commands.Bot):
     - Error handling
     """
 
-    def __init__(self, config: Dict[str, Any], **kwargs):
+    REQUIRED_COGS = {
+        "cogs.BoardGames",
+        "cogs.Chatgpt",
+        "cogs.Database",
+        "cogs.Events",
+        "cogs.Information",
+        "cogs.ModLog",
+        "cogs.Moderation",
+        "cogs.Mtg",
+        "cogs.Owner",
+        "cogs.Spotify",
+        "cogs.Utility",
+    }
+    OPTIONAL_COGS = {"cogs.Music"}
+
+    def __init__(self, config: dict[str, Any], **kwargs):
         """
         Initialize the DarkBot instance.
 
@@ -95,6 +121,8 @@ class DarkBot(commands.Bot):
     def setup_logging(self):
         """Set up logging configuration."""
         self.logger = logging.getLogger("darkbot")
+        self.log_buffer = RollingLogHandler(maxlen=500)
+        self.logger.addHandler(self.log_buffer)
 
     def _validate_config(self):
         """Validate the bot configuration."""
@@ -110,13 +138,9 @@ class DarkBot(commands.Bot):
         else:
             # Config object with attributes
             if not hasattr(self.config, "token"):
-                raise ConfigurationError(
-                    "Missing required configuration attribute: token"
-                )
+                raise ConfigurationError("Missing required configuration attribute: token")
             if not hasattr(self.config, "database"):
-                raise ConfigurationError(
-                    "Missing required configuration attribute: database"
-                )
+                raise ConfigurationError("Missing required configuration attribute: database")
             if not self.config.token:
                 raise ConfigurationError("Bot token cannot be empty")
 
@@ -131,9 +155,7 @@ class DarkBot(commands.Bot):
             str or list: Command prefix(es)
         """
         default = (
-            self.config.get("prefix", "!")
-            if hasattr(self.config, "get")
-            else self.config.prefix
+            self.config.get("prefix", "!") if hasattr(self.config, "get") else self.config.prefix
         )
         return commands.when_mentioned_or(default)(self, message)
 
@@ -154,22 +176,19 @@ class DarkBot(commands.Bot):
         if redis_success:
             self.logger.info("Redis initialized successfully")
         else:
-            self.logger.warning(
-                "Redis initialization failed - continuing without Redis"
-            )
+            self.logger.warning("Redis initialization failed - continuing without Redis")
+
+        # Initialize database connection pool
+        await self.setup_database()
+
+        # Shared aiohttp session for all cogs
+        self.http_session = aiohttp.ClientSession()
 
         # Load all cogs
         await self.load_cogs()
 
-        # Initialize database connection
-        await self.setup_database()
-
         # Sync slash commands to Discord
-        try:
-            synced = await self.tree.sync()
-            self.logger.info(f"Synced {len(synced)} slash command(s) to Discord")
-        except Exception as e:
-            self.logger.error(f"Failed to sync slash commands: {e}")
+        await self.sync_command_tree()
 
         self.logger.info("DarkBot setup complete")
 
@@ -178,19 +197,23 @@ class DarkBot(commands.Bot):
 
         This gives clearer feedback at startup which keys to check in .env or deployment.
         """
-        import os
-
+        music_enabled = self.config.music.enabled and self.config.lavalink.enabled
+        youtube_configured = self.config.services.youtube_api_key or (
+            self.config.services.youtube_email and self.config.services.youtube_password
+        )
         checks = {
-            "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
-            "LAVALINK_PASS": os.getenv("LAVALINK_PASS"),
-            "LAVALINK_SERVER": os.getenv("LAVALINK_SERVER"),
-            "SPOTIFY_API / CLIENTS": os.getenv("SPOTIFY_API") or (
-                os.getenv("SPOTIFY_CLIENT_ID") and os.getenv("SPOTIFY_CLIENT_SECRET")
-            ),
-            "CHATGPT_SECRET": os.getenv("CHATGPT_SECRET"),
-            "KSOFT_API": os.getenv("KSOFT_API"),
-            "IP_INFO": os.getenv("IP_INFO"),
-            "YOUTUBE_API_KEY": os.getenv("YOUTUBE_API_KEY"),
+            "DISCORD_TOKEN": self.config.token,
+            "LAVALINK_PASS": self.config.lavalink.password if music_enabled else True,
+            "LAVALINK_SERVER": self.config.lavalink.host if music_enabled else True,
+            "SPOTIFY_CLIENTS": (
+                self.config.services.spotify_client_id and self.config.services.spotify_client_secret
+            )
+            if music_enabled
+            else True,
+            "CHATGPT_SECRET": self.config.services.chatgpt_secret,
+            "KSOFT_API": self.config.services.ksoft_api,
+            "IP_INFO": self.config.services.ip_info,
+            "YOUTUBE_API_KEY or YOUTUBE_EMAIL/YOUTUBE_PASS": youtube_configured,
         }
 
         missing = [k for k, v in checks.items() if not v]
@@ -199,46 +222,70 @@ class DarkBot(commands.Bot):
         else:
             self.logger.info("All expected API env keys appear present")
 
-    async def load_cogs(self):
+    async def load_cogs(self) -> list[CogLoadResult]:
         """Load all cogs from the cogs directory."""
         cogs_dir = "cogs"
         cog_files = [
-            f
-            for f in os.listdir(cogs_dir)
-            if f.endswith(".py") and not f.startswith("__")
+            f for f in os.listdir(cogs_dir) if f.endswith(".py") and not f.startswith("__")
         ]
+        results: list[CogLoadResult] = []
         # # Setup event handlers
         # await self.event_manager.setup()
 
         for cog_file in cog_files:
             cog_name = f"cogs.{cog_file[:-3]}"
+            required = cog_name in self.REQUIRED_COGS or cog_name not in self.OPTIONAL_COGS
             try:
                 await self.load_extension(cog_name)
                 self.logger.info(f"Loaded cog: {cog_name}")
-            except Exception as e:
-                self.logger.error(f"Failed to load cog {cog_name}: {e}")
+                results.append(CogLoadResult(cog_name, True, required))
+            except Exception as exc:
+                results.append(CogLoadResult(cog_name, False, required, exc))
+                if required:
+                    self.logger.exception("Failed to load required cog %s", cog_name)
+                else:
+                    self.logger.warning("Optional cog %s failed to load", cog_name, exc_info=True)
+
+        failed_required = sorted(result.name for result in results if result.required and not result.loaded)
+        if failed_required:
+            raise DarkBotException("Required cog(s) failed to load: " + ", ".join(failed_required))
+
+        return results
+
+    async def sync_command_tree(self) -> int:
+        """Sync application commands and return the number of synced commands."""
+        try:
+            synced = await self.tree.sync()
+        except discord.HTTPException:
+            self.logger.exception("Discord rejected slash command sync")
+            return 0
+        except Exception:
+            self.logger.exception("Failed to sync slash commands")
+            return 0
+
+        self.logger.info("Synced %s slash command(s) to Discord", len(synced))
+        return len(synced)
 
     async def setup_database(self):
-        """Initialize database connection."""
+        """Initialize database connection pool."""
         try:
             db_config = getattr(self.config, "database", None)
             if not db_config:
                 raise ConfigurationError("Database configuration missing.")
 
-            # Use params dict for psycopg2
-            if hasattr(db_config, "params"):
-                params = db_config.params
-            else:
-                raise ConfigurationError(
-                    "Database connection parameters not found in config."
-                )
+            if not getattr(db_config, "url", None):
+                raise ConfigurationError("Database connection URL not found in config.")
 
-            print(params)  # For debugging
-            conn = psycopg2.connect(**params)
-            self.db_conn = conn
-            self.logger.info("Database connection established.")
-        except Exception as e:
-            self.logger.error(f"Database setup failed: {e}")
+            self.db_pool = psycopg_pool.AsyncConnectionPool(
+                conninfo=db_config.url,
+                min_size=1,
+                max_size=10,
+                open=False,
+            )
+            await self.db_pool.open()
+            self.logger.info("Database connection pool established.")
+        except Exception:
+            self.logger.exception("Database setup failed")
             raise
 
     # Discord event handlers - these delegate to the event manager
@@ -294,42 +341,45 @@ class DarkBot(commands.Bot):
         """Clean up resources when the bot shuts down."""
         self.logger.info("Shutting down DarkBot...")
 
-        # Close Wavelink connection if Music cog is loaded
-        try:
-            import wavelink
-            if wavelink.Pool.nodes:
-                await wavelink.Pool.close()
-                self.logger.info("Wavelink connection closed")
-        except (ImportError, Exception) as e:
-            pass  # Wavelink not installed or already closed
+        # Wavelink shutdown is owned by Music.cog_unload (runs during super().close())
 
-        # Close database connections
-        if hasattr(self, 'db_conn') and self.db_conn:
+        # Close shared aiohttp session
+        if hasattr(self, "http_session") and self.http_session:
             try:
-                self.db_conn.close()
-                self.logger.info("Database connection closed")
-            except Exception as e:
-                self.logger.error(f"Error closing database: {e}")
+                await self.http_session.close()
+                self.logger.info("HTTP session closed")
+            except Exception:
+                # Boundary guard: keep shutdown progressing
+                self.logger.exception("Error closing HTTP session")
+
+        # Close database connection pool
+        if hasattr(self, "db_pool") and self.db_pool:
+            try:
+                await self.db_pool.close()
+                self.logger.info("Database pool closed")
+            except Exception:
+                # Boundary guard: keep shutdown progressing
+                self.logger.exception("Error closing database")
 
         # Close Redis connection
         if self.redis_manager:
             try:
-                await self.redis_manager.set(
-                    "bot:last_shutdown_time", str(datetime.utcnow())
-                )
+                await self.redis_manager.set("bot:last_shutdown_time", str(datetime.utcnow()))
                 await self.redis_manager.close()
-            except Exception as e:
-                self.logger.error(f"Error closing Redis: {e}")
+            except Exception:
+                # Boundary guard: keep shutdown progressing
+                self.logger.exception("Error closing Redis")
 
         # Close event manager
         try:
             await self.event_manager.cleanup()
-        except Exception as e:
-            self.logger.error(f"Error cleaning up event manager: {e}")
+        except Exception:
+            # Boundary guard: keep shutdown progressing
+            self.logger.exception("Error cleaning up event manager")
 
         # Call parent close
         await super().close()
-        
+
         # Give a moment for all cleanup to finish
         await asyncio.sleep(0.5)
 
@@ -337,22 +387,19 @@ class DarkBot(commands.Bot):
         """Run the bot with the configured token."""
         try:
             # Handle both dict and Config object
-            if hasattr(self.config, "get"):
-                token = self.config["token"]
-            else:
-                token = self.config.token
+            token = self.config["token"] if hasattr(self.config, "get") else self.config.token
 
             self.run(token)
         except Exception as e:
-            self.logger.error(f"Failed to start bot: {e}")
-            raise DarkBotException(f"Bot startup failed: {e}")
+            self.logger.exception("Failed to start bot")
+            raise DarkBotException(f"Bot startup failed: {e}") from e
 
     @property
     def uptime(self):
         """Get the bot's uptime."""
         return datetime.utcnow() - self.start_time
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Get bot statistics, including live Redis metrics if available."""
         # Base in‐memory stats
         stats = {
@@ -368,6 +415,6 @@ class DarkBot(commands.Bot):
             for key in ["command_count", "messages_seen", "errors"]:
                 try:
                     stats[key] = await self.redis_manager.get_command_usage(key)
-                except Exception:
+                except Exception:  # boundary guard: degrade stats gracefully on Redis failure
                     stats[key] = "N/A"
         return stats

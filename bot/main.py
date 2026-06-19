@@ -81,7 +81,7 @@ class BotRunner:
         """Top-level coroutine (called by asyncio.run)."""
         # Handle SIGINT / SIGTERM so docker & CTRL-C work
         loop = asyncio.get_running_loop()
-        
+
         def signal_handler(signum):
             self.logger.warning("Received signal %s – shutting down…", signum)
             asyncio.create_task(self._on_signal(signum))

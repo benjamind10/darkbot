@@ -3,15 +3,13 @@
 Redis Manager for DarkBot
 """
 
-import asyncio
 import json
 import logging
-from typing import Any, Optional, Union, Dict, List
-from datetime import datetime, timedelta
+from typing import Any
 
 import redis.asyncio as redis
-from redis.exceptions import RedisError, ConnectionError
 from config.config import Config
+from redis.exceptions import ConnectionError, RedisError
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +19,8 @@ class RedisManager:
 
     def __init__(self, config: Config):
         self.config = config
-        self.redis: Optional[redis.Redis] = None
-        self._connection_pool: Optional[redis.ConnectionPool] = None
+        self.redis: redis.Redis | None = None
+        self._connection_pool: redis.ConnectionPool | None = None
 
     async def initialize(self) -> bool:
         """Initialize Redis connection."""
@@ -87,7 +85,7 @@ class RedisManager:
         return f"{self.config.redis.prefix}{key}"
 
     # Basic Operations
-    async def set(self, key: str, value: Any, expire: Optional[int] = None) -> bool:
+    async def set(self, key: str, value: Any, expire: int | None = None) -> bool:
         """Set a key-value pair."""
         if not self.redis:
             return False
@@ -203,7 +201,7 @@ class RedisManager:
             logger.error(f"Redis HGET error for key {key}, field {field}: {e}")
             return default
 
-    async def hgetall(self, key: str) -> Dict[str, Any]:
+    async def hgetall(self, key: str) -> dict[str, Any]:
         """Get all hash fields."""
         if not self.redis:
             return {}
@@ -416,9 +414,7 @@ class RedisManager:
             return False
 
     # Utility Methods for Discord Bot
-    async def set_user_cooldown(
-        self, user_id: int, command: str, cooldown_seconds: int
-    ) -> bool:
+    async def set_user_cooldown(self, user_id: int, command: str, cooldown_seconds: int) -> bool:
         """Set a cooldown for a user command."""
         key = f"cooldown:{user_id}:{command}"
         return await self.set(key, True, expire=cooldown_seconds)
@@ -428,22 +424,22 @@ class RedisManager:
         key = f"cooldown:{user_id}:{command}"
         return await self.exists(key)
 
-    async def set_user_data(self, user_id: int, data: Dict[str, Any]) -> bool:
+    async def set_user_data(self, user_id: int, data: dict[str, Any]) -> bool:
         """Set user data."""
         key = f"user:{user_id}"
         return await self.set(key, data)
 
-    async def get_user_data(self, user_id: int) -> Dict[str, Any]:
+    async def get_user_data(self, user_id: int) -> dict[str, Any]:
         """Get user data."""
         key = f"user:{user_id}"
         return await self.get(key, {})
 
-    async def set_guild_data(self, guild_id: int, data: Dict[str, Any]) -> bool:
+    async def set_guild_data(self, guild_id: int, data: dict[str, Any]) -> bool:
         """Set guild data."""
         key = f"guild:{guild_id}"
         return await self.set(key, data)
 
-    async def get_guild_data(self, guild_id: int) -> Dict[str, Any]:
+    async def get_guild_data(self, guild_id: int) -> dict[str, Any]:
         """Get guild data."""
         key = f"guild:{guild_id}"
         return await self.get(key, {})

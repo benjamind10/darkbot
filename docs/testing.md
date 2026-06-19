@@ -6,9 +6,38 @@
 pytest                              # all tests
 pytest tests/test_boardgames.py     # single file
 pytest -v                           # verbose output
+pytest --collect-only               # inspect test and fixture discovery
 ```
 
-Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files live in `tests/`.
+Tests use pytest with pytest-asyncio and `asyncio_mode = "auto"` from `pyproject.toml`.
+HTTP mocking uses aioresponses. Test files live in `tests/`.
+
+## Test Fixtures
+
+Reusable fixtures live in `tests/conftest.py`:
+
+- `bot` provides a lightweight bot stub with `config`, `db_pool`, `http_session`, `redis`,
+  `redis_manager`, `logger`, and `embed_color`.
+- `mock_db_pool` provides async context-manager shaped `connection()` and `cursor()` mocks.
+- `mock_redis` provides async `get`, `set`, `ping`, and `close` mocks.
+- `mock_http_session` provides an aiohttp session plus an aioresponses registry.
+- `caplog` is pytest's standard logging capture fixture.
+
+Example HTTP test pattern:
+
+```python
+@pytest.mark.asyncio
+async def test_fetch_card_returns_first_card(bot, mock_http_session):
+    mock_http_session.mocked.get(
+        "https://api.magicthegathering.io/v1/cards?name=Lightning+Bolt",
+        payload={"cards": [{"name": "Lightning Bolt"}]},
+    )
+
+    card = await Mtg(bot).fetch_card("Lightning Bolt")
+
+    assert card is not None
+    assert card["name"] == "Lightning Bolt"
+```
 
 ## Type Checking
 
@@ -16,7 +45,28 @@ Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files
 pyright
 ```
 
-Configured via `pyrightconfig.json`.
+Configured via `pyproject.toml`.
+
+## Discord.py Upgrade Verification
+
+Run these checks after changing the discord.py version or before deploying the upgraded bot:
+
+```bash
+python -m pip show discord.py
+pytest
+pyright
+```
+
+Expected package version: `discord.py 2.6.4`.
+
+Live guild checklist:
+
+1. Start the bot and confirm `Loaded cog: ...`, `Synced XX slash command(s) to Discord`, and `DarkBot setup complete` appear in logs.
+2. Run `/info` and confirm the embed reports `discord.py` version `2.6.4`.
+3. Run `/botstats`, `/ping`, `/poll`, and `/play`, then repeat representative commands with `!` prefix.
+4. Delete and edit a message with modlog configured and confirm embeds are delivered.
+5. Create/update/delete a scheduled Discord event and confirm listener logs are emitted.
+6. Run `/play`, `/queue`, `/skip`, and `/stop` in a voice channel with Lavalink running.
 
 ## Manual Testing
 
@@ -112,5 +162,5 @@ SELECT * FROM events LIMIT 5;
 |-------|----------|
 | Slash commands not appearing | Wait up to 1 hour for global sync, or restart bot for guild sync. Check `applications.commands` OAuth2 scope. |
 | ModLog not logging | Run `/modlog status`, verify channel is set. Check bot has Send Messages + Embed Links + View Audit Log. |
-| Music not playing | Check Lavalink is running: `docker-compose logs lavalink`. Verify bot has voice permissions. |
+| Music commands unavailable | Expected in the default Docker stack because music is disabled. Re-enable `MUSIC_ENABLED` and `LAVALINK_ENABLED` if you want playback testing. |
 | Database errors | Verify schemas are applied (`\dt` in psql). Check `.env` credentials. |

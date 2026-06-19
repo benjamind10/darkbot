@@ -62,7 +62,7 @@ RETURNS TABLE(
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         e.id,
         e.title,
         e.description,

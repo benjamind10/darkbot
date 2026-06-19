@@ -7,20 +7,17 @@ Uses the Spotify Web API for search and LavaSrc (Lavalink plugin)
 for resolving Spotify URLs to playable audio via Wavelink.
 """
 
-import os
 import time
-import discord
-from discord.ext import commands
 from typing import cast
 
-try:
-    import aiohttp
-    AIOHTTP_AVAILABLE = True
-except ImportError:
-    AIOHTTP_AVAILABLE = False
+import aiohttp
+import discord
+from discord.ext import commands
+from utils.discord_context import defer_if_interaction, send_for_context
 
 try:
     import wavelink
+
     WAVELINK_AVAILABLE = True
 except ImportError:
     WAVELINK_AVAILABLE = False
@@ -33,8 +30,8 @@ class Spotify(commands.Cog):
         self.bot = bot
         self.logger = bot.logger
         self.redis = bot.redis_manager
-        self.spotify_client_id = os.getenv("SPOTIFY_CLIENT_ID")
-        self.spotify_client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        self.spotify_client_id = bot.config.services.spotify_client_id
+        self.spotify_client_secret = bot.config.services.spotify_client_secret
         self.spotify_api_url = "https://api.spotify.com/v1"
         self._spotify_token = None
         self._spotify_token_expires = 0
@@ -58,29 +55,28 @@ class Spotify(commands.Cog):
         auth = aiohttp.BasicAuth(self.spotify_client_id, self.spotify_client_secret)
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, data=data, auth=auth, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status != 200:
-                        self.logger.error(f"Spotify | Token request failed: {resp.status}")
-                        return None
-                    body = await resp.json()
-                    self._spotify_token = body["access_token"]
-                    self._spotify_token_expires = time.time() + body.get("expires_in", 3600)
-                    self.logger.info("Spotify | Obtained access token via client credentials")
-                    return self._spotify_token
+            async with self.bot.http_session.post(
+                url, data=data, auth=auth, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                if resp.status != 200:
+                    self.logger.error(f"Spotify | Token request failed: {resp.status}")
+                    return None
+                body = await resp.json()
+                self._spotify_token = body["access_token"]
+                self._spotify_token_expires = time.time() + body.get("expires_in", 3600)
+                self.logger.info("Spotify | Obtained access token via client credentials")
+                return self._spotify_token
         except Exception as e:
             self.logger.error(f"Spotify | Failed to fetch token: {e}")
             return None
 
     async def _get_token(self, ctx):
         """Get a valid Spotify token, sending an error message if unavailable."""
-        if not AIOHTTP_AVAILABLE:
-            await ctx.send("Missing `aiohttp` library.")
-            return None
-
         token = await self._fetch_spotify_token()
         if not token:
-            await ctx.send("Spotify API credentials not configured. Set `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`.")
+            await send_for_context(ctx, 
+                "Spotify API credentials not configured. Set `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`."
+            )
             return None
         return token
 
@@ -92,11 +88,11 @@ class Spotify(commands.Cog):
             wavelink.Player or None
         """
         if not WAVELINK_AVAILABLE:
-            await ctx.send("Wavelink is not available.")
+            await send_for_context(ctx, "Wavelink is not available.")
             return None
 
         if not ctx.author.voice:
-            await ctx.send("You need to be in a voice channel to play music!")
+            await send_for_context(ctx, "You need to be in a voice channel to play music!")
             return None
 
         player: wavelink.Player = cast(wavelink.Player, ctx.voice_client)
@@ -104,9 +100,11 @@ class Spotify(commands.Cog):
         if not player:
             try:
                 player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
-                self.logger.info(f"Spotify | Connected to voice channel: {ctx.author.voice.channel.name}")
+                self.logger.info(
+                    f"Spotify | Connected to voice channel: {ctx.author.voice.channel.name}"
+                )
             except Exception as e:
-                await ctx.send(f"Failed to connect to voice channel: {e}")
+                await send_for_context(ctx, f"Failed to connect to voice channel: {e}")
                 self.logger.error(f"Spotify | Failed to connect: {e}")
                 return None
 
@@ -120,6 +118,9 @@ class Spotify(commands.Cog):
 
         Usage: !spsearch <track name or artist>
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await defer_if_interaction(ctx)
+
         token = await self._get_token(ctx)
         if not token:
             return
@@ -129,17 +130,18 @@ class Spotify(commands.Cog):
             params = {"q": query, "type": "track", "limit": 1}
             headers = {"Authorization": f"Bearer {token}"}
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status != 200:
-                        await ctx.send("Failed to reach Spotify API. Please try again later.")
-                        self.logger.error(f"Spotify | API error: {resp.status}")
-                        return
-                    data = await resp.json()
+            async with self.bot.http_session.get(
+                url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                if resp.status != 200:
+                    await send_for_context(ctx, "Failed to reach Spotify API. Please try again later.")
+                    self.logger.error(f"Spotify | API error: {resp.status}")
+                    return
+                data = await resp.json()
 
             tracks = data.get("tracks", {}).get("items", [])
             if not tracks:
-                await ctx.send("No tracks found.")
+                await send_for_context(ctx, "No tracks found.")
                 return
 
             track = tracks[0]
@@ -169,11 +171,11 @@ class Spotify(commands.Cog):
             if album_art:
                 embed.set_thumbnail(url=album_art)
 
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.logger.info(f"Spotify | Search: {ctx.author} | Query: {query}")
 
         except Exception as e:
-            await ctx.send("An error occurred while searching Spotify.")
+            await send_for_context(ctx, "An error occurred while searching Spotify.")
             self.logger.error(f"Spotify | Search error: {e}")
 
     @commands.hybrid_command(name="spplay", help="Search Spotify and play a track.")
@@ -183,6 +185,9 @@ class Spotify(commands.Cog):
 
         Usage: !spplay <track name>
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await defer_if_interaction(ctx)
+
         token = await self._get_token(ctx)
         if not token:
             return
@@ -197,16 +202,17 @@ class Spotify(commands.Cog):
             params = {"q": query, "type": "track", "limit": 1}
             headers = {"Authorization": f"Bearer {token}"}
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status != 200:
-                        await ctx.send("Failed to reach Spotify API. Please try again later.")
-                        return
-                    data = await resp.json()
+            async with self.bot.http_session.get(
+                url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                if resp.status != 200:
+                    await send_for_context(ctx, "Failed to reach Spotify API. Please try again later.")
+                    return
+                data = await resp.json()
 
             tracks = data.get("tracks", {}).get("items", [])
             if not tracks:
-                await ctx.send(f"No tracks found for: `{query}`")
+                await send_for_context(ctx, f"No tracks found for: `{query}`")
                 return
 
             track_info = tracks[0]
@@ -215,11 +221,11 @@ class Spotify(commands.Cog):
             artists = ", ".join(a["name"] for a in track_info.get("artists", []))
 
             if not spotify_url:
-                await ctx.send("Could not get Spotify URL for this track.")
+                await send_for_context(ctx, "Could not get Spotify URL for this track.")
                 return
 
         except Exception as e:
-            await ctx.send("An error occurred while searching Spotify.")
+            await send_for_context(ctx, "An error occurred while searching Spotify.")
             self.logger.error(f"Spotify | Search error: {e}")
             return
 
@@ -228,30 +234,37 @@ class Spotify(commands.Cog):
             results: wavelink.Search = await wavelink.Playable.search(spotify_url)
 
             if not results:
-                await ctx.send(f"Could not resolve a playable source for **{track_name}** by **{artists}**.")
+                await send_for_context(ctx, 
+                    f"Could not resolve a playable source for **{track_name}** by **{artists}**."
+                )
                 return
 
             if isinstance(results, wavelink.Playlist):
                 added: int = await player.queue.put_wait(results)
-                await ctx.send(f"Added playlist **{results.name}** with `{added}` tracks to the queue.")
+                await send_for_context(ctx, 
+                    f"Added playlist **{results.name}** with `{added}` tracks to the queue."
+                )
                 if not player.playing:
                     await player.play(player.queue.get(), volume=30)
             else:
                 track: wavelink.Playable = results[0]
                 if player.playing:
                     await player.queue.put_wait(track)
-                    await ctx.send(f"Added to queue: **{track_name}** by **{artists}**")
+                    await send_for_context(ctx, f"Added to queue: **{track_name}** by **{artists}**")
                 else:
                     await player.play(track, volume=30)
-                    await ctx.send(f"Now playing: **{track_name}** by **{artists}**")
+                    await send_for_context(ctx, f"Now playing: **{track_name}** by **{artists}**")
 
             self.logger.info(f"Spotify | Playing: {ctx.author} | Track: {track_name} by {artists}")
 
         except Exception as e:
-            await ctx.send(f"Failed to play **{track_name}** by **{artists}**: {e}")
+            await send_for_context(ctx, f"Failed to play **{track_name}** by **{artists}**: {e}")
             self.logger.error(f"Spotify | Play error: {e}")
 
 
 async def setup(bot):
     """Load the Spotify cog."""
+    if not bot.config.music.enabled or not bot.config.lavalink.enabled:
+        bot.logger.info("Spotify | Skipping cog load because music is disabled in config")
+        return
     await bot.add_cog(Spotify(bot))

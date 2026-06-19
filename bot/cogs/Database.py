@@ -6,17 +6,14 @@ Handles database related commands.
 """
 
 import discord
+import psycopg
 from discord.ext import commands
+from utils.discord_context import defer_if_interaction, send_for_context
 
 
 class Database(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
-    async def close_db(self, cursor):
-        """Utility function to close database cursor."""
-        if cursor:
-            cursor.close()
 
     @commands.hybrid_command(name="listusers", help="Lists all users from the database.")
     async def list_users(self, ctx):
@@ -24,14 +21,17 @@ class Database(commands.Cog):
         Retrieves and lists all enabled users in the database.
         Displays user ID, name, Discord ID, BGG username, and enabled status.
         """
-        cursor = None
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await defer_if_interaction(ctx)
+
         try:
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute("SELECT * FROM get_enabled_users();")
-            users = cursor.fetchall()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT * FROM get_enabled_users();")
+                    users = await cursor.fetchall()
 
             if not users:
-                await ctx.send("No users found.")
+                await send_for_context(ctx, "No users found.")
                 self.bot.logger.info("No users found in the database.")
                 return
 
@@ -46,13 +46,11 @@ class Database(commands.Cog):
                     value=f"Name: {user[1]}, Discord: {user[2]}, BGG: {user[3]}, Enabled: {user[4]}",
                     inline=False,
                 )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.bot.logger.info("Successfully listed all users.")
-        except Exception as e:
-            await ctx.send("Failed to fetch users.")
-            self.bot.logger.error(f"Failed to fetch users: {e}")
-        finally:
-            await self.close_db(cursor)
+        except psycopg.Error:
+            await send_for_context(ctx, "Failed to fetch users.")
+            self.bot.logger.exception("Failed to fetch users")
 
     @commands.hybrid_command(
         name="adduser",
@@ -75,32 +73,32 @@ class Database(commands.Cog):
             bgg_user (str): BGG username.
             is_enabled (bool): Whether the user is active.
         """
-        cursor = None
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await defer_if_interaction(ctx)
+
         try:
             discord_user_int = int(discord_user)
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute(
-                "SELECT upsert_user(%s, %s, %s, %s)",
-                (name, discord_user_int, bgg_user, is_enabled),
-            )
-            result = cursor.fetchone()
-            self.bot.db_conn.commit()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        "SELECT upsert_user(%s, %s, %s, %s)",
+                        (name, discord_user_int, bgg_user, is_enabled),
+                    )
+                    result = await cursor.fetchone()
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="User Upsert Successful",
                 description=f"User has been upserted successfully: {result[0]}",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.bot.logger.info("User upserted successfully.")
         except ValueError:
-            await ctx.send("Please make sure the Discord User ID is a valid integer.")
+            await send_for_context(ctx, "Please make sure the Discord User ID is a valid integer.")
             self.bot.logger.warning("Invalid input for Discord User ID.")
-        except Exception as e:
-            await ctx.send(f"An error occurred: {e}")
-            self.bot.logger.error(f"An error occurred during user upsert: {e}")
-        finally:
-            await self.close_db(cursor)
+        except psycopg.Error as e:
+            await send_for_context(ctx, f"An error occurred: {e}")
+            self.bot.logger.exception("An error occurred during user upsert")
 
     @commands.hybrid_command(
         name="disableuser",
@@ -113,24 +111,24 @@ class Database(commands.Cog):
         Args:
             user_id (int): The internal DB user ID.
         """
-        cursor = None
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await defer_if_interaction(ctx)
+
         try:
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute("SELECT disable_user(%s)", (user_id,))
-            self.bot.db_conn.commit()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT disable_user(%s)", (user_id,))
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="User Disabled",
                 description=f"The user with ID {user_id} has been disabled.",
             )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             self.bot.logger.info(f"User with ID {user_id} disabled successfully.")
-        except Exception as e:
-            await ctx.send(f"Failed to disable user: {e}")
-            self.bot.logger.error(f"Failed to disable user: {e}")
-        finally:
-            await self.close_db(cursor)
+        except psycopg.Error as e:
+            await send_for_context(ctx, f"Failed to disable user: {e}")
+            self.bot.logger.exception("Failed to disable user")
 
     @commands.hybrid_command(
         name="enableuser",
@@ -143,24 +141,24 @@ class Database(commands.Cog):
         Args:
             user_id (int): The internal DB user ID.
         """
-        cursor = None
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await defer_if_interaction(ctx)
+
         try:
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute("SELECT enable_user(%s)", (user_id,))
-            result = cursor.fetchone()[0]
-            self.bot.db_conn.commit()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT enable_user(%s)", (user_id,))
+                    await cursor.fetchone()
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="User Enable Status",
                 description=f"The user with ID {user_id} has been enabled.",
             )
-            await ctx.send(embed=embed)
-        except Exception as e:
-            await ctx.send(f"Failed to enable user: {e}")
-            self.bot.logger.error(f"Failed to enable user: {e}")
-        finally:
-            await self.close_db(cursor)
+            await send_for_context(ctx, embed=embed)
+        except psycopg.Error as e:
+            await send_for_context(ctx, f"Failed to enable user: {e}")
+            self.bot.logger.exception("Failed to enable user")
 
     def chunk_games(self, games, size=25):
         """Yield successive chunks from games."""
@@ -179,39 +177,40 @@ class Database(commands.Cog):
             letter (str): The starting letter to filter game names.
             username (str, optional): Filter games owned by a specific user.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await defer_if_interaction(ctx)
+
         if len(letter) != 1 or not letter.isalpha():
-            await ctx.send("Please provide a single alphabetical letter.")
-            self.bot.logger.warning(
-                f"Invalid input for list_board_games command: '{letter}'"
-            )
+            await send_for_context(ctx, "Please provide a single alphabetical letter.")
+            self.bot.logger.warning(f"Invalid input for list_board_games command: '{letter}'")
             return
 
-        cursor = None
         try:
-            cursor = self.bot.db_conn.cursor()
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    if username:
+                        self.bot.logger.debug(
+                            f"Executing database query for games starting with '{letter}' owned by '{username}'."
+                        )
+                        await cursor.execute(
+                            "SELECT * FROM get_boardgames_starting_with_and_owned_by(%s, %s)",
+                            (letter, username),
+                        )
+                    else:
+                        self.bot.logger.debug(
+                            f"Executing database query for games starting with '{letter}'."
+                        )
+                        await cursor.execute(
+                            "SELECT * FROM get_boardgames_starting_with(%s)", (letter,)
+                        )
 
-            if username:
-                self.bot.logger.debug(
-                    f"Executing database query for games starting with '{letter}' owned by '{username}'."
-                )
-                cursor.execute(
-                    "SELECT * FROM get_boardgames_starting_with_and_owned_by(%s, %s)",
-                    (letter, username),
-                )
-            else:
-                self.bot.logger.debug(
-                    f"Executing database query for games starting with '{letter}'."
-                )
-                cursor.execute(
-                    "SELECT * FROM get_boardgames_starting_with(%s)", (letter,)
-                )
+                    games = await cursor.fetchall()
 
-            games = cursor.fetchall()
             total_games = len(games)
             self.bot.logger.info(f"Number of games fetched: {total_games}")
 
             if not games:
-                await ctx.send(f"No board games found starting with '{letter}'.")
+                await send_for_context(ctx, f"No board games found starting with '{letter}'.")
                 self.bot.logger.info(f"No board games found for letter: {letter}")
                 return
 
@@ -223,7 +222,7 @@ class Database(commands.Cog):
                 embed = discord.Embed(
                     color=self.bot.embed_color,
                     title=f"Board Games Starting with '{letter.upper()}'",
-                    description=f"Displaying games {game_count+1} to {game_count+len(chunk)} out of {total_games}:",
+                    description=f"Displaying games {game_count + 1} to {game_count + len(chunk)} out of {total_games}:",
                 )
                 for game in chunk:
                     embed.add_field(
@@ -232,21 +231,17 @@ class Database(commands.Cog):
                         inline=False,
                     )
                     game_count += 1
-                await ctx.send(embed=embed)
+                await send_for_context(ctx, embed=embed)
                 self.bot.logger.info(
                     f"Embed sent for a chunk of games starting with '{letter}'. {game_count} games listed so far."
                 )
-        except Exception as e:
-            await ctx.send(f"Failed to fetch board games: {e}")
-            self.bot.logger.error(
-                f"Exception occurred while fetching games starting with '{letter}': {e}"
+        except psycopg.Error as e:
+            await send_for_context(ctx, f"Failed to fetch board games: {e}")
+            self.bot.logger.exception(
+                "Exception occurred while fetching games starting with '%s'", letter
             )
-        finally:
-            await self.close_db(cursor)
 
-    @commands.hybrid_command(
-        name="executesql", help="Executes a custom SQL query. Owner only."
-    )
+    @commands.hybrid_command(name="executesql", help="Executes a custom SQL query. Owner only.")
     @commands.is_owner()
     async def execute_sql(self, ctx, *, query: str):
         """
@@ -255,33 +250,33 @@ class Database(commands.Cog):
         Args:
             query (str): The SQL statement to execute.
         """
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await defer_if_interaction(ctx)
+
         destructive_operations = ["DROP", "DELETE", "TRUNCATE", "ALTER"]
 
         if any(op in query.upper() for op in destructive_operations):
-            await ctx.send("This command does not support destructive operations.")
+            await send_for_context(ctx, "This command does not support destructive operations.")
             return
 
-        cursor = None
         try:
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute(query)
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(query)
 
-            if cursor.description:
-                results = cursor.fetchall()
-                message = "\n".join([str(result) for result in results])
-                if len(message) > 1900:
-                    message = message[:1900] + "..."
-                await ctx.send(f"Query executed successfully:\n{message}")
-            else:
-                self.bot.db_conn.commit()
-                await ctx.send("Query executed successfully with no return.")
+                    if cursor.description:
+                        results = await cursor.fetchall()
+                        message = "\n".join([str(result) for result in results])
+                        if len(message) > 1900:
+                            message = message[:1900] + "..."
+                        await send_for_context(ctx, f"Query executed successfully:\n{message}")
+                    else:
+                        await send_for_context(ctx, "Query executed successfully with no return.")
 
             self.bot.logger.info(f"SQL executed by owner: {query}")
-        except Exception as e:
-            await ctx.send(f"Failed to execute query: {e}")
-            self.bot.logger.error(f"Exception occurred during SQL execution: {e}")
-        finally:
-            await self.close_db(cursor)
+        except psycopg.Error as e:
+            await send_for_context(ctx, f"Failed to execute query: {e}")
+            self.bot.logger.exception("Exception occurred during SQL execution")
 
     async def send_paginated_embeds(self, ctx, games):
         """
@@ -298,7 +293,7 @@ class Database(commands.Cog):
         for page in pages:
             embed = discord.Embed(
                 color=self.bot.embed_color,
-                title="Board Games Available for Trade (Page {})".format(page_number),
+                title=f"Board Games Available for Trade (Page {page_number})",
                 description="Here are the games listed for trade:",
             )
             for game in page:
@@ -307,7 +302,7 @@ class Database(commands.Cog):
                     value=f"Own: {game[4]}, BGGeek Username: {game[1]}",
                     inline=False,
                 )
-            await ctx.send(embed=embed)
+            await send_for_context(ctx, embed=embed)
             page_number += 1
 
     @commands.hybrid_command(aliases=["bgcount"])
@@ -315,33 +310,28 @@ class Database(commands.Cog):
         """
         Counts how many unique board games are marked as owned in the database.
         """
-        cursor = None
-        try:
-            if not self.bot.db_conn:
-                await ctx.send("Database connection not established.")
-                self.bot.logger.warning("No DB connection during bgcount.")
-                return
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await defer_if_interaction(ctx)
 
-            cursor = self.bot.db_conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(DISTINCT Name) FROM BoardGames WHERE own = true;"
-            )
-            record = cursor.fetchone()
+        try:
+            async with self.bot.db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(
+                        "SELECT COUNT(DISTINCT Name) FROM BoardGames WHERE own = true;"
+                    )
+                    record = await cursor.fetchone()
 
             if record:
-                await ctx.send(
+                await send_for_context(ctx, 
                     f"There are: {record[0]} unique board games owned by users in the Database."
                 )
                 self.bot.logger.info(f"Boardgame count: {record[0]}")
             else:
-                await ctx.send("Unable to fetch database record.")
+                await send_for_context(ctx, "Unable to fetch database record.")
                 self.bot.logger.error("No boardgame count found.")
-        except Exception as e:
-            await ctx.send(f"Error checking the database: {e}")
-            self.bot.logger.error(f"DB error in boardgame_count: {e}")
-        finally:
-            if cursor:
-                cursor.close()
+        except psycopg.Error as e:
+            await send_for_context(ctx, f"Error checking the database: {e}")
+            self.bot.logger.exception("DB error in boardgame_count")
 
 
 async def setup(bot):

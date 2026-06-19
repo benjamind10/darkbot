@@ -1,6 +1,8 @@
 # Configuration
 
-DarkBot uses a three-level configuration fallback: **environment variables** (`.env`) > **JSON config file** > **defaults** from `bot/config/settings.py`.
+DarkBot uses a three-level configuration fallback: **environment variables** (`.env`) > **JSON config file** > **defaults** in `bot/config/config.py`.
+
+The single runtime front door is the `Config` class in `bot/config/config.py`. Bot code should read configuration through `bot.config` rather than calling `os.getenv` directly.
 
 ## Environment Variables
 
@@ -57,11 +59,20 @@ Copy `bot/.env.example` to `bot/.env` and fill in your values.
 
 ## Feature Flags
 
-Feature flags in `bot/config/settings.py` control which subsystems load:
+Feature flags in `bot.config.features` control which subsystems load:
 
 - `MUSIC_ENABLED`
 - `MODERATION_ENABLED`
 - And others per cog
+
+## Discord Application Settings
+
+DarkBot targets `discord.py==2.6.4` and relies on hybrid commands, gateway intents, and application command sync.
+
+- Enable the `MESSAGE CONTENT INTENT` if you want prefix commands such as `!ping` and `!play` to work.
+- Enable the `SERVER MEMBERS INTENT` so moderation and member-event features can see join/leave and role-related state.
+- Enable the `GUILD SCHEDULED EVENTS` intent so the scheduled-event listeners in `bot/cogs/Events.py` receive create, update, and delete events.
+- Invite the bot with the `applications.commands` scope in addition to `bot` so slash commands can sync and appear in guilds.
 
 ## Database Schemas
 
@@ -83,3 +94,5 @@ The `Config` class in `bot/config/config.py` provides typed dataclass sections:
 - `LavalinkConfig`
 - `ModerationConfig`
 - `LoggingConfig`
+- `FeatureFlags`
+- `ServicesConfig`

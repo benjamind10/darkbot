@@ -5,7 +5,7 @@ DarkBot Custom Exceptions
 Custom exception classes for the DarkBot application.
 """
 
-from typing import Optional, Any
+from typing import Any
 
 
 class DarkBotException(Exception):
@@ -15,9 +15,7 @@ class DarkBotException(Exception):
     All custom exceptions should inherit from this class.
     """
 
-    def __init__(
-        self, message: str, code: Optional[str] = None, details: Optional[dict] = None
-    ):
+    def __init__(self, message: str, code: str | None = None, details: dict | None = None):
         """
         Initialize the exception.
 
@@ -57,7 +55,7 @@ class ConfigurationError(DarkBotException):
     - Configuration file parsing errors
     """
 
-    def __init__(self, message: str, config_key: Optional[str] = None, **kwargs):
+    def __init__(self, message: str, config_key: str | None = None, **kwargs):
         """
         Initialize configuration error.
 
@@ -85,7 +83,7 @@ class BotConfigurationError(ConfigurationError):
     - Bot setup failures
     """
 
-    def __init__(self, message: str, config_key: Optional[str] = None, **kwargs):
+    def __init__(self, message: str, config_key: str | None = None, **kwargs):
         """
         Initialize bot configuration error.
 
@@ -109,7 +107,7 @@ class DatabaseError(DarkBotException):
     - Migration failures
     """
 
-    def __init__(self, message: str, operation: Optional[str] = None, **kwargs):
+    def __init__(self, message: str, operation: str | None = None, **kwargs):
         """
         Initialize database error.
 
@@ -138,8 +136,8 @@ class APIError(DarkBotException):
     def __init__(
         self,
         message: str,
-        api_name: Optional[str] = None,
-        status_code: Optional[int] = None,
+        api_name: str | None = None,
+        status_code: int | None = None,
         **kwargs,
     ):
         """
@@ -175,8 +173,8 @@ class ValidationError(DarkBotException):
     def __init__(
         self,
         message: str,
-        field: Optional[str] = None,
-        value: Optional[Any] = None,
+        field: str | None = None,
+        value: Any | None = None,
         **kwargs,
     ):
         """
@@ -208,9 +206,7 @@ class PermissionError(DarkBotException):
     - Role hierarchy issues
     """
 
-    def __init__(
-        self, message: str, required_permission: Optional[str] = None, **kwargs
-    ):
+    def __init__(self, message: str, required_permission: str | None = None, **kwargs):
         """
         Initialize permission error.
 
@@ -235,7 +231,7 @@ class CogError(DarkBotException):
     - Missing cog dependencies
     """
 
-    def __init__(self, message: str, cog_name: Optional[str] = None, **kwargs):
+    def __init__(self, message: str, cog_name: str | None = None, **kwargs):
         """
         Initialize cog error.
 
@@ -260,7 +256,7 @@ class RateLimitError(DarkBotException):
     - Database query rate limits
     """
 
-    def __init__(self, message: str, retry_after: Optional[float] = None, **kwargs):
+    def __init__(self, message: str, retry_after: float | None = None, **kwargs):
         """
         Initialize rate limit error.
 
@@ -285,7 +281,7 @@ class ModuleError(DarkBotException):
     - Module dependency issues
     """
 
-    def __init__(self, message: str, module_name: Optional[str] = None, **kwargs):
+    def __init__(self, message: str, module_name: str | None = None, **kwargs):
         """
         Initialize module error.
 
@@ -310,7 +306,7 @@ class CommandError(DarkBotException):
     - Invalid command arguments
     """
 
-    def __init__(self, message: str, command_name: Optional[str] = None, **kwargs):
+    def __init__(self, message: str, command_name: str | None = None, **kwargs):
         """
         Initialize command error.
 
@@ -328,36 +324,32 @@ class CommandError(DarkBotException):
 # Convenience functions for common error scenarios
 
 
-def raise_config_error(message: str, config_key: Optional[str] = None):
+def raise_config_error(message: str, config_key: str | None = None):
     """Raise a configuration error with consistent formatting."""
     raise ConfigurationError(message, config_key=config_key)
 
 
-def raise_bot_config_error(message: str, config_key: Optional[str] = None):
+def raise_bot_config_error(message: str, config_key: str | None = None):
     """Raise a bot configuration error with consistent formatting."""
     raise BotConfigurationError(message, config_key=config_key)
 
 
-def raise_db_error(message: str, operation: Optional[str] = None):
+def raise_db_error(message: str, operation: str | None = None):
     """Raise a database error with consistent formatting."""
     raise DatabaseError(message, operation=operation)
 
 
-def raise_api_error(
-    message: str, api_name: Optional[str] = None, status_code: Optional[int] = None
-):
+def raise_api_error(message: str, api_name: str | None = None, status_code: int | None = None):
     """Raise an API error with consistent formatting."""
     raise APIError(message, api_name=api_name, status_code=status_code)
 
 
-def raise_validation_error(
-    message: str, field: Optional[str] = None, value: Optional[Any] = None
-):
+def raise_validation_error(message: str, field: str | None = None, value: Any | None = None):
     """Raise a validation error with consistent formatting."""
     raise ValidationError(message, field=field, value=value)
 
 
-def raise_permission_error(message: str, required_permission: Optional[str] = None):
+def raise_permission_error(message: str, required_permission: str | None = None):
     """Raise a permission error with consistent formatting."""
     raise PermissionError(message, required_permission=required_permission)
 

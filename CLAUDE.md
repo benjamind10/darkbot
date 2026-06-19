@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DarkBot is a Discord bot built with discord.py 2.3.2. It uses a cog-based architecture for modular features. All commands are **hybrid commands** supporting both prefix (`!`) and slash (`/`) syntax. The bot runs in Docker alongside PostgreSQL, Redis, and Lavalink (music server).
+DarkBot is a Discord bot built with discord.py 2.6.4. It uses a cog-based architecture for modular features. All commands are **hybrid commands** supporting both prefix (`!`) and slash (`/`) syntax. The bot runs in Docker alongside PostgreSQL, Redis, and Lavalink (music server).
 
 ## Running the Bot
 
@@ -14,6 +14,7 @@ docker-compose up -d
 docker-compose logs -f python-app
 
 # Local development
+pip install -e ".[dev]"
 python bot/main.py
 ```
 
@@ -25,10 +26,11 @@ Entry point is `bot/main.py` which bootstraps via `BotRunner` -> `DarkBot`.
 pytest                              # all tests
 pytest tests/test_boardgames.py     # single test file
 pytest -v                           # verbose
-pyright                             # type checking (pyrightconfig.json)
+pyright                             # type checking (configured in pyproject.toml)
 ```
 
 Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files live in `tests/`.
+Reusable bot, DB pool, Redis, and aiohttp/aioresponses fixtures live in `tests/conftest.py`.
 
 ## Architecture
 
@@ -40,7 +42,7 @@ Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files
 
 - `bot/core/` - Bot class (`bot.py`), event manager (`events.py`), custom exceptions (`exceptions.py`)
 - `bot/cogs/` - Feature modules loaded dynamically at startup (13 cogs)
-- `bot/config/` - `settings.py` (constants/env vars), `config.py` (typed dataclass configs with env->file->default fallback)
+- `bot/config/` - `config.py` (typed dataclass configs with env->file->default fallback)
 - `bot/utils/` - Shared utilities: `redis_manager.py`, `logger.py`, board game helpers, etc.
 - `docs/` - Documentation (deployment, music, modlog, events, testing, configuration)
 
@@ -63,15 +65,15 @@ Tests use pytest with pytest-asyncio. HTTP mocking uses aioresponses. Test files
 
 ### Configuration
 
-Configuration uses a three-level fallback: environment variables (`.env`) -> JSON config file -> defaults from `config/settings.py`. The `Config` class in `config/config.py` provides typed dataclass sections: `DatabaseConfig`, `RedisConfig`, `MusicConfig`, `LavalinkConfig`, `ModerationConfig`, `LoggingConfig`.
+Configuration uses a three-level fallback: environment variables (`.env`) -> JSON config file -> defaults in `config/config.py`. The `Config` class in `config/config.py` provides typed dataclass sections: `DatabaseConfig`, `RedisConfig`, `MusicConfig`, `LavalinkConfig`, `ModerationConfig`, `LoggingConfig`, `FeatureFlags`, and `ServicesConfig`.
 
-Feature flags in `settings.py` control which subsystems are active (MUSIC_ENABLED, MODERATION_ENABLED, etc.).
+All runtime configuration access should go through `bot.config`. Feature flags live at `bot.config.features` and external API keys/secrets live at `bot.config.services`.
 
 See `bot/.env.example` for required environment variables, or `docs/configuration.md` for full reference.
 
 ### Services (docker-compose.yml)
 
-- **python-app** - The bot (Python 3.10, mounts `./bot`)
+- **python-app** - The bot (Python 3.12, mounts `./bot`)
 - **lavalink** - Music audio server (configured via `application.yml`)
 - **db** - PostgreSQL 16 (schemas: `darkbot.sql`, `events_schema.sql`, `modlog_schema.sql`)
 - **redis** - Redis 6 for caching/cooldowns (key prefix: `darkbot:`)
@@ -98,7 +100,6 @@ All commands use `@commands.hybrid_command` (or `@commands.hybrid_group` for sub
 
 ## Important Notes
 
-- `bot/requirements.txt` has corrupted encoding (spaces between characters) - the Dockerfile installs additional packages explicitly to compensate
 - Database schemas must be applied manually (see above)
 - Redis is optional - controlled by `REDIS_ENABLED` env var, bot gracefully falls back if unavailable
 - Lavalink host defaults to `lavalink` (Docker service name) for containerized runs, override with `LAVALINK_SERVER`

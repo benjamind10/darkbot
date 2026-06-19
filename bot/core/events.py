@@ -5,14 +5,15 @@ DarkBot Event Management - Updated
 Event handlers and management for the DarkBot with Discord event handlers.
 """
 
-import discord
-import logging
-from typing import Dict, List, Callable, Any
-from datetime import datetime
 import asyncio
-from discord.ext import commands
+import logging
+from collections.abc import Callable
+from datetime import datetime
+from typing import Any
 
-from .exceptions import DarkBotException
+import discord
+from discord.ext import commands
+from utils.discord_context import send_for_context
 
 
 class EventManager:
@@ -36,8 +37,8 @@ class EventManager:
         """
         self.bot = bot
         self.logger = logging.getLogger("darkbot.events")
-        self.events: Dict[str, List[Callable]] = {}
-        self.event_stats: Dict[str, int] = {}
+        self.events: dict[str, list[Callable]] = {}
+        self.event_stats: dict[str, int] = {}
 
         # Register built-in event handlers
         self._register_builtin_handlers()
@@ -108,9 +109,9 @@ class EventManager:
                     await handler(*args, **kwargs)
                 else:
                     handler(*args, **kwargs)
-            except Exception as e:
-                self.logger.error(
-                    f"Error in event handler {handler.__name__} for {event_name}: {e}"
+            except Exception:
+                self.logger.exception(
+                    "Error in event handler %s for %s", handler.__name__, event_name
                 )
 
     async def setup(self):
@@ -126,14 +127,12 @@ class EventManager:
 
     async def on_ready(self):
         """Called when the bot is ready and connected to Discord."""
-        self.logger.info(f"DarkBot is ready!")
+        self.logger.info("DarkBot is ready!")
         self.logger.info(f"Logged in as {self.bot.user} (ID: {self.bot.user.id})")
         self.logger.info(f"Connected to {len(self.bot.guilds)} guilds")
 
         if self.bot.redis_manager:
-            await self.bot.redis_manager.set(
-                "bot:last_ready_time", str(datetime.utcnow())
-            )
+            await self.bot.redis_manager.set("bot:last_ready_time", str(datetime.utcnow()))
 
         # Set bot status - handle both dict and Config object
         if hasattr(self.bot.config, "get"):
@@ -166,9 +165,7 @@ class EventManager:
 
         self.logger.info(f"Command '{ctx.command}' used by {ctx.author} in {ctx.guild}")
 
-    async def on_command_error(
-        self, ctx: commands.Context, error: commands.CommandError
-    ):
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
         """Handle command errors."""
         self.bot.stats["errors"] += 1
 
@@ -179,22 +176,31 @@ class EventManager:
             return  # Ignore unknown commands
 
         elif isinstance(error, commands.MissingPermissions):
-            await ctx.send("❌ You don't have permission to use this command.")
+            await self._safe_send_error(ctx, "❌ You don't have permission to use this command.")
 
         elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send(
-                "❌ I don't have the required permissions to execute this command."
+            await self._safe_send_error(
+                ctx,
+                "❌ I don't have the required permissions to execute this command.",
             )
 
         elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(
+            await self._safe_send_error(
+                ctx,
                 f"❌ Command is on cooldown. Try again in {error.retry_after:.2f} seconds."
             )
 
         else:
             # Log unexpected errors
-            self.logger.error(f"Unexpected error in command '{ctx.command}': {error}")
-            await ctx.send("❌ An unexpected error occurred. Please try again later.")
+            self.logger.exception("Unexpected error in command '%s'", ctx.command, exc_info=error)
+            await self._safe_send_error(ctx, "❌ An unexpected error occurred. Please try again later.")
+
+    async def _safe_send_error(self, ctx: commands.Context, message: str) -> None:
+        """Send error feedback without crashing if an interaction has expired."""
+        try:
+            await send_for_context(ctx, message)
+        except discord.NotFound:
+            self.logger.warning("Could not send error response because interaction expired")
 
     # Custom event handlers (existing functionality)
 
@@ -213,28 +219,32 @@ class EventManager:
 
     async def on_member_join(self, member: discord.Member):
         """Handle member join events."""
-        self.logger.info(
-            f"Member joined {member.guild.name}: {member} (ID: {member.id})"
-        )
+        self.logger.info(f"Member joined {member.guild.name}: {member} (ID: {member.id})")
 
         # Log to modlog if configured
         try:
-            modlog_cog = self.bot.get_cog('ModLog')
+            modlog_cog = self.bot.get_cog("ModLog")
             if modlog_cog:
                 embed = discord.Embed(
                     title="📥 Member Joined",
                     color=discord.Color.green(),
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.utcnow(),
                 )
                 embed.add_field(name="User", value=f"{member.mention} ({member})", inline=True)
                 embed.add_field(name="User ID", value=str(member.id), inline=True)
-                embed.add_field(name="Account Created", value=discord.utils.format_dt(member.created_at, 'R'), inline=True)
-                embed.add_field(name="Member Count", value=str(member.guild.member_count), inline=True)
+                embed.add_field(
+                    name="Account Created",
+                    value=discord.utils.format_dt(member.created_at, "R"),
+                    inline=True,
+                )
+                embed.add_field(
+                    name="Member Count", value=str(member.guild.member_count), inline=True
+                )
                 embed.set_thumbnail(url=member.display_avatar.url)
 
                 await modlog_cog.log_to_modlog(member.guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging member join to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging member join to modlog")
 
         # TODO: Check for auto-role assignment
         # TODO: Send welcome message if configured
@@ -245,26 +255,31 @@ class EventManager:
 
         # Log to modlog if configured
         try:
-            modlog_cog = self.bot.get_cog('ModLog')
+            modlog_cog = self.bot.get_cog("ModLog")
             if modlog_cog:
                 # Check if this was a kick via audit log
                 was_kicked = False
                 moderator = None
 
                 try:
-                    async for entry in member.guild.audit_logs(limit=5, action=discord.AuditLogAction.kick):
-                        if entry.target.id == member.id and (datetime.utcnow() - entry.created_at).total_seconds() < 5:
+                    async for entry in member.guild.audit_logs(
+                        limit=5, action=discord.AuditLogAction.kick
+                    ):
+                        if (
+                            entry.target.id == member.id
+                            and (datetime.utcnow() - entry.created_at).total_seconds() < 5
+                        ):
                             was_kicked = True
                             moderator = entry.user
                             break
-                except:
-                    pass
+                except (discord.Forbidden, discord.HTTPException):
+                    self.logger.exception("Audit log fetch failed")
 
                 if was_kicked:
                     embed = discord.Embed(
                         title="👢 Member Kicked",
                         color=discord.Color.orange(),
-                        timestamp=datetime.utcnow()
+                        timestamp=datetime.utcnow(),
                     )
                     if moderator:
                         embed.add_field(name="Moderator", value=moderator.mention, inline=True)
@@ -272,17 +287,19 @@ class EventManager:
                     embed = discord.Embed(
                         title="📤 Member Left",
                         color=discord.Color.light_gray(),
-                        timestamp=datetime.utcnow()
+                        timestamp=datetime.utcnow(),
                     )
 
                 embed.add_field(name="User", value=f"{member.mention} ({member})", inline=True)
                 embed.add_field(name="User ID", value=str(member.id), inline=True)
-                embed.add_field(name="Member Count", value=str(member.guild.member_count), inline=True)
+                embed.add_field(
+                    name="Member Count", value=str(member.guild.member_count), inline=True
+                )
                 embed.set_thumbnail(url=member.display_avatar.url)
 
                 await modlog_cog.log_to_modlog(member.guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging member remove to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging member remove to modlog")
 
         # TODO: Send goodbye message if configured
 
@@ -291,38 +308,42 @@ class EventManager:
         if message.author.bot or not message.guild:
             return
 
-        self.logger.debug(
-            f"Message deleted in {message.guild.name}: {message.content[:50]}..."
-        )
+        self.logger.debug(f"Message deleted in {message.guild.name}: {message.content[:50]}...")
 
         # Log to modlog if configured
         try:
-            modlog_cog = self.bot.get_cog('ModLog')
+            modlog_cog = self.bot.get_cog("ModLog")
             if modlog_cog:
                 embed = discord.Embed(
                     title="🗑️ Message Deleted",
                     color=discord.Color.red(),
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.utcnow(),
                 )
                 embed.add_field(name="Author", value=message.author.mention, inline=True)
                 embed.add_field(name="Channel", value=message.channel.mention, inline=True)
                 embed.add_field(name="Message ID", value=str(message.id), inline=True)
 
                 if message.content:
-                    content = message.content if len(message.content) <= 1024 else message.content[:1021] + "..."
+                    content = (
+                        message.content
+                        if len(message.content) <= 1024
+                        else message.content[:1021] + "..."
+                    )
                     embed.add_field(name="Content", value=content, inline=False)
 
                 if message.attachments:
                     embed.add_field(
                         name="Attachments",
                         value="\n".join([a.filename for a in message.attachments]),
-                        inline=False
+                        inline=False,
                     )
 
-                embed.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
+                embed.set_author(
+                    name=str(message.author), icon_url=message.author.display_avatar.url
+                )
                 await modlog_cog.log_to_modlog(message.guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging message delete to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging message delete to modlog")
 
         # TODO: Store in message cache for snipe commands
 
@@ -335,31 +356,37 @@ class EventManager:
 
         # Log to modlog if configured
         try:
-            modlog_cog = self.bot.get_cog('ModLog')
+            modlog_cog = self.bot.get_cog("ModLog")
             if modlog_cog:
                 embed = discord.Embed(
                     title="✏️ Message Edited",
                     color=discord.Color.gold(),
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.utcnow(),
                 )
                 embed.add_field(name="Author", value=before.author.mention, inline=True)
                 embed.add_field(name="Channel", value=before.channel.mention, inline=True)
                 embed.add_field(name="Message ID", value=str(before.id), inline=True)
 
                 # Truncate content if too long
-                before_content = before.content if len(before.content) <= 1024 else before.content[:1021] + "..."
-                after_content = after.content if len(after.content) <= 1024 else after.content[:1021] + "..."
+                before_content = (
+                    before.content if len(before.content) <= 1024 else before.content[:1021] + "..."
+                )
+                after_content = (
+                    after.content if len(after.content) <= 1024 else after.content[:1021] + "..."
+                )
 
                 if before_content:
                     embed.add_field(name="Before", value=before_content, inline=False)
                 if after_content:
                     embed.add_field(name="After", value=after_content, inline=False)
 
-                embed.add_field(name="Jump to Message", value=f"[Click here]({after.jump_url})", inline=False)
+                embed.add_field(
+                    name="Jump to Message", value=f"[Click here]({after.jump_url})", inline=False
+                )
                 embed.set_author(name=str(before.author), icon_url=before.author.display_avatar.url)
                 await modlog_cog.log_to_modlog(before.guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging message edit to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging message edit to modlog")
 
         # TODO: Store in message cache for edit snipe commands
 
@@ -369,7 +396,7 @@ class EventManager:
 
         # Log to modlog if configured
         try:
-            modlog_cog = self.bot.get_cog('ModLog')
+            modlog_cog = self.bot.get_cog("ModLog")
             if modlog_cog:
                 # Try to get ban reason from audit log
                 reason = "No reason provided"
@@ -381,13 +408,11 @@ class EventManager:
                             reason = entry.reason or "No reason provided"
                             moderator = entry.user
                             break
-                except:
-                    pass
+                except (discord.Forbidden, discord.HTTPException):
+                    self.logger.exception("Audit log fetch failed")
 
                 embed = discord.Embed(
-                    title="🔨 Member Banned",
-                    color=discord.Color.red(),
-                    timestamp=datetime.utcnow()
+                    title="🔨 Member Banned", color=discord.Color.red(), timestamp=datetime.utcnow()
                 )
                 embed.add_field(name="User", value=f"{user.mention} ({user})", inline=True)
                 embed.add_field(name="User ID", value=str(user.id), inline=True)
@@ -399,8 +424,8 @@ class EventManager:
                 embed.set_thumbnail(url=user.display_avatar.url)
 
                 await modlog_cog.log_to_modlog(guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging ban to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging ban to modlog")
 
         # TODO: Update moderation case database
 
@@ -410,23 +435,25 @@ class EventManager:
 
         # Log to modlog if configured
         try:
-            modlog_cog = self.bot.get_cog('ModLog')
+            modlog_cog = self.bot.get_cog("ModLog")
             if modlog_cog:
                 # Try to get unban info from audit log
                 moderator = None
 
                 try:
-                    async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.unban):
+                    async for entry in guild.audit_logs(
+                        limit=5, action=discord.AuditLogAction.unban
+                    ):
                         if entry.target.id == user.id:
                             moderator = entry.user
                             break
-                except:
-                    pass
+                except (discord.Forbidden, discord.HTTPException):
+                    self.logger.exception("Audit log fetch failed")
 
                 embed = discord.Embed(
                     title="✅ Member Unbanned",
                     color=discord.Color.green(),
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.utcnow(),
                 )
                 embed.add_field(name="User", value=f"{user.mention} ({user})", inline=True)
                 embed.add_field(name="User ID", value=str(user.id), inline=True)
@@ -437,16 +464,16 @@ class EventManager:
                 embed.set_thumbnail(url=user.display_avatar.url)
 
                 await modlog_cog.log_to_modlog(guild, embed)
-        except Exception as e:
-            self.logger.error(f"Error logging unban to modlog: {e}")
+        except Exception:  # boundary guard around optional modlog rendering
+            self.logger.exception("Error logging unban to modlog")
 
         # TODO: Update moderation case database
 
-    def get_event_stats(self) -> Dict[str, int]:
+    def get_event_stats(self) -> dict[str, int]:
         """Get event statistics."""
         return self.event_stats.copy()
 
-    def get_registered_events(self) -> List[str]:
+    def get_registered_events(self) -> list[str]:
         """Get list of registered events."""
         return list(self.events.keys())
 
@@ -474,7 +501,7 @@ class EventLogger:
         else:
             self.log_events = getattr(bot.config, "log_events", [])
 
-    async def log_event(self, event_type: str, data: Dict[str, Any]):
+    async def log_event(self, event_type: str, data: dict[str, Any]):
         """
         Log an event with structured data.
 
@@ -506,9 +533,7 @@ class EventLogger:
         }
         await self.log_event(event_type, data)
 
-    async def log_message_event(
-        self, message: discord.Message, event_type: str, **kwargs
-    ):
+    async def log_message_event(self, message: discord.Message, event_type: str, **kwargs):
         """Log a message-specific event."""
         data = {
             "guild_id": message.guild.id if message.guild else None,
