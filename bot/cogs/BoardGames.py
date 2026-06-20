@@ -5,8 +5,6 @@ BoardGames Cog
 Handles board game related commands, including integration with BoardGameGeek (BGG).
 """
 
-import xml.etree.ElementTree as ET
-
 import discord
 from discord.ext import commands
 from utils.discord_context import defer_if_interaction, send_for_context
@@ -187,44 +185,45 @@ class BoardGames(commands.Cog):
         if ctx.interaction and not ctx.interaction.response.is_done():
             await defer_if_interaction(ctx)
 
-        collection_url = f"{self.BASE_URL}collection/{username}?own=1&stats=1"
         self.bot.logger.info(f"Fetching BGG collection for: {username}")
 
         try:
-            async with self.bot.http_session.get(collection_url) as response:
-                if response.status == 200:
-                    xml_data = await response.text()
-                    root = ET.fromstring(xml_data)
-                    games = []
-                    for item in root.findall("item"):
-                        name = item.findtext("name", default="Unknown")
-                        bggid = item.attrib.get("objectid", "N/A")
-                        stats = item.find("stats")
-                        avg_rating_elem = item.find("statistics/ratings/average")
-                        avg_rating = (
-                            avg_rating_elem.attrib.get("value", "N/A")
-                            if avg_rating_elem is not None
-                            else "N/A"
-                        )
-                        min_players = stats.attrib.get("minplayers", "N/A")
-                        max_players = stats.attrib.get("maxplayers", "N/A")
-                        max_playtime = stats.attrib.get("maxplaytime", "N/A")
-                        games.append(
-                            f"{name} (ID: {bggid}, Avg Rating: {avg_rating}, Players: {min_players}-{max_players}, Playtime: {max_playtime} mins)"
-                        )
+            xml_data, status = await bg_utils.fetch_bgg_collection(
+                username,
+                self.bot.logger,
+                self.bot.http_session,
+                cookie_value=self.bot.config.services.bgg_cookie,
+            )
 
-                    await self._send_paginated_embeds(
-                        ctx, games, f"{username}'s BGG Collection", self.bot.embed_color
+            if status == 200 and xml_data:
+                games = bg_utils.parse_bgg_collection(xml_data)
+                formatted_games = []
+                for item in games:
+                    min_players = item.get("minplayers", "N/A")
+                    max_players = item.get("maxplayers", "N/A")
+                    max_playtime = item.get("maxplaytime", "N/A")
+                    formatted_games.append(
+                        f"{item.get('name', 'Unknown')} (ID: {item.get('bggid', 'N/A')}, Avg Rating: {item.get('avgrating', 'N/A')}, Players: {min_players}-{max_players}, Playtime: {max_playtime} mins)"
                     )
-                    self.bot.logger.info(f"Collection fetched for {username}")
-                elif response.status == 202:
-                    await send_for_context(ctx, f"Collection for {username} is being prepared. Try again later.")
-                    self.bot.logger.warning(f"BGG collection preparing for {username}")
-                else:
-                    await send_for_context(ctx, "Failed to fetch collection.")
-                    self.bot.logger.error(
-                        f"Failed fetch for BGG {username}, status: {response.status}"
-                    )
+
+                await self._send_paginated_embeds(
+                    ctx, formatted_games, f"{username}'s BGG Collection", self.bot.embed_color
+                )
+                self.bot.logger.info(f"Collection fetched for {username}")
+            elif status == 202 or status == 429 or status is None:
+                await send_for_context(
+                    ctx, f"Collection for {username} is being prepared. Try again later."
+                )
+                self.bot.logger.warning(f"BGG collection preparing for {username}")
+            elif status in (401, 403):
+                await send_for_context(
+                    ctx,
+                    f"Collection for {username} appears private. Ask the user to make it public or provide a valid BGG session cookie.",
+                )
+                self.bot.logger.warning(f"BGG collection private or unauthorized for {username}")
+            else:
+                await send_for_context(ctx, "Failed to fetch collection.")
+                self.bot.logger.error(f"Failed fetch for BGG {username}, status: {status}")
         except Exception as e:
             self.bot.logger.exception(f"Error fetching BGG collection for {username}: {e}")
             await send_for_context(ctx, "An error occurred during fetch.")

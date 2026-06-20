@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import aiohttp
 import psycopg
 from config.config import Config
-from utils.boardgames import fetch_bgg_collection
+from utils.boardgames import fetch_bgg_collection, set_bgg_private
 
 LOG = logging.getLogger("backfill_bgg_private")
 
@@ -72,30 +72,21 @@ async def _check_user_and_mark(
             )
             return (user_id, bgguser, status, False)
 
-        cur = db_conn.cursor()
         try:
             with suppress(Exception):
                 db_conn.rollback()
 
-            cur.execute(
-                "UPDATE users SET bggprivate = TRUE, datemodified = CURRENT_TIMESTAMP WHERE id = %s RETURNING datemodified;",
-                (user_id,),
-            )
-            updated = cur.fetchone()
-            db_conn.commit()
-            LOG.info(
-                "Marked user id=%s private; datemodified=%s",
-                user_id,
-                updated[0] if updated else None,
-            )
+            if not dry_run:
+                await set_bgg_private(db_conn, LOG, user_id)
+                LOG.info("Marked user id=%s private via helper", user_id)
+            else:
+                LOG.info("[DRY] Would mark user id=%s private via helper", user_id)
             return (user_id, bgguser, status, True)
         except Exception as e:
             LOG.exception("Error marking user id=%s private: %s", user_id, e)
             with suppress(Exception):
                 db_conn.rollback()
             return (user_id, bgguser, status, False)
-        finally:
-            cur.close()
 
     return (user_id, bgguser, status, False)
 
