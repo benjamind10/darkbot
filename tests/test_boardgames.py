@@ -7,6 +7,7 @@ import aiohttp
 
 from bot.utils.boardgames import (
     BASE_URL,
+    SET_BGG_PRIVATE_SQL,
     fetch_bgg_collection,
     parse_bgg_collection,
     process_bgg_users,
@@ -294,15 +295,15 @@ async def test_bgg_collection_command_malformed_response_message(bot, monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_set_bgg_private_calls_sql_helper(mock_db_pool):
+async def test_set_bgg_private_updates_user_flag(mock_db_pool):
     await set_bgg_private(mock_db_pool, logging.getLogger("test"), 42)
 
     mock_db_pool.connection.assert_called_once()
     mock_db_pool.connection_obj.cursor.assert_called_once()
     mock_db_pool.connection_obj.commit.assert_not_called()
     mock_db_pool.connection_obj.cursor.return_value.__aenter__.return_value.execute.assert_awaited_once_with(
-        "SELECT set_bgg_private(%s, %s);",
-        (42, True),
+        SET_BGG_PRIVATE_SQL,
+        (True, 42),
     )
 
 
