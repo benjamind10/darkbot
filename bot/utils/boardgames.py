@@ -13,6 +13,48 @@ def safe_convert(value, default=0, data_type=int):
         return default
 
 
+def parse_bgg_collection(xml_data: str) -> list[dict[str, object]]:
+    """Parse BGG collection XML into normalized item dictionaries."""
+
+    try:
+        root = ET.fromstring(xml_data)
+    except ET.ParseError:
+        return []
+
+    items: list[dict[str, object]] = []
+    for item in root.findall("item"):
+        status = item.find("status")
+        stats = item.find("stats")
+        rating = stats.find("rating") if stats is not None else None
+
+        items.append(
+            {
+                "name": item.findtext("name", default="Unknown"),
+                "bggid": item.attrib.get("objectid", "N/A"),
+                "avgrating": safe_convert(
+                    rating.findtext("average", default="N/A") if rating is not None else "N/A",
+                    0.0,
+                    float,
+                ),
+                "own": status.get("own", "0") == "1" if status is not None else False,
+                "prevowned": status.get("prevowned", "0") == "1" if status is not None else False,
+                "fortrade": status.get("fortrade", "0") == "1" if status is not None else False,
+                "want": status.get("want", "0") == "1" if status is not None else False,
+                "wanttoplay": status.get("wanttoplay", "0") == "1" if status is not None else False,
+                "wanttobuy": status.get("wanttobuy", "0") == "1" if status is not None else False,
+                "wishlist": status.get("wishlist", "0") == "1" if status is not None else False,
+                "preordered": status.get("preordered", "0") == "1" if status is not None else False,
+                "minplayers": safe_convert(stats.get("minplayers") if stats is not None else None, 0),
+                "maxplayers": safe_convert(stats.get("maxplayers") if stats is not None else None, 0),
+                "minplaytime": safe_convert(stats.get("minplaytime") if stats is not None else None, 0),
+                "maxplaytime": safe_convert(stats.get("maxplaytime") if stats is not None else None, 0),
+                "numplays": safe_convert(item.findtext("numplays", default="0"), 0),
+            }
+        )
+
+    return items
+
+
 async def fetch_bgg_collection(
     username,
     logger,
@@ -36,6 +78,8 @@ async def fetch_bgg_collection(
     url = f"{BASE_URL}collection/{username}?stats=1"
     logger.info("Attempting to fetch BGG collection for user: %s", username)
 
+    last_status = None
+
     for attempt in range(1, max_attempts + 1):
         try:
             headers = {"User-Agent": "DarkBot (https://github.com/benjamind10/darkbot)"}
@@ -51,6 +95,7 @@ async def fetch_bgg_collection(
                     return (await response.text(), 200)
 
                 if status == 202:
+                    last_status = status
                     logger.info(
                         "Collection for %s is queued (202). Attempt %d/%d — retrying after 5s",
                         username,
@@ -61,6 +106,7 @@ async def fetch_bgg_collection(
                     continue
 
                 if status == 429:
+                    last_status = status
                     ra = response.headers.get("Retry-After")
                     delay = float(ra) if ra and ra.isnumeric() else backoff**attempt
                     logger.warning(
@@ -90,6 +136,7 @@ async def fetch_bgg_collection(
                     return (None, status)
 
                 if 500 <= status < 600:
+                    last_status = status
                     delay = backoff**attempt
                     logger.warning(
                         "Server error %s for %s; attempt %d/%d. Retrying after %.1f sec",
@@ -152,7 +199,7 @@ async def fetch_bgg_collection(
         max_attempts,
         username,
     )
-    return (None, None)
+    return (None, last_status)
 
 
 async def upsert_boardgame(db_pool, logger, game_data):
@@ -207,6 +254,23 @@ async def upsert_boardgame(db_pool, logger, game_data):
         raise
 
 
+async def set_bgg_private(db_pool, logger, user_id: int, is_private: bool = True) -> None:
+    try:
+        if hasattr(db_pool, "connection"):
+            async with db_pool.connection() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute("SELECT set_bgg_private(%s, %s);", (user_id, is_private))
+        else:
+            with db_pool.cursor() as cursor:
+                cursor.execute("SELECT set_bgg_private(%s, %s);", (user_id, is_private))
+            if hasattr(db_pool, "commit"):
+                db_pool.commit()
+        logger.info("Marked user id=%s bggprivate=%s via SQL helper", user_id, is_private)
+    except Exception as e:
+        logger.exception(f"Exception occurred while marking user {user_id} private: {e}")
+        raise
+
+
 async def process_bgg_users(
     db_pool, session: aiohttp.ClientSession, logger, cookie_value: str | None = None
 ):
@@ -214,7 +278,7 @@ async def process_bgg_users(
         async with db_pool.connection() as conn:
             async with conn.cursor() as cursor:
                 logger.debug("Fetching users.")
-                await cursor.execute("SELECT id, bgguser FROM users WHERE bgguser IS NOT NULL;")
+                await cursor.execute("SELECT id, bgguser FROM get_all_bggusers();")
                 users = await cursor.fetchall()
                 logger.debug(f"Fetched {len(users)} users.")
 
@@ -228,22 +292,10 @@ async def process_bgg_users(
                 if status in (401, 403):
                     try:
                         logger.info("Marking user id=%s as having a private BGG account", user_id)
-                        async with db_pool.connection() as conn:
-                            async with conn.cursor() as cur:
-                                await cur.execute(
-                                    "UPDATE users SET bggprivate = TRUE, datemodified = CURRENT_TIMESTAMP WHERE id = %s RETURNING datemodified;",
-                                    (user_id,),
-                                )
-                                updated = await cur.fetchone()
-                                if updated:
-                                    logger.info(
-                                        "Marked user id=%s private; datemodified=%s",
-                                        user_id,
-                                        updated[0],
-                                    )
+                        await set_bgg_private(db_pool, logger, user_id)
                     except Exception as mark_exc:
                         logger.warning(
-                            "Could not mark user %s as private in DB (maybe migration missing): %s",
+                            "Could not mark user %s as private via helper (maybe migration missing): %s",
                             user_id,
                             mark_exc,
                         )
@@ -256,40 +308,17 @@ async def process_bgg_users(
                     logger.warning("No data returned for user %s — skipping", bgguser)
                     continue
 
-                try:
-                    root = ET.fromstring(xml_data)
-                except ET.ParseError:
-                    logger.exception(
-                        "Failed to parse XML for %s — first 500 chars: %s",
+                games = parse_bgg_collection(xml_data)
+                if not games:
+                    logger.warning(
+                        "No parsable collection items for user %s; first 500 chars: %s",
                         bgguser,
                         (xml_data or "")[:500],
                     )
                     continue
 
-                for item in root.findall("item"):
-                    item_status = item.find("status")
-                    game_data = {
-                        "userid": user_id,
-                        "name": (
-                            item.find("name").text if item.find("name") is not None else "Unknown"
-                        ),
-                        "bggid": safe_convert(item.get("objectid"), 0),
-                        "avgrating": safe_convert(
-                            item.find("stats/rating/average").get("value"), 0.0, float
-                        ),
-                        "own": item_status.get("own", "0") == "1",
-                        "prevowned": item_status.get("prevowned", "0") == "1",
-                        "fortrade": item_status.get("fortrade", "0") == "1",
-                        "want": item_status.get("want", "0") == "1",
-                        "wanttoplay": item_status.get("wanttoplay", "0") == "1",
-                        "wanttobuy": item_status.get("wanttobuy", "0") == "1",
-                        "wishlist": item_status.get("wishlist", "0") == "1",
-                        "preordered": item_status.get("preordered", "0") == "1",
-                        "minplayers": safe_convert(item.find("stats").get("minplayers"), 0),
-                        "maxplayers": safe_convert(item.find("stats").get("maxplayers"), 0),
-                        "minplaytime": safe_convert(item.find("stats").get("minplaytime"), 0),
-                        "numplays": safe_convert(item.find("numplays").text, 0),
-                    }
+                for parsed_item in games:
+                    game_data = {"userid": user_id, **parsed_item}
 
                     try:
                         await upsert_boardgame(db_pool, logger, game_data)

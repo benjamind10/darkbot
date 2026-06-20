@@ -48,7 +48,8 @@ Copy `bot/.env.example` to `bot/.env` and fill in your values.
 | `WEATHER_API_KEY` | Weather command |
 | `API_COINCAP` | Cryptocurrency commands |
 | `IP_INFO` | IP lookup command |
-| `BGG_COOKIE` | BoardGameGeek private collections |
+| `BGG_AUTH_COOKIE` | BoardGameGeek private collections (preferred) |
+| `BGG_COOKIE` | BoardGameGeek private collections (legacy alias) |
 | `YOUTUBE_API_KEY` | YouTube API |
 
 ### Development
