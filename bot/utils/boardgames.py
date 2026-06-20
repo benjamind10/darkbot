@@ -4,6 +4,11 @@ import xml.etree.ElementTree as ET
 import aiohttp
 
 BASE_URL = "https://api.geekdo.com/xmlapi/"
+SET_BGG_PRIVATE_SQL = """
+UPDATE users
+SET bggprivate = %s::boolean, datemodified = CURRENT_TIMESTAMP
+WHERE id = %s::integer;
+"""
 
 
 def safe_convert(value, default=0, data_type=int):
@@ -259,13 +264,13 @@ async def set_bgg_private(db_pool, logger, user_id: int, is_private: bool = True
         if hasattr(db_pool, "connection"):
             async with db_pool.connection() as conn:
                 async with conn.cursor() as cursor:
-                    await cursor.execute("SELECT set_bgg_private(%s, %s);", (user_id, is_private))
+                    await cursor.execute(SET_BGG_PRIVATE_SQL, (is_private, user_id))
         else:
             with db_pool.cursor() as cursor:
-                cursor.execute("SELECT set_bgg_private(%s, %s);", (user_id, is_private))
+                cursor.execute(SET_BGG_PRIVATE_SQL, (is_private, user_id))
             if hasattr(db_pool, "commit"):
                 db_pool.commit()
-        logger.info("Marked user id=%s bggprivate=%s via SQL helper", user_id, is_private)
+        logger.info("Marked user id=%s bggprivate=%s", user_id, is_private)
     except Exception as e:
         logger.exception(f"Exception occurred while marking user {user_id} private: {e}")
         raise
