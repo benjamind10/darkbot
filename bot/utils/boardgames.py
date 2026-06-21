@@ -1,11 +1,22 @@
 import asyncio
+import html
+import re
 import xml.etree.ElementTree as ET
 
 import aiohttp
 
 BASE_URL = "https://boardgamegeek.com/xmlapi/"
 API2_BASE_URL = "https://boardgamegeek.com/xmlapi2/"
+HTML_BASE_URL = "https://boardgamegeek.com/"
 BGG_USER_AGENT = "DarkBot (https://github.com/benjamind10/darkbot)"
+BGG_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Upgrade-Insecure-Requests": "1",
+}
 SET_BGG_PRIVATE_SQL = """
 UPDATE users
 SET bggprivate = %s::boolean, datemodified = CURRENT_TIMESTAMP
@@ -51,6 +62,35 @@ def parse_bgg_search(xml_data: str) -> list[dict[str, str]]:
                 else "N/A",
             }
         )
+
+    return results
+
+
+def parse_bgg_search_html(html_data: str) -> list[dict[str, str]]:
+    """Parse BGG HTML search results into normalized dictionaries."""
+
+    results: list[dict[str, str]] = []
+    seen_ids: set[str] = set()
+    pattern = re.compile(
+        r"<a\s+[^>]*href=[\"']/boardgame/(?P<id>\d+)/[^\"']*[\"'][^>]*class=[\"']primary[\"'][^>]*>"
+        r"(?P<name>.*?)</a>\s*<span\s+class=[\"']smallerfont dull[\"']>\((?P<year>[^)]*)\)</span>",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    for match in pattern.finditer(html_data):
+        bggid = match.group("id")
+        if bggid in seen_ids:
+            continue
+
+        name = re.sub(r"<[^>]+>", "", match.group("name"))
+        results.append(
+            {
+                "bggid": bggid,
+                "name": html.unescape(name).strip() or "Unknown",
+                "yearpublished": html.unescape(match.group("year")).strip() or "N/A",
+            }
+        )
+        seen_ids.add(bggid)
 
     return results
 

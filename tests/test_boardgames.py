@@ -10,10 +10,13 @@ from aioresponses import CallbackResult
 from bot.utils.boardgames import (
     BASE_URL,
     API2_BASE_URL,
+    BGG_BROWSER_HEADERS,
     BGG_USER_AGENT,
+    HTML_BASE_URL,
     SET_BGG_PRIVATE_SQL,
     fetch_bgg_collection,
     parse_bgg_search,
+    parse_bgg_search_html,
     parse_bgg_thing,
     parse_bgg_collection,
     process_bgg_users,
@@ -290,6 +293,24 @@ def test_parse_bgg_search_normalizes_api2_items():
     ]
 
 
+def test_parse_bgg_search_html_normalizes_search_page_items():
+    html_data = """
+    <div id='results_objectname1'>
+      <a href="/boardgame/1406/monopoly" class='primary'>Monopoly</a>
+      <span class='smallerfont dull'>(1935)</span>
+    </div>
+    <div id='results_objectname2'>
+      <a href="/boardgame/40398/monopoly-deal-card-game" class='primary'>Monopoly Deal Card Game</a>
+      <span class='smallerfont dull'>(2008)</span>
+    </div>
+    """
+
+    assert parse_bgg_search_html(html_data) == [
+        {"bggid": "1406", "name": "Monopoly", "yearpublished": "1935"},
+        {"bggid": "40398", "name": "Monopoly Deal Card Game", "yearpublished": "2008"},
+    ]
+
+
 def test_parse_bgg_thing_normalizes_api2_details():
     xml_data = """
     <items termsofuse='...'>
@@ -362,6 +383,50 @@ async def test_search_boardgame_uses_api2_search(bot, mock_http_session, monkeyp
     assert embed.title == "Top 5 search results for 'Catan'"
     assert embed.fields[0].name == "Catan (1995)"
     assert embed.fields[0].value == "ID: 13"
+
+
+@pytest.mark.asyncio
+async def test_search_boardgame_falls_back_to_html_search_on_api2_401(
+    bot, mock_http_session, monkeypatch
+):
+    from bot.cogs.BoardGames import BoardGames
+
+    cog = BoardGames(bot)
+    ctx = SimpleNamespace(interaction=None, send=AsyncMock())
+    bot.logger = logging.getLogger("test")
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+
+    seen_params = {}
+    seen_headers = {}
+
+    def _callback(url_obj, **kwargs):
+        seen_params.update(kwargs.get("params", {}))
+        seen_headers.update(kwargs.get("headers", {}))
+        return CallbackResult(
+            status=200,
+            body="""
+            <div id='results_objectname1'>
+              <a href="/boardgame/1406/monopoly" class='primary'>Monopoly</a>
+              <span class='smallerfont dull'>(1935)</span>
+            </div>
+            """,
+        )
+
+    mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}search\?.*"), status=401)
+    mock_http_session.mocked.get(
+        re.compile(rf"^{re.escape(HTML_BASE_URL)}search/boardgame\?.*"), callback=_callback
+    )
+    send = AsyncMock()
+    monkeypatch.setattr("bot.cogs.BoardGames.send_for_context", send)
+
+    await cog.search_boardgame.callback(cog, ctx, search_query="Monopoly")
+
+    assert seen_params == {"q": "Monopoly"}
+    assert seen_headers == BGG_BROWSER_HEADERS
+    embed = send.await_args.kwargs["embed"]
+    assert embed.title == "Top 5 search results for 'Monopoly'"
+    assert embed.fields[0].name == "Monopoly (1935)"
+    assert embed.fields[0].value == "ID: 1406"
 
 
 @pytest.mark.asyncio

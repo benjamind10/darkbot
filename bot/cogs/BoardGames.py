@@ -13,6 +13,7 @@ from bot.utils import boardgames as bg_utils
 
 class BoardGames(commands.Cog):
     API2_BASE_URL = bg_utils.API2_BASE_URL
+    HTML_BASE_URL = bg_utils.HTML_BASE_URL
 
     def __init__(self, bot):
         self.bot = bot
@@ -74,6 +75,7 @@ class BoardGames(commands.Cog):
             await defer_if_interaction(ctx)
 
         search_url = f"{self.API2_BASE_URL}search"
+        html_search_url = f"{self.HTML_BASE_URL}search/boardgame"
         self.bot.logger.info(f"BGG search query: {search_query}")
 
         headers = {"User-Agent": bg_utils.BGG_USER_AGENT}
@@ -100,11 +102,43 @@ class BoardGames(commands.Cog):
                         )
                     await send_for_context(ctx, embed=embed)
                     self.bot.logger.info("BGG search succeeded")
+                    return
                 else:
                     await send_for_context(ctx, "No games found.")
                     self.bot.logger.warning("No results from BGG search")
+                    return
             else:
-                self.bot.logger.error(f"BGG search failed, status: {response.status}")
+                self.bot.logger.warning(
+                    f"BGG XML search failed, status: {response.status}; trying HTML search"
+                )
+
+        async with self.bot.http_session.get(
+            html_search_url,
+            headers=bg_utils.BGG_BROWSER_HEADERS,
+            params={"q": search_query},
+        ) as response:
+            if response.status == 200:
+                html_data = await response.text()
+                games = bg_utils.parse_bgg_search_html(html_data)[:5]
+
+                if games:
+                    embed = discord.Embed(
+                        color=self.bot.embed_color,
+                        title=f"Top 5 search results for '{search_query}'",
+                    )
+                    for game in games:
+                        embed.add_field(
+                            name=f"{game['name']} ({game['yearpublished']})",
+                            value=f"ID: {game['bggid']}",
+                            inline=False,
+                        )
+                    await send_for_context(ctx, embed=embed)
+                    self.bot.logger.info("BGG HTML search succeeded")
+                else:
+                    await send_for_context(ctx, "No games found.")
+                    self.bot.logger.warning("No results from BGG HTML search")
+            else:
+                self.bot.logger.error(f"BGG HTML search failed, status: {response.status}")
                 await send_for_context(ctx, "Failed to retrieve search results from BGG.")
 
     @commands.hybrid_command(
