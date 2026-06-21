@@ -10,6 +10,7 @@ from aioresponses import CallbackResult
 from bot.utils.boardgames import (
     BASE_URL,
     API2_BASE_URL,
+    BGG_USER_AGENT,
     SET_BGG_PRIVATE_SQL,
     fetch_bgg_collection,
     parse_bgg_search,
@@ -45,6 +46,7 @@ async def test_fetch_bgg_collection_sends_cookie_header(mock_http_session):
     assert status == 200
     assert res == "<items></items>"
     assert seen_headers.get("Cookie") == "bb=session-token; foo=bar"
+    assert seen_headers.get("User-Agent") == BGG_USER_AGENT
     assert seen_params == {"username": username, "stats": 1, "subtype": "boardgame", "showprivate": 1}
 
 
@@ -331,9 +333,11 @@ async def test_search_boardgame_uses_api2_search(bot, mock_http_session, monkeyp
     bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
 
     seen_params = {}
+    seen_headers = {}
 
     def _callback(url_obj, **kwargs):
         seen_params.update(kwargs.get("params", {}))
+        seen_headers.update(kwargs.get("headers", {}))
         return CallbackResult(
             status=200,
             body="""
@@ -353,6 +357,7 @@ async def test_search_boardgame_uses_api2_search(bot, mock_http_session, monkeyp
     await cog.search_boardgame.callback(cog, ctx, search_query="Catan")
 
     assert seen_params == {"query": "Catan"}
+    assert seen_headers.get("User-Agent") == BGG_USER_AGENT
     embed = send.await_args.kwargs["embed"]
     assert embed.title == "Top 5 search results for 'Catan'"
     assert embed.fields[0].name == "Catan (1995)"
@@ -369,9 +374,11 @@ async def test_boardgame_info_uses_api2_thing(bot, mock_http_session, monkeypatc
     bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
 
     seen_params = {}
+    seen_headers = {}
 
     def _callback(url_obj, **kwargs):
         seen_params.update(kwargs.get("params", {}))
+        seen_headers.update(kwargs.get("headers", {}))
         return CallbackResult(
             status=200,
             body="""
@@ -403,6 +410,7 @@ async def test_boardgame_info_uses_api2_thing(bot, mock_http_session, monkeypatc
     await cog.boardgame_info.callback(cog, ctx, "13")
 
     assert seen_params == {"id": "13", "stats": 1}
+    assert seen_headers.get("User-Agent") == BGG_USER_AGENT
     embed = send.await_args.kwargs["embed"]
     assert embed.title == "**Catan**"
     assert "**Published:** 1995" in embed.description

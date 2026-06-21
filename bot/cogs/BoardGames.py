@@ -12,7 +12,7 @@ from bot.utils import boardgames as bg_utils
 
 
 class BoardGames(commands.Cog):
-    API2_BASE_URL = "https://api.geekdo.com/xmlapi2/"
+    API2_BASE_URL = bg_utils.API2_BASE_URL
 
     def __init__(self, bot):
         self.bot = bot
@@ -76,7 +76,13 @@ class BoardGames(commands.Cog):
         search_url = f"{self.API2_BASE_URL}search"
         self.bot.logger.info(f"BGG search query: {search_query}")
 
-        async with self.bot.http_session.get(search_url, params={"query": search_query}) as response:
+        headers = {"User-Agent": bg_utils.BGG_USER_AGENT}
+
+        async with self.bot.http_session.get(
+            search_url,
+            headers=headers,
+            params={"query": search_query},
+        ) as response:
             if response.status == 200:
                 xml_data = await response.text()
                 games = bg_utils.parse_bgg_search(xml_data)[:5]
@@ -118,7 +124,13 @@ class BoardGames(commands.Cog):
         self.bot.logger.info(f"Fetching BGG info for ID: {game_id}")
         info_url = f"{self.API2_BASE_URL}thing"
 
-        async with self.bot.http_session.get(info_url, params={"id": game_id, "stats": 1}) as response:
+        headers = {"User-Agent": bg_utils.BGG_USER_AGENT}
+
+        async with self.bot.http_session.get(
+            info_url,
+            headers=headers,
+            params={"id": game_id, "stats": 1},
+        ) as response:
             if response.status == 200:
                 xml_data = await response.text()
                 game = bg_utils.parse_bgg_thing(xml_data)

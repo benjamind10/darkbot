@@ -3,8 +3,9 @@ import xml.etree.ElementTree as ET
 
 import aiohttp
 
-BASE_URL = "https://api.geekdo.com/xmlapi/"
-API2_BASE_URL = "https://api.geekdo.com/xmlapi2/"
+BASE_URL = "https://boardgamegeek.com/xmlapi/"
+API2_BASE_URL = "https://boardgamegeek.com/xmlapi2/"
+BGG_USER_AGENT = "DarkBot (https://github.com/benjamind10/darkbot)"
 SET_BGG_PRIVATE_SQL = """
 UPDATE users
 SET bggprivate = %s::boolean, datemodified = CURRENT_TIMESTAMP
@@ -181,7 +182,7 @@ async def fetch_bgg_collection(
 
     for attempt in range(1, max_attempts + 1):
         try:
-            headers = {"User-Agent": "DarkBot (https://github.com/benjamind10/darkbot)"}
+            headers = {"User-Agent": BGG_USER_AGENT}
 
             params = {"username": username, "stats": 1, "subtype": "boardgame"}
 
