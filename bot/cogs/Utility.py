@@ -29,7 +29,6 @@ except ImportError:
     TRANSLATOR_AVAILABLE = False
 
 try:
-    from forex_python.bitcoin import BtcConverter
     from forex_python.converter import CurrencyRates
 
     FOREX_AVAILABLE = True
@@ -44,6 +43,12 @@ except ImportError:
     IPINFO_AVAILABLE = False
 
 from utils.color_converting import rgb_to_cmyk, rgb_to_hsl, rgb_to_hsv
+from utils.bitcoin import (
+    BitcoinProviderError,
+    InvalidBitcoinCurrencyError,
+    convert_currency_to_bitcoin,
+    get_bitcoin_price,
+)
 from utils.discord_context import defer_if_interaction, has_origin_message, send_for_context
 from utils.decimal_formatting import truncate
 
@@ -83,24 +88,30 @@ class Utility(commands.Cog):
             return
 
         try:
-            b = BtcConverter()
-            price = await asyncio.to_thread(b.get_latest_price, currency)
-            amount = round(price, 2)
+            result = await get_bitcoin_price(currency)
+            amount = round(result.price, 2)
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ BTC to Currency",
-                description=f"• One Bitcoin is: `{amount}` {currency}",
+                description=f"• One Bitcoin is: `{amount}` {result.currency}",
             )
             await send_for_context(ctx, embed=embed)
             self.logger.info(f"Utility | Sent Bitcoin: {ctx.author}")
-        except Exception as e:
+        except InvalidBitcoinCurrencyError:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Currency error!",
                 description="• Not a valid currency type!\n• Example: `!bitcoin CAD`",
             )
             await send_for_context(ctx, embed=embed)
-            self.logger.error(f"Utility | Bitcoin error: {e}")
+        except BitcoinProviderError as e:
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Currency error!",
+                description="• Bitcoin pricing service is unavailable right now.",
+            )
+            await send_for_context(ctx, embed=embed)
+            self.logger.error(f"Utility | Bitcoin provider error: {e}")
 
     @commands.hybrid_command(aliases=["ltc"])
     async def litecoin(self, ctx):
@@ -201,15 +212,12 @@ class Utility(commands.Cog):
             return
 
         try:
-            b = BtcConverter()
-            amount_int = int(amount)
-            btc_value = await asyncio.to_thread(b.convert_to_btc, amount_int, currency)
-            btc = round(btc_value, 4)
+            result = await convert_currency_to_bitcoin(amount, currency)
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Currency To Bitcoin!",
-                description=f"• {amount_int} {currency} is around {btc} Bitcoin!",
+                description=f"• {result.amount} {result.currency} is around {result.bitcoin} Bitcoin!",
             )
             await send_for_context(ctx, embed=embed)
             self.logger.info(f"Utility | Sent Currency_To_btc: {ctx.author}")
@@ -220,7 +228,7 @@ class Utility(commands.Cog):
                 description="• Not a valid amount of money!",
             )
             await send_for_context(ctx, embed=embed)
-        except Exception as e:
+        except InvalidBitcoinCurrencyError as e:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Currency Error!",
@@ -228,6 +236,14 @@ class Utility(commands.Cog):
             )
             await send_for_context(ctx, embed=embed)
             self.logger.error(f"Utility | Currency to BTC error: {e}")
+        except BitcoinProviderError as e:
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Currency Error!",
+                description="• Bitcoin conversion service is unavailable right now.",
+            )
+            await send_for_context(ctx, embed=embed)
+            self.logger.error(f"Utility | Currency to BTC provider error: {e}")
 
     @currency_to_bitcoin.error
     async def currency_to_bitcoin_error(self, ctx, error):
