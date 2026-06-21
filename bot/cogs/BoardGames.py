@@ -7,12 +7,12 @@ Handles board game related commands, including integration with BoardGameGeek (B
 
 import discord
 from discord.ext import commands
-from utils.discord_context import defer_if_interaction, send_for_context
-from utils import boardgames as bg_utils
+from bot.utils.discord_context import defer_if_interaction, send_for_context
+from bot.utils import boardgames as bg_utils
 
 
 class BoardGames(commands.Cog):
-    BASE_URL = "https://api.geekdo.com/xmlapi/"
+    API2_BASE_URL = "https://api.geekdo.com/xmlapi2/"
 
     def __init__(self, bot):
         self.bot = bot
@@ -73,29 +73,23 @@ class BoardGames(commands.Cog):
         if ctx.interaction and not ctx.interaction.response.is_done():
             await defer_if_interaction(ctx)
 
-        search_url = f"{self.BASE_URL}search?search={search_query}"
+        search_url = f"{self.API2_BASE_URL}search"
         self.bot.logger.info(f"BGG search query: {search_query}")
 
-        async with self.bot.http_session.get(search_url) as response:
+        async with self.bot.http_session.get(search_url, params={"query": search_query}) as response:
             if response.status == 200:
                 xml_data = await response.text()
-                root = ET.fromstring(xml_data)
-                games = []
-                for item in root.findall("boardgame")[:5]:
-                    name = item.find("name")
-                    game_name = name.text if name is not None else "Unknown"
-                    object_id = item.get("objectid")
-                    games.append((game_name, object_id))
+                games = bg_utils.parse_bgg_search(xml_data)[:5]
 
                 if games:
                     embed = discord.Embed(
                         color=self.bot.embed_color,
                         title=f"Top 5 search results for '{search_query}'",
                     )
-                    for game_name, obj_id in games:
+                    for game in games:
                         embed.add_field(
-                            name=game_name,
-                            value=f"ID: {obj_id}",
+                            name=f"{game['name']} ({game['yearpublished']})",
+                            value=f"ID: {game['bggid']}",
                             inline=False,
                         )
                     await send_for_context(ctx, embed=embed)
@@ -122,43 +116,23 @@ class BoardGames(commands.Cog):
             await defer_if_interaction(ctx)
 
         self.bot.logger.info(f"Fetching BGG info for ID: {game_id}")
-        info_url = f"{self.BASE_URL}boardgame/{game_id}?stats=1"
+        info_url = f"{self.API2_BASE_URL}thing"
 
-        async with self.bot.http_session.get(info_url) as response:
+        async with self.bot.http_session.get(info_url, params={"id": game_id, "stats": 1}) as response:
             if response.status == 200:
                 xml_data = await response.text()
-                root = ET.fromstring(xml_data)
-                game = root.find("boardgame")
+                game = bg_utils.parse_bgg_thing(xml_data)
                 if game is not None:
-                    game_name = next(
-                        (n.text for n in game.findall("name") if n.get("primary") == "true"),
-                        "Unknown",
-                    )
-                    age = game.findtext("age", default="N/A")
-                    poll = game.find("poll[@name='suggested_numplayers']")
-                    best_count = "N/A"
-                    max_votes = -1
-                    if poll:
-                        for res in poll.findall("results"):
-                            votes = int(res.find("result[@value='Best']").get("numvotes"))
-                            if votes > max_votes:
-                                max_votes = votes
-                                best_count = res.get("numplayers")
-
-                    ratings = game.find("statistics/ratings")
-                    users_rated = ratings.findtext("usersrated", default="N/A")
-                    avg_rating = ratings.findtext("average", default="N/A")
-                    avg_rating = f"{float(avg_rating):.2f}" if avg_rating != "N/A" else avg_rating
-
                     embed = discord.Embed(
                         color=self.bot.embed_color,
-                        title=f"**{game_name}**",
+                        title=f"**{game['name']}**",
                         description=(
-                            f"**ID:** {game_id}\n"
-                            f"**Recommended Age:** {age}+\n"
-                            f"**Best Player Count:** {best_count}\n"
-                            f"**Users Rated:** {users_rated}\n"
-                            f"**Average Rating:** {avg_rating}"
+                            f"**ID:** {game['bggid']}\n"
+                            f"**Published:** {game['yearpublished']}\n"
+                            f"**Recommended Age:** {game['minage']}+\n"
+                            f"**Best Player Count:** {game['best_count']}\n"
+                            f"**Users Rated:** {game['users_rated']}\n"
+                            f"**Average Rating:** {game['avg_rating']}"
                         ),
                     )
                     await send_for_context(ctx, embed=embed)

@@ -52,6 +52,8 @@ Copy `bot/.env.example` to `bot/.env` and fill in your values.
 | `BGG_COOKIE` | BoardGameGeek private collections (legacy alias) |
 | `YOUTUBE_API_KEY` | YouTube API |
 
+When either `BGG_AUTH_COOKIE` or `BGG_COOKIE` is set, DarkBot sends that session cookie with XML API2 collection requests so private collections can be fetched. `BGG_AUTH_COOKIE` is preferred for new setups; `BGG_COOKIE` is kept as a backward-compatible alias.
+
 ### Development
 
 | Variable | Description |
