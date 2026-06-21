@@ -188,6 +188,13 @@ class Spotify(commands.Cog):
         if ctx.interaction and not ctx.interaction.response.is_done():
             await defer_if_interaction(ctx)
 
+        if not self.bot.config.music.enabled or not self.bot.config.lavalink.enabled:
+            await send_for_context(
+                ctx,
+                "Spotify playback is disabled because music/Lavalink is not enabled.",
+            )
+            return
+
         token = await self._get_token(ctx)
         if not token:
             return
@@ -264,7 +271,4 @@ class Spotify(commands.Cog):
 
 async def setup(bot):
     """Load the Spotify cog."""
-    if not bot.config.music.enabled or not bot.config.lavalink.enabled:
-        bot.logger.info("Spotify | Skipping cog load because music is disabled in config")
-        return
     await bot.add_cog(Spotify(bot))
