@@ -2,19 +2,19 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from typing import Any
 
 try:
-    from forex_python.bitcoin import BtcConverter
-    from forex_python.converter import RatesNotAvailableError
-    from requests.exceptions import ConnectionError, Timeout
+    import aiohttp
 
-    FOREX_AVAILABLE = True
+    AIOHTTP_AVAILABLE = True
 except ImportError:
-    BtcConverter = None
-    RatesNotAvailableError = ValueError
-    ConnectionError = OSError
-    Timeout = TimeoutError
-    FOREX_AVAILABLE = False
+    aiohttp = None
+    AIOHTTP_AVAILABLE = False
+
+
+COINGECKO_SIMPLE_PRICE_URL = "https://api.coingecko.com/api/v3/simple/price"
+COINBASE_EXCHANGE_RATES_URL = "https://api.coinbase.com/v2/exchange-rates"
 
 
 @dataclass(slots=True)
@@ -42,41 +42,115 @@ class BitcoinProviderError(BitcoinLookupError):
     """Raised when the upstream provider cannot be reached or responds poorly."""
 
 
-async def get_bitcoin_price(currency: str) -> BitcoinLookupResult:
-    normalized_currency = currency.upper()
-    if BtcConverter is None:
-        raise BitcoinProviderError("bitcoin dependency unavailable")
+def _coerce_price(price: Any, provider: str) -> float:
+    try:
+        price_value = float(price)
+    except (TypeError, ValueError):
+        raise BitcoinProviderError(f"{provider} returned invalid bitcoin price") from None
 
-    converter = BtcConverter()
+    if price_value <= 0:
+        raise BitcoinProviderError(f"{provider} returned invalid bitcoin price")
+
+    return price_value
+
+
+async def _fetch_coingecko_price(currency: str, session: Any) -> float:
+    provider = "coingecko"
+    async with session.get(
+        COINGECKO_SIMPLE_PRICE_URL,
+        params={"ids": "bitcoin", "vs_currencies": currency.lower()},
+        timeout=aiohttp.ClientTimeout(total=10),
+    ) as response:
+        if response.status >= 400:
+            raise BitcoinProviderError(f"{provider} returned HTTP {response.status}")
+
+        payload = await response.json()
 
     try:
-        price = await asyncio.to_thread(converter.get_latest_price, normalized_currency)
-    except (ValueError, RatesNotAvailableError):
-        raise InvalidBitcoinCurrencyError(normalized_currency) from None
-    except Exception as exc:
-        raise BitcoinProviderError("bitcoin price lookup failed") from exc
+        price = payload["bitcoin"][currency.lower()]
+    except (KeyError, TypeError):
+        raise InvalidBitcoinCurrencyError(currency) from None
+
+    return _coerce_price(price, provider)
+
+
+async def _fetch_coinbase_price(currency: str, session: Any) -> float:
+    provider = "coinbase"
+    async with session.get(
+        COINBASE_EXCHANGE_RATES_URL,
+        params={"currency": "BTC"},
+        timeout=aiohttp.ClientTimeout(total=10),
+    ) as response:
+        if response.status >= 400:
+            raise BitcoinProviderError(f"{provider} returned HTTP {response.status}")
+
+        payload = await response.json()
+
+    try:
+        price = payload["data"]["rates"][currency]
+    except (KeyError, TypeError):
+        raise InvalidBitcoinCurrencyError(currency) from None
+
+    return _coerce_price(price, provider)
+
+
+async def _fetch_bitcoin_price(currency: str, session: Any | None = None) -> float:
+    if not AIOHTTP_AVAILABLE:
+        raise BitcoinProviderError("bitcoin HTTP dependency unavailable")
+
+    close_session = False
+    if session is None:
+        session = aiohttp.ClientSession()
+        close_session = True
+
+    provider_errors: list[str] = []
+    invalid_currency = False
+
+    try:
+        for provider, fetch_price in (
+            ("coingecko", _fetch_coingecko_price),
+            ("coinbase", _fetch_coinbase_price),
+        ):
+            try:
+                return await fetch_price(currency, session)
+            except InvalidBitcoinCurrencyError:
+                invalid_currency = True
+            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                provider_errors.append(f"{provider}: {exc}")
+            except BitcoinProviderError as exc:
+                provider_errors.append(str(exc))
+    finally:
+        if close_session:
+            await session.close()
+
+    if provider_errors:
+        details = "; ".join(provider_errors)
+        raise BitcoinProviderError(f"bitcoin price lookup failed ({details})")
+
+    if invalid_currency:
+        raise InvalidBitcoinCurrencyError(currency)
+
+    raise BitcoinProviderError("bitcoin price lookup failed")
+
+
+async def get_bitcoin_price(currency: str, session: Any | None = None) -> BitcoinLookupResult:
+    normalized_currency = currency.upper()
+    price = await _fetch_bitcoin_price(normalized_currency, session)
 
     return BitcoinLookupResult(currency=normalized_currency, price=float(price))
 
 
-async def convert_currency_to_bitcoin(amount: str, currency: str) -> BitcoinConversionResult:
+async def convert_currency_to_bitcoin(
+    amount: str, currency: str, session: Any | None = None
+) -> BitcoinConversionResult:
     normalized_currency = currency.upper()
-    if BtcConverter is None:
-        raise BitcoinProviderError("bitcoin dependency unavailable")
-
     try:
         amount_value = float(amount)
     except ValueError:
         raise ValueError("invalid amount") from None
 
-    converter = BtcConverter()
-
-    try:
-        bitcoin_value = await asyncio.to_thread(converter.convert_to_btc, amount_value, normalized_currency)
-    except (ValueError, RatesNotAvailableError):
-        raise InvalidBitcoinCurrencyError(normalized_currency) from None
-    except Exception as exc:
-        raise BitcoinProviderError("bitcoin conversion failed") from exc
+    price = await _fetch_bitcoin_price(normalized_currency, session)
+    bitcoin_value = amount_value / price
 
     return BitcoinConversionResult(
         amount=amount_value,

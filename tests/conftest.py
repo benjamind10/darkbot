@@ -53,7 +53,9 @@ async def mock_http_session():
 @pytest_asyncio.fixture
 async def bot(mock_db_pool, mock_http_session, mock_redis):
     yield SimpleNamespace(
-        config=SimpleNamespace(),
+        config=SimpleNamespace(
+            services=SimpleNamespace(ip_info=None, ksoft_api=None, bgg_cookie=None)
+        ),
         db_pool=mock_db_pool,
         embed_color=0x5865F2,
         http_session=mock_http_session.session,

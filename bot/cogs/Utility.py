@@ -83,12 +83,8 @@ class Utility(commands.Cog):
         """
         await defer_if_interaction(ctx)
 
-        if not FOREX_AVAILABLE:
-            await send_for_context(ctx, "❌ forex-python library not installed.")
-            return
-
         try:
-            result = await get_bitcoin_price(currency)
+            result = await get_bitcoin_price(currency, self.bot.http_session)
             amount = round(result.price, 2)
             embed = discord.Embed(
                 color=self.bot.embed_color,
@@ -207,12 +203,8 @@ class Utility(commands.Cog):
         if ctx.interaction and not ctx.interaction.response.is_done():
             await defer_if_interaction(ctx)
 
-        if not FOREX_AVAILABLE:
-            await send_for_context(ctx, "❌ forex-python library not installed.")
-            return
-
         try:
-            result = await convert_currency_to_bitcoin(amount, currency)
+            result = await convert_currency_to_bitcoin(amount, currency, self.bot.http_session)
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
