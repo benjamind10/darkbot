@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 import aiohttp
 
 BASE_URL = "https://api.geekdo.com/xmlapi/"
+API2_BASE_URL = "https://api.geekdo.com/xmlapi2/"
 SET_BGG_PRIVATE_SQL = """
 UPDATE users
 SET bggprivate = %s::boolean, datemodified = CURRENT_TIMESTAMP
@@ -11,11 +12,100 @@ WHERE id = %s::integer;
 """
 
 
+def has_bgg_cookie(cookie_value: str | None) -> bool:
+    return bool(cookie_value and cookie_value.strip())
+
+
 def safe_convert(value, default=0, data_type=int):
     try:
         return data_type(value)
     except (ValueError, TypeError):
         return default
+
+
+def parse_bgg_search(xml_data: str) -> list[dict[str, str]]:
+    """Parse BGG XML API2 search results into normalized dictionaries."""
+
+    try:
+        root = ET.fromstring(xml_data)
+    except ET.ParseError:
+        return []
+
+    results: list[dict[str, str]] = []
+    for item in root.findall("item"):
+        name = next(
+            (name_el.attrib.get("value") for name_el in item.findall("name") if name_el.attrib.get("type") == "primary"),
+            None,
+        )
+        if not name:
+            name_el = item.find("name")
+            name = name_el.attrib.get("value") if name_el is not None else "Unknown"
+
+        results.append(
+            {
+                "bggid": item.attrib.get("id", "N/A"),
+                "name": name,
+                "yearpublished": item.find("yearpublished").attrib.get("value", "N/A")
+                if item.find("yearpublished") is not None
+                else "N/A",
+            }
+        )
+
+    return results
+
+
+def parse_bgg_thing(xml_data: str) -> dict[str, object] | None:
+    """Parse BGG XML API2 thing response into embed-friendly fields."""
+
+    try:
+        root = ET.fromstring(xml_data)
+    except ET.ParseError:
+        return None
+
+    item = root.find("item")
+    if item is None:
+        return None
+
+    name = next(
+        (name_el.attrib.get("value") for name_el in item.findall("name") if name_el.attrib.get("type") == "primary"),
+        None,
+    )
+    if not name:
+        name = item.find("name").attrib.get("value", "Unknown") if item.find("name") is not None else "Unknown"
+
+    stats = item.find("statistics/ratings")
+    poll = item.find("poll[@name='suggested_numplayers']")
+    best_count = "N/A"
+    max_votes = -1
+    if poll is not None:
+        for results in poll.findall("results"):
+            best = results.find("result[@value='Best']")
+            if best is None:
+                continue
+            votes = safe_convert(best.attrib.get("numvotes"), 0)
+            if votes > max_votes:
+                max_votes = votes
+                best_count = results.attrib.get("numplayers", "N/A")
+
+    avg_rating = "N/A"
+    users_rated = "N/A"
+    if stats is not None:
+        average_el = stats.find("average")
+        users_rated_el = stats.find("usersrated")
+        avg_rating = average_el.attrib.get("value", "N/A") if average_el is not None else "N/A"
+        users_rated = users_rated_el.attrib.get("value", "N/A") if users_rated_el is not None else "N/A"
+        if avg_rating != "N/A":
+            avg_rating = f"{float(avg_rating):.2f}"
+
+    return {
+        "bggid": item.attrib.get("id", "N/A"),
+        "name": name,
+        "yearpublished": item.find("yearpublished").attrib.get("value", "N/A") if item.find("yearpublished") is not None else "N/A",
+        "minage": item.find("minage").attrib.get("value", "N/A") if item.find("minage") is not None else "N/A",
+        "users_rated": users_rated,
+        "avg_rating": avg_rating,
+        "best_count": best_count,
+    }
 
 
 def parse_bgg_collection(xml_data: str) -> list[dict[str, object]]:
@@ -28,16 +118,20 @@ def parse_bgg_collection(xml_data: str) -> list[dict[str, object]]:
 
     items: list[dict[str, object]] = []
     for item in root.findall("item"):
+        name_element = item.find("name")
         status = item.find("status")
         stats = item.find("stats")
         rating = stats.find("rating") if stats is not None else None
+        name = "Unknown"
+        if name_element is not None:
+            name = name_element.attrib.get("value") or name_element.text or name
 
         items.append(
             {
-                "name": item.findtext("name", default="Unknown"),
+                "name": name,
                 "bggid": item.attrib.get("objectid", "N/A"),
                 "avgrating": safe_convert(
-                    rating.findtext("average", default="N/A") if rating is not None else "N/A",
+                    rating.attrib.get("value", "N/A") if rating is not None else "N/A",
                     0.0,
                     float,
                 ),
@@ -80,7 +174,7 @@ async def fetch_bgg_collection(
     - other statuses -> log and return None
     """
 
-    url = f"{BASE_URL}collection/{username}?stats=1"
+    url = f"{API2_BASE_URL}collection"
     logger.info("Attempting to fetch BGG collection for user: %s", username)
 
     last_status = None
@@ -89,10 +183,13 @@ async def fetch_bgg_collection(
         try:
             headers = {"User-Agent": "DarkBot (https://github.com/benjamind10/darkbot)"}
 
+            params = {"username": username, "stats": 1, "subtype": "boardgame"}
+
             if cookie_value:
                 headers["Cookie"] = cookie_value
+                params["showprivate"] = 1
 
-            async with session.get(url, headers=headers) as response:
+            async with session.get(url, headers=headers, params=params) as response:
                 status = response.status
 
                 if status == 200:
@@ -133,11 +230,19 @@ async def fetch_bgg_collection(
                         response.reason,
                         short_body,
                     )
-                    logger.warning(
-                        "Hint: this usually means the user's collection is private or the API requires a logged-in session.\n"
-                        "To fetch private collections, set BGG_COOKIE or BGG_AUTH_COOKIE in your environment with a valid session cookie (e.g. 'bb=...; other=...').\n"
-                        "If you don't need private collections, ask the user to make their collection public or skip private accounts.",
-                    )
+                    if has_bgg_cookie(cookie_value):
+                        logger.warning(
+                            "Hint: BGG returned %s for %s even though a cookie was configured. The cookie may be invalid, expired, or not authorized for this account.",
+                            status,
+                            username,
+                        )
+                    else:
+                        logger.warning(
+                            "Hint: this usually means the user's collection is private or the API requires a logged-in session.\n"
+                            "To fetch private collections, set BGG_AUTH_COOKIE in your environment with a valid session cookie (e.g. 'bb=...; other=...').\n"
+                            "BGG_COOKIE is still accepted as a legacy alias.\n"
+                            "If you don't need private collections, ask the user to make their collection public or skip private accounts.",
+                        )
                     return (None, status)
 
                 if 500 <= status < 600:
@@ -295,18 +400,29 @@ async def process_bgg_users(
                 )
 
                 if status in (401, 403):
-                    try:
-                        logger.info("Marking user id=%s as having a private BGG account", user_id)
-                        await set_bgg_private(db_pool, logger, user_id)
-                    except Exception as mark_exc:
-                        logger.warning(
-                            "Could not mark user %s as private via helper (maybe migration missing): %s",
+                    if has_bgg_cookie(cookie_value):
+                        logger.info(
+                            "User %s (%s) returned %s from BGG with a configured cookie; not marking private.",
                             user_id,
-                            mark_exc,
+                            bgguser,
+                            status,
                         )
-                    logger.warning(
-                        "No data returned for user %s — skipping (auth %s)", bgguser, status
-                    )
+                    else:
+                        try:
+                            logger.info("Marking user id=%s as having a private BGG account", user_id)
+                            await set_bgg_private(db_pool, logger, user_id)
+                        except Exception as mark_exc:
+                            logger.warning(
+                                "Could not mark user %s as private via helper (maybe migration missing): %s",
+                                user_id,
+                                mark_exc,
+                            )
+                        logger.warning(
+                            "User %s (%s) returned %s from BGG without a cookie — marking as private.",
+                            user_id,
+                            bgguser,
+                            status,
+                        )
                     continue
 
                 if not xml_data:

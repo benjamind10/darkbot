@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import aiohttp
 import psycopg
 from config.config import Config
-from utils.boardgames import fetch_bgg_collection, set_bgg_private
+from utils.boardgames import fetch_bgg_collection, has_bgg_cookie, set_bgg_private
 
 LOG = logging.getLogger("backfill_bgg_private")
 
@@ -66,6 +66,15 @@ async def _check_user_and_mark(
         return (user_id, bgguser, None, False)
 
     if status in (401, 403):
+        if has_bgg_cookie(cookie_value):
+            LOG.info(
+                "User id=%s (%s) returned %s with a configured cookie; not marking private",
+                user_id,
+                bgguser,
+                status,
+            )
+            return (user_id, bgguser, status, False)
+
         if dry_run:
             LOG.info(
                 "[DRY] Would mark user id=%s (%s) private (status=%s)", user_id, bgguser, status
@@ -76,11 +85,8 @@ async def _check_user_and_mark(
             with suppress(Exception):
                 db_conn.rollback()
 
-            if not dry_run:
-                await set_bgg_private(db_conn, LOG, user_id)
-                LOG.info("Marked user id=%s private via helper", user_id)
-            else:
-                LOG.info("[DRY] Would mark user id=%s private via helper", user_id)
+            await set_bgg_private(db_conn, LOG, user_id)
+            LOG.info("Marked user id=%s private via helper", user_id)
             return (user_id, bgguser, status, True)
         except Exception as e:
             LOG.exception("Error marking user id=%s private: %s", user_id, e)
