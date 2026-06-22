@@ -478,11 +478,81 @@ async def test_boardgame_info_uses_api2_thing(bot, mock_http_session, monkeypatc
     await cog.boardgame_info.callback(cog, ctx, "13")
 
     assert seen_params == {"id": "13", "stats": 1}
-    assert seen_headers.get("User-Agent") == BGG_USER_AGENT
+    assert seen_headers == BGG_API_HEADERS
     embed = send.await_args.kwargs["embed"]
     assert embed.title == "**Catan**"
     assert "**Published:** 1995" in embed.description
     assert "**Best Player Count:** 3" in embed.description
+
+
+@pytest.mark.asyncio
+async def test_boardgame_info_retries_with_cookie_on_401(bot, mock_http_session, monkeypatch):
+    from bot.cogs.BoardGames import BoardGames
+
+    cog = BoardGames(bot)
+    ctx = SimpleNamespace(interaction=None, send=AsyncMock())
+    bot.logger = logging.getLogger("test")
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie="bb=session-token"))
+
+    mock_http_session.mocked.get(
+        re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"),
+        status=401,
+        body="Unauthorized",
+    )
+    mock_http_session.mocked.get(
+        re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"),
+        status=200,
+        body="""
+        <items>
+          <item type='boardgame' id='13'>
+            <name type='primary' value='Catan' />
+            <yearpublished value='1995' />
+            <minage value='10' />
+            <statistics>
+              <ratings>
+                <usersrated value='12345' />
+                <average value='7.1234' />
+              </ratings>
+            </statistics>
+            <poll name='suggested_numplayers'>
+              <results numplayers='3'>
+                <result value='Best' numvotes='42' />
+              </results>
+            </poll>
+          </item>
+        </items>
+        """,
+    )
+
+    send = AsyncMock()
+    monkeypatch.setattr("bot.cogs.BoardGames.send_for_context", send)
+
+    await cog.boardgame_info.callback(cog, ctx, "13")
+
+    embed = send.await_args.kwargs["embed"]
+    assert embed.title == "**Catan**"
+
+
+@pytest.mark.asyncio
+async def test_boardgame_info_reports_friendly_failure_when_lookup_unavailable(bot, monkeypatch):
+    from bot.cogs.BoardGames import BoardGames
+
+    cog = BoardGames(bot)
+    ctx = SimpleNamespace(interaction=None, send=AsyncMock())
+    bot.logger = logging.getLogger("test")
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+
+    monkeypatch.setattr(
+        "bot.cogs.BoardGames.bg_utils.fetch_bgg_thing",
+        AsyncMock(return_value=(None, 403)),
+    )
+    send = AsyncMock()
+    monkeypatch.setattr("bot.cogs.BoardGames.send_for_context", send)
+
+    await cog.boardgame_info.callback(cog, ctx, "13")
+
+    send.assert_awaited_once()
+    assert "Failed to retrieve game info for 13" in send.await_args.args[1]
 
 
 def test_build_bgg_lookup_headers_uses_public_api_headers():

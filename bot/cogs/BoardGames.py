@@ -19,6 +19,41 @@ class BoardGames(commands.Cog):
         self.bot = bot
         self.redis = bot.redis_manager
 
+    def _build_bgg_info_embed(self, game):
+        return discord.Embed(
+            color=self.bot.embed_color,
+            title=f"**{game['name']}**",
+            description=(
+                f"**ID:** {game['bggid']}\n"
+                f"**Published:** {game['yearpublished']}\n"
+                f"**Recommended Age:** {game['minage']}+\n"
+                f"**Best Player Count:** {game['best_count']}\n"
+                f"**Users Rated:** {game['users_rated']}\n"
+                f"**Average Rating:** {game['avg_rating']}"
+            ),
+        )
+
+    async def _send_bgg_info_result(self, ctx, game, status, game_id):
+        if status == 200 and game is not None:
+            await send_for_context(ctx, embed=self._build_bgg_info_embed(game))
+            return
+
+        if status in (401, 403):
+            await send_for_context(
+                ctx,
+                f"Failed to retrieve game info for {game_id}. BGG returned {status}; try again later or configure a valid BGG session cookie.",
+            )
+            self.bot.logger.warning("BGG info lookup for %s returned %s", game_id, status)
+            return
+
+        if status is None:
+            await send_for_context(ctx, f"Failed to retrieve game info for {game_id}.")
+            self.bot.logger.error("BGG info fetch failed for %s with no status", game_id)
+            return
+
+        await send_for_context(ctx, f"Failed to retrieve game info from BGG.")
+        self.bot.logger.error("BGG info fetch failed for %s, status: %s", game_id, status)
+
     async def _send_paginated_embeds(self, ctx, games, title, color):
         """
         Helper function to send a paginated embed message list to Discord.
@@ -156,40 +191,18 @@ class BoardGames(commands.Cog):
             await defer_if_interaction(ctx)
 
         self.bot.logger.info(f"Fetching BGG info for ID: {game_id}")
-        info_url = f"{self.API2_BASE_URL}thing"
+        game, status = await bg_utils.fetch_bgg_thing(
+            self.bot.http_session,
+            game_id,
+            self.bot.logger,
+            cookie_value=self.bot.config.services.bgg_cookie,
+        )
+        if game is None and status == 200:
+            await send_for_context(ctx, "Game not found.")
+            self.bot.logger.warning(f"No game found for ID {game_id}")
+            return
 
-        headers = {"User-Agent": bg_utils.BGG_USER_AGENT}
-
-        async with self.bot.http_session.get(
-            info_url,
-            headers=headers,
-            params={"id": game_id, "stats": 1},
-        ) as response:
-            if response.status == 200:
-                xml_data = await response.text()
-                game = bg_utils.parse_bgg_thing(xml_data)
-                if game is not None:
-                    embed = discord.Embed(
-                        color=self.bot.embed_color,
-                        title=f"**{game['name']}**",
-                        description=(
-                            f"**ID:** {game['bggid']}\n"
-                            f"**Published:** {game['yearpublished']}\n"
-                            f"**Recommended Age:** {game['minage']}+\n"
-                            f"**Best Player Count:** {game['best_count']}\n"
-                            f"**Users Rated:** {game['users_rated']}\n"
-                            f"**Average Rating:** {game['avg_rating']}"
-                        ),
-                    )
-                    await send_for_context(ctx, embed=embed)
-                else:
-                    await send_for_context(ctx, "Game not found.")
-                    self.bot.logger.warning(f"No game found for ID {game_id}")
-            else:
-                await send_for_context(ctx, "Failed to retrieve game info from BGG.")
-                self.bot.logger.error(
-                    f"BGG info fetch failed for {game_id}, status: {response.status}"
-                )
+        await self._send_bgg_info_result(ctx, game, status, game_id)
 
     @commands.hybrid_command(
         name="bggcollection", help="Fetch a BGG user's collection by username."
