@@ -10,11 +10,14 @@ from aioresponses import CallbackResult
 from bot.utils.boardgames import (
     BASE_URL,
     API2_BASE_URL,
+    BGG_API_HEADERS,
     BGG_BROWSER_HEADERS,
     BGG_USER_AGENT,
     HTML_BASE_URL,
     SET_BGG_PRIVATE_SQL,
+    build_bgg_lookup_headers,
     fetch_bgg_collection,
+    fetch_bgg_thing,
     parse_bgg_search,
     parse_bgg_search_html,
     parse_bgg_thing,
@@ -480,6 +483,134 @@ async def test_boardgame_info_uses_api2_thing(bot, mock_http_session, monkeypatc
     assert embed.title == "**Catan**"
     assert "**Published:** 1995" in embed.description
     assert "**Best Player Count:** 3" in embed.description
+
+
+def test_build_bgg_lookup_headers_uses_public_api_headers():
+    assert build_bgg_lookup_headers() == BGG_API_HEADERS
+
+
+def test_build_bgg_lookup_headers_adds_cookie_when_present():
+    headers = build_bgg_lookup_headers("bb=session-token")
+
+    assert headers["Cookie"] == "bb=session-token"
+    assert headers["User-Agent"] == BGG_API_HEADERS["User-Agent"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_bgg_thing_uses_public_request_shape(mock_http_session):
+    game_id = "13"
+    seen_params = {}
+    seen_headers = {}
+
+    def _callback(url_obj, **kwargs):
+        seen_params.update(kwargs.get("params", {}))
+        seen_headers.update(kwargs.get("headers", {}))
+        return CallbackResult(
+            status=200,
+            body="""
+            <items>
+              <item type='boardgame' id='13'>
+                <name type='primary' value='Catan' />
+              </item>
+            </items>
+            """,
+        )
+
+    mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"), callback=_callback)
+
+    game, status = await fetch_bgg_thing(
+        mock_http_session.session,
+        game_id,
+        logging.getLogger("test"),
+    )
+
+    assert status == 200
+    assert game is not None
+    assert game["name"] == "Catan"
+    assert seen_params == {"id": game_id, "stats": 1}
+    assert seen_headers == BGG_API_HEADERS
+
+
+@pytest.mark.asyncio
+async def test_fetch_bgg_thing_retries_once_with_cookie_on_401(mock_http_session):
+    game_id = "13"
+
+    mock_http_session.mocked.get(
+        re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"),
+        status=401,
+        body="Unauthorized",
+    )
+    mock_http_session.mocked.get(
+        re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"),
+        status=200,
+        body="""
+        <items>
+          <item type='boardgame' id='13'>
+            <name type='primary' value='Catan' />
+          </item>
+        </items>
+        """,
+    )
+
+    game, status = await fetch_bgg_thing(
+        mock_http_session.session,
+        game_id,
+        logging.getLogger("test"),
+        cookie_value="bb=session-token",
+    )
+
+    assert status == 200
+    assert game is not None
+    assert game["name"] == "Catan"
+    recorded = []
+    for calls in mock_http_session.mocked.requests.values():
+        recorded.extend(calls)
+    assert len(recorded) == 2
+    assert "Cookie" not in recorded[0].kwargs["headers"]
+    assert recorded[1].kwargs["headers"]["Cookie"] == "bb=session-token"
+
+
+@pytest.mark.asyncio
+async def test_fetch_bgg_thing_does_not_retry_without_cookie(mock_http_session):
+    game_id = "13"
+    call_count = 0
+
+    def _callback(url_obj, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return CallbackResult(status=403, body="Forbidden")
+
+    mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"), callback=_callback)
+
+    game, status = await fetch_bgg_thing(
+        mock_http_session.session,
+        game_id,
+        logging.getLogger("test"),
+    )
+
+    assert game is None
+    assert status == 403
+    assert call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_bgg_thing_returns_none_on_parse_failure_200(mock_http_session):
+    game_id = "13"
+
+    mock_http_session.mocked.get(
+        re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"),
+        status=200,
+        body="<items><item></items>",
+    )
+
+    game, status = await fetch_bgg_thing(
+        mock_http_session.session,
+        game_id,
+        logging.getLogger("test"),
+    )
+
+    assert game is None
+    assert status == 200
 
 
 @pytest.mark.asyncio

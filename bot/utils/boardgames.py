@@ -9,6 +9,13 @@ BASE_URL = "https://boardgamegeek.com/xmlapi/"
 API2_BASE_URL = "https://boardgamegeek.com/xmlapi2/"
 HTML_BASE_URL = "https://boardgamegeek.com/"
 BGG_USER_AGENT = "DarkBot (https://github.com/benjamind10/darkbot)"
+BGG_API_HEADERS = {
+    "User-Agent": BGG_USER_AGENT,
+    "Accept": "application/xml,text/xml,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+}
 BGG_BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -33,6 +40,13 @@ def safe_convert(value, default=0, data_type=int):
         return data_type(value)
     except (ValueError, TypeError):
         return default
+
+
+def build_bgg_lookup_headers(cookie_value: str | None = None) -> dict[str, str]:
+    headers = {**BGG_API_HEADERS}
+    if has_bgg_cookie(cookie_value):
+        headers["Cookie"] = cookie_value
+    return headers
 
 
 def parse_bgg_search(xml_data: str) -> list[dict[str, str]]:
@@ -147,6 +161,31 @@ def parse_bgg_thing(xml_data: str) -> dict[str, object] | None:
         "avg_rating": avg_rating,
         "best_count": best_count,
     }
+
+
+async def fetch_bgg_thing(
+    session: aiohttp.ClientSession,
+    game_id: str,
+    logger,
+    cookie_value: str | None = None,
+):
+    url = f"{API2_BASE_URL}thing"
+    params = {"id": game_id, "stats": 1}
+
+    async def _request(headers: dict[str, str]):
+        async with session.get(url, headers=headers, params=params) as response:
+            status = response.status
+            if status == 200:
+                game = parse_bgg_thing(await response.text())
+                return game, 200
+            return None, status
+
+    headers = build_bgg_lookup_headers(None)
+    game, status = await _request(headers)
+    if status in (401, 403) and has_bgg_cookie(cookie_value):
+        logger.warning("BGG thing lookup for %s was blocked with %s; retrying with configured cookie", game_id, status)
+        game, status = await _request(build_bgg_lookup_headers(cookie_value))
+    return game, status
 
 
 def parse_bgg_collection(xml_data: str) -> list[dict[str, object]]:
