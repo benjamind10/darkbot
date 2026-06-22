@@ -1,6 +1,7 @@
 import asyncio
 import html
 import re
+from difflib import SequenceMatcher
 import xml.etree.ElementTree as ET
 
 import aiohttp
@@ -47,6 +48,68 @@ def build_bgg_lookup_headers(cookie_value: str | None = None) -> dict[str, str]:
     if has_bgg_cookie(cookie_value):
         headers["Cookie"] = cookie_value
     return headers
+
+
+def normalize_bgg_search_text(text: str) -> str:
+    normalized = html.unescape(text).lower().strip()
+    normalized = re.sub(r"\s+", " ", normalized)
+    normalized = re.sub(r"[^a-z0-9\s]", "", normalized)
+    normalized = re.sub(r"^(the|a|an)\s+", "", normalized)
+    return normalized.strip()
+
+
+def score_bgg_search_result(search_query: str, game: dict[str, str]) -> float:
+    query = normalize_bgg_search_text(search_query)
+    title = normalize_bgg_search_text(game.get("name", ""))
+
+    if not query or not title:
+        return 0.0
+
+    score = SequenceMatcher(None, query, title).ratio()
+    if title == query:
+        score += 3.0
+    if title.startswith(query):
+        score += 1.0
+    if query in title:
+        score += 0.75
+
+    query_year = re.search(r"\b(19|20)\d{2}\b", search_query)
+    if query_year and game.get("yearpublished") == query_year.group(0):
+        score += 0.5
+
+    game_type = game.get("type", "").lower()
+    if game_type and game_type != "boardgame":
+        score -= 1.5
+        if "expansion" in game_type:
+            score -= 1.0
+
+    title_penalties = (
+        (" expansion", 1.5),
+        ("expansion", 1.5),
+        ("promo", 1.0),
+        ("accessory", 1.0),
+        ("card game", 0.75),
+        ("the dice game", 0.75),
+        ("the board game", 0.25),
+    )
+    for needle, penalty in title_penalties:
+        if needle in title:
+            score -= penalty
+
+    if query and title:
+        query_tokens = set(query.split())
+        title_tokens = set(title.split())
+        if query_tokens and query_tokens.issubset(title_tokens):
+            score += 0.5
+
+    return score
+
+
+def select_bgg_search_result(search_query: str, games: list[dict[str, str]]) -> dict[str, str] | None:
+    if not games:
+        return None
+
+    return max(games, key=lambda game: score_bgg_search_result(search_query, game))
 
 
 async def search_bgg_games(
@@ -102,6 +165,7 @@ def parse_bgg_search(xml_data: str) -> list[dict[str, str]]:
         results.append(
             {
                 "bggid": item.attrib.get("id", "N/A"),
+                "type": item.attrib.get("type", "boardgame"),
                 "name": name,
                 "yearpublished": item.find("yearpublished").attrib.get("value", "N/A")
                 if item.find("yearpublished") is not None
@@ -118,7 +182,7 @@ def parse_bgg_search_html(html_data: str) -> list[dict[str, str]]:
     results: list[dict[str, str]] = []
     seen_ids: set[str] = set()
     pattern = re.compile(
-        r"<a\s+[^>]*href=[\"']/boardgame/(?P<id>\d+)/[^\"']*[\"'][^>]*class=[\"']primary[\"'][^>]*>"
+        r"<a\s+[^>]*href=[\"']/(?P<type>boardgame(?:expansion|accessory)?)/(?P<id>\d+)/[^\"']*[\"'][^>]*class=[\"']primary[\"'][^>]*>"
         r"(?P<name>.*?)</a>\s*<span\s+class=[\"']smallerfont dull[\"']>\((?P<year>[^)]*)\)</span>",
         re.IGNORECASE | re.DOTALL,
     )
@@ -132,6 +196,7 @@ def parse_bgg_search_html(html_data: str) -> list[dict[str, str]]:
         results.append(
             {
                 "bggid": bggid,
+                "type": match.group("type"),
                 "name": html.unescape(name).strip() or "Unknown",
                 "yearpublished": html.unescape(match.group("year")).strip() or "N/A",
             }

@@ -18,6 +18,8 @@ from bot.utils.boardgames import (
     build_bgg_lookup_headers,
     fetch_bgg_collection,
     fetch_bgg_thing,
+    score_bgg_search_result,
+    select_bgg_search_result,
     search_bgg_games,
     parse_bgg_search,
     parse_bgg_search_html,
@@ -293,7 +295,7 @@ def test_parse_bgg_search_normalizes_api2_items():
     """
 
     assert parse_bgg_search(xml_data) == [
-        {"bggid": "13", "name": "Catan", "yearpublished": "1995"}
+        {"bggid": "13", "type": "boardgame", "name": "Catan", "yearpublished": "1995"}
     ]
 
 
@@ -310,9 +312,34 @@ def test_parse_bgg_search_html_normalizes_search_page_items():
     """
 
     assert parse_bgg_search_html(html_data) == [
-        {"bggid": "1406", "name": "Monopoly", "yearpublished": "1935"},
-        {"bggid": "40398", "name": "Monopoly Deal Card Game", "yearpublished": "2008"},
+        {"bggid": "1406", "type": "boardgame", "name": "Monopoly", "yearpublished": "1935"},
+        {"bggid": "40398", "type": "boardgame", "name": "Monopoly Deal Card Game", "yearpublished": "2008"},
     ]
+
+
+def test_select_bgg_search_result_prefers_exact_title_match():
+    games = [
+        {"bggid": "999", "name": "Monopoly: The Card Game", "yearpublished": "2006"},
+        {"bggid": "1406", "name": "Monopoly", "yearpublished": "1935"},
+    ]
+
+    selected = select_bgg_search_result("Monopoly", games)
+
+    assert selected is not None
+    assert selected["bggid"] == "1406"
+    assert score_bgg_search_result("Monopoly", games[1]) > score_bgg_search_result("Monopoly", games[0])
+
+
+def test_select_bgg_search_result_penalizes_expansions():
+    games = [
+        {"bggid": "1", "type": "boardgameexpansion", "name": "Catan: Seafarers", "yearpublished": "1997"},
+        {"bggid": "2", "type": "boardgame", "name": "Catan", "yearpublished": "1995"},
+    ]
+
+    selected = select_bgg_search_result("Catan", games)
+
+    assert selected is not None
+    assert selected["bggid"] == "2"
 
 
 def test_parse_bgg_thing_normalizes_api2_details():
@@ -528,6 +555,56 @@ async def test_search_boardgame_preserves_results_when_top_detail_lookup_fails(
     assert embed.title == "Top 5 search results for 'Monopoly'"
     assert embed.fields[0].name == "Monopoly (1935)"
     assert embed.footer.text == "Could not fetch details for the top result."
+
+
+@pytest.mark.asyncio
+async def test_search_boardgame_selects_best_match_even_if_not_first(bot, monkeypatch):
+    from bot.cogs.BoardGames import BoardGames
+
+    cog = BoardGames(bot)
+    ctx = SimpleNamespace(interaction=None, send=AsyncMock())
+    bot.logger = logging.getLogger("test")
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+
+    monkeypatch.setattr(
+        "bot.cogs.BoardGames.bg_utils.search_bgg_games",
+        AsyncMock(
+            return_value=(
+                [
+                    {"bggid": "999", "name": "Monopoly: The Card Game", "yearpublished": "2006"},
+                    {"bggid": "1406", "name": "Monopoly", "yearpublished": "1935"},
+                ],
+                "html",
+                200,
+            )
+        ),
+    )
+    seen_id = {}
+
+    async def _fake_fetch(session, game_id, logger, cookie_value=None):
+        seen_id["value"] = game_id
+        return (
+            {
+                "bggid": "1406",
+                "name": "Monopoly",
+                "yearpublished": "1935",
+                "minage": "8",
+                "users_rated": "999",
+                "avg_rating": "4.12",
+                "best_count": "4",
+            },
+            200,
+        )
+
+    monkeypatch.setattr("bot.cogs.BoardGames.bg_utils.fetch_bgg_thing", _fake_fetch)
+    send = AsyncMock()
+    monkeypatch.setattr("bot.cogs.BoardGames.send_for_context", send)
+
+    await cog.search_boardgame.callback(cog, ctx, search_query="Monopoly")
+
+    assert seen_id["value"] == "1406"
+    embed = send.await_args.kwargs["embed"]
+    assert embed.title == "**Monopoly**"
 
 
 @pytest.mark.asyncio

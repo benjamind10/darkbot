@@ -138,7 +138,7 @@ class BoardGames(commands.Cog):
                 await send_for_context(ctx, "Failed to retrieve search results from BGG.")
             return
 
-        top_game = games[0]
+        top_game = bg_utils.select_bgg_search_result(search_query, games) or games[0]
         self.bot.logger.info(
             "BGG search top result selected: %s (%s)",
             top_game["bggid"],
