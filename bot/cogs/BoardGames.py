@@ -13,10 +13,59 @@ from bot.utils import boardgames as bg_utils
 
 class BoardGames(commands.Cog):
     API2_BASE_URL = bg_utils.API2_BASE_URL
+    HTML_BASE_URL = bg_utils.HTML_BASE_URL
 
     def __init__(self, bot):
         self.bot = bot
         self.redis = bot.redis_manager
+
+    def _build_bgg_info_embed(self, game):
+        return discord.Embed(
+            color=self.bot.embed_color,
+            title=f"**{game['name']}**",
+            description=(
+                f"**ID:** {game['bggid']}\n"
+                f"**Published:** {game['yearpublished']}\n"
+                f"**Recommended Age:** {game['minage']}+\n"
+                f"**Best Player Count:** {game['best_count']}\n"
+                f"**Users Rated:** {game['users_rated']}\n"
+                f"**Average Rating:** {game['avg_rating']}"
+            ),
+        )
+
+    def _build_bgg_search_results_embed(self, search_query, games):
+        embed = discord.Embed(
+            color=self.bot.embed_color,
+            title=f"Top 5 search results for '{search_query}'",
+        )
+        for game in games:
+            embed.add_field(
+                name=f"{game['name']} ({game['yearpublished']})",
+                value=f"ID: {game['bggid']}",
+                inline=False,
+            )
+        return embed
+
+    async def _send_bgg_info_result(self, ctx, game, status, game_id):
+        if status == 200 and game is not None:
+            await send_for_context(ctx, embed=self._build_bgg_info_embed(game))
+            return
+
+        if status in (401, 403):
+            await send_for_context(
+                ctx,
+                f"Failed to retrieve game info for {game_id}. BGG returned {status}; try again later or configure a valid BGG session cookie.",
+            )
+            self.bot.logger.warning("BGG info lookup for %s returned %s", game_id, status)
+            return
+
+        if status is None:
+            await send_for_context(ctx, f"Failed to retrieve game info for {game_id}.")
+            self.bot.logger.error("BGG info fetch failed for %s with no status", game_id)
+            return
+
+        await send_for_context(ctx, f"Failed to retrieve game info from BGG.")
+        self.bot.logger.error("BGG info fetch failed for %s, status: %s", game_id, status)
 
     async def _send_paginated_embeds(self, ctx, games, title, color):
         """
@@ -73,39 +122,41 @@ class BoardGames(commands.Cog):
         if ctx.interaction and not ctx.interaction.response.is_done():
             await defer_if_interaction(ctx)
 
-        search_url = f"{self.API2_BASE_URL}search"
         self.bot.logger.info(f"BGG search query: {search_query}")
+        games, source, status = await bg_utils.search_bgg_games(
+            self.bot.http_session,
+            search_query,
+            self.bot.logger,
+        )
+        games = games[:5]
 
-        headers = {"User-Agent": bg_utils.BGG_USER_AGENT}
-
-        async with self.bot.http_session.get(
-            search_url,
-            headers=headers,
-            params={"query": search_query},
-        ) as response:
-            if response.status == 200:
-                xml_data = await response.text()
-                games = bg_utils.parse_bgg_search(xml_data)[:5]
-
-                if games:
-                    embed = discord.Embed(
-                        color=self.bot.embed_color,
-                        title=f"Top 5 search results for '{search_query}'",
-                    )
-                    for game in games:
-                        embed.add_field(
-                            name=f"{game['name']} ({game['yearpublished']})",
-                            value=f"ID: {game['bggid']}",
-                            inline=False,
-                        )
-                    await send_for_context(ctx, embed=embed)
-                    self.bot.logger.info("BGG search succeeded")
-                else:
-                    await send_for_context(ctx, "No games found.")
-                    self.bot.logger.warning("No results from BGG search")
+        if not games:
+            if status == 200:
+                await send_for_context(ctx, "No games found.")
+                self.bot.logger.warning("No results from BGG %s search", source or "unknown")
             else:
-                self.bot.logger.error(f"BGG search failed, status: {response.status}")
                 await send_for_context(ctx, "Failed to retrieve search results from BGG.")
+            return
+
+        top_game = games[0]
+        self.bot.logger.info(
+            "BGG search top result selected: %s (%s)",
+            top_game["bggid"],
+            top_game["name"],
+        )
+        game, game_status = await bg_utils.fetch_bgg_thing(
+            self.bot.http_session,
+            top_game["bggid"],
+            self.bot.logger,
+            cookie_value=self.bot.config.services.bgg_cookie,
+        )
+        if game is not None and game_status == 200:
+            await send_for_context(ctx, embed=self._build_bgg_info_embed(game))
+            return
+
+        embed = self._build_bgg_search_results_embed(search_query, games)
+        embed.set_footer(text="Could not fetch details for the top result.")
+        await send_for_context(ctx, embed=embed)
 
     @commands.hybrid_command(
         name="bginfo", help="Get BGG board game details by ID. Example: !bginfo 12345"
@@ -122,40 +173,18 @@ class BoardGames(commands.Cog):
             await defer_if_interaction(ctx)
 
         self.bot.logger.info(f"Fetching BGG info for ID: {game_id}")
-        info_url = f"{self.API2_BASE_URL}thing"
+        game, status = await bg_utils.fetch_bgg_thing(
+            self.bot.http_session,
+            game_id,
+            self.bot.logger,
+            cookie_value=self.bot.config.services.bgg_cookie,
+        )
+        if game is None and status == 200:
+            await send_for_context(ctx, "Game not found.")
+            self.bot.logger.warning(f"No game found for ID {game_id}")
+            return
 
-        headers = {"User-Agent": bg_utils.BGG_USER_AGENT}
-
-        async with self.bot.http_session.get(
-            info_url,
-            headers=headers,
-            params={"id": game_id, "stats": 1},
-        ) as response:
-            if response.status == 200:
-                xml_data = await response.text()
-                game = bg_utils.parse_bgg_thing(xml_data)
-                if game is not None:
-                    embed = discord.Embed(
-                        color=self.bot.embed_color,
-                        title=f"**{game['name']}**",
-                        description=(
-                            f"**ID:** {game['bggid']}\n"
-                            f"**Published:** {game['yearpublished']}\n"
-                            f"**Recommended Age:** {game['minage']}+\n"
-                            f"**Best Player Count:** {game['best_count']}\n"
-                            f"**Users Rated:** {game['users_rated']}\n"
-                            f"**Average Rating:** {game['avg_rating']}"
-                        ),
-                    )
-                    await send_for_context(ctx, embed=embed)
-                else:
-                    await send_for_context(ctx, "Game not found.")
-                    self.bot.logger.warning(f"No game found for ID {game_id}")
-            else:
-                await send_for_context(ctx, "Failed to retrieve game info from BGG.")
-                self.bot.logger.error(
-                    f"BGG info fetch failed for {game_id}, status: {response.status}"
-                )
+        await self._send_bgg_info_result(ctx, game, status, game_id)
 
     @commands.hybrid_command(
         name="bggcollection", help="Fetch a BGG user's collection by username."

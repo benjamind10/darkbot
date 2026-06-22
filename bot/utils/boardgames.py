@@ -1,11 +1,29 @@
 import asyncio
+import html
+import re
 import xml.etree.ElementTree as ET
 
 import aiohttp
 
 BASE_URL = "https://boardgamegeek.com/xmlapi/"
 API2_BASE_URL = "https://boardgamegeek.com/xmlapi2/"
+HTML_BASE_URL = "https://boardgamegeek.com/"
 BGG_USER_AGENT = "DarkBot (https://github.com/benjamind10/darkbot)"
+BGG_API_HEADERS = {
+    "User-Agent": BGG_USER_AGENT,
+    "Accept": "application/xml,text/xml,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+}
+BGG_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Upgrade-Insecure-Requests": "1",
+}
 SET_BGG_PRIVATE_SQL = """
 UPDATE users
 SET bggprivate = %s::boolean, datemodified = CURRENT_TIMESTAMP
@@ -22,6 +40,45 @@ def safe_convert(value, default=0, data_type=int):
         return data_type(value)
     except (ValueError, TypeError):
         return default
+
+
+def build_bgg_lookup_headers(cookie_value: str | None = None) -> dict[str, str]:
+    headers = {**BGG_API_HEADERS}
+    if has_bgg_cookie(cookie_value):
+        headers["Cookie"] = cookie_value
+    return headers
+
+
+async def search_bgg_games(
+    session: aiohttp.ClientSession,
+    search_query: str,
+    logger,
+) -> tuple[list[dict[str, str]], str | None, int | None]:
+    search_url = f"{API2_BASE_URL}search"
+    html_search_url = f"{HTML_BASE_URL}search/boardgame"
+
+    async with session.get(
+        search_url,
+        headers={"User-Agent": BGG_USER_AGENT},
+        params={"query": search_query},
+    ) as response:
+        if response.status == 200:
+            games = parse_bgg_search(await response.text())
+            return games, "xml", 200
+
+        logger.warning("BGG XML search failed, status: %s; trying HTML search", response.status)
+
+    async with session.get(
+        html_search_url,
+        headers=BGG_BROWSER_HEADERS,
+        params={"q": search_query},
+    ) as response:
+        if response.status == 200:
+            games = parse_bgg_search_html(await response.text())
+            return games, "html", 200
+
+        logger.error("BGG HTML search failed, status: %s", response.status)
+        return [], "html", response.status
 
 
 def parse_bgg_search(xml_data: str) -> list[dict[str, str]]:
@@ -51,6 +108,35 @@ def parse_bgg_search(xml_data: str) -> list[dict[str, str]]:
                 else "N/A",
             }
         )
+
+    return results
+
+
+def parse_bgg_search_html(html_data: str) -> list[dict[str, str]]:
+    """Parse BGG HTML search results into normalized dictionaries."""
+
+    results: list[dict[str, str]] = []
+    seen_ids: set[str] = set()
+    pattern = re.compile(
+        r"<a\s+[^>]*href=[\"']/boardgame/(?P<id>\d+)/[^\"']*[\"'][^>]*class=[\"']primary[\"'][^>]*>"
+        r"(?P<name>.*?)</a>\s*<span\s+class=[\"']smallerfont dull[\"']>\((?P<year>[^)]*)\)</span>",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    for match in pattern.finditer(html_data):
+        bggid = match.group("id")
+        if bggid in seen_ids:
+            continue
+
+        name = re.sub(r"<[^>]+>", "", match.group("name"))
+        results.append(
+            {
+                "bggid": bggid,
+                "name": html.unescape(name).strip() or "Unknown",
+                "yearpublished": html.unescape(match.group("year")).strip() or "N/A",
+            }
+        )
+        seen_ids.add(bggid)
 
     return results
 
@@ -107,6 +193,31 @@ def parse_bgg_thing(xml_data: str) -> dict[str, object] | None:
         "avg_rating": avg_rating,
         "best_count": best_count,
     }
+
+
+async def fetch_bgg_thing(
+    session: aiohttp.ClientSession,
+    game_id: str,
+    logger,
+    cookie_value: str | None = None,
+):
+    url = f"{API2_BASE_URL}thing"
+    params = {"id": game_id, "stats": 1}
+
+    async def _request(headers: dict[str, str]):
+        async with session.get(url, headers=headers, params=params) as response:
+            status = response.status
+            if status == 200:
+                game = parse_bgg_thing(await response.text())
+                return game, 200
+            return None, status
+
+    headers = build_bgg_lookup_headers(None)
+    game, status = await _request(headers)
+    if status in (401, 403) and has_bgg_cookie(cookie_value):
+        logger.warning("BGG thing lookup for %s was blocked with %s; retrying with configured cookie", game_id, status)
+        game, status = await _request(build_bgg_lookup_headers(cookie_value))
+    return game, status
 
 
 def parse_bgg_collection(xml_data: str) -> list[dict[str, object]]:
