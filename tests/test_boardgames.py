@@ -18,6 +18,7 @@ from bot.utils.boardgames import (
     build_bgg_lookup_headers,
     fetch_bgg_collection,
     fetch_bgg_thing,
+    search_bgg_games,
     parse_bgg_search,
     parse_bgg_search_html,
     parse_bgg_thing,
@@ -356,12 +357,14 @@ async def test_search_boardgame_uses_api2_search(bot, mock_http_session, monkeyp
     bot.logger = logging.getLogger("test")
     bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
 
-    seen_params = {}
-    seen_headers = {}
+    search_params = {}
+    search_headers = {}
+    thing_params = {}
+    thing_headers = {}
 
     def _callback(url_obj, **kwargs):
-        seen_params.update(kwargs.get("params", {}))
-        seen_headers.update(kwargs.get("headers", {}))
+        search_params.update(kwargs.get("params", {}))
+        search_headers.update(kwargs.get("headers", {}))
         return CallbackResult(
             status=200,
             body="""
@@ -374,18 +377,47 @@ async def test_search_boardgame_uses_api2_search(bot, mock_http_session, monkeyp
             """,
         )
 
+    def _thing_callback(url_obj, **kwargs):
+        thing_params.update(kwargs.get("params", {}))
+        thing_headers.update(kwargs.get("headers", {}))
+        return CallbackResult(
+            status=200,
+            body="""
+            <items>
+              <item type='boardgame' id='13'>
+                <name type='primary' value='Catan' />
+                <yearpublished value='1995' />
+                <minage value='10' />
+                <statistics>
+                  <ratings>
+                    <usersrated value='12345' />
+                    <average value='7.1234' />
+                  </ratings>
+                </statistics>
+                <poll name='suggested_numplayers'>
+                  <results numplayers='3'>
+                    <result value='Best' numvotes='42' />
+                  </results>
+                </poll>
+              </item>
+            </items>
+            """,
+        )
+
     mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}search\?.*"), callback=_callback)
+    mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"), callback=_thing_callback)
     send = AsyncMock()
     monkeypatch.setattr("bot.cogs.BoardGames.send_for_context", send)
 
     await cog.search_boardgame.callback(cog, ctx, search_query="Catan")
 
-    assert seen_params == {"query": "Catan"}
-    assert seen_headers.get("User-Agent") == BGG_USER_AGENT
+    assert search_params == {"query": "Catan"}
+    assert search_headers.get("User-Agent") == BGG_USER_AGENT
+    assert thing_params == {"id": "13", "stats": 1}
+    assert thing_headers["Accept"] == BGG_API_HEADERS["Accept"]
     embed = send.await_args.kwargs["embed"]
-    assert embed.title == "Top 5 search results for 'Catan'"
-    assert embed.fields[0].name == "Catan (1995)"
-    assert embed.fields[0].value == "ID: 13"
+    assert embed.title == "**Catan**"
+    assert "**Best Player Count:** 3" in embed.description
 
 
 @pytest.mark.asyncio
@@ -401,6 +433,7 @@ async def test_search_boardgame_falls_back_to_html_search_on_api2_401(
 
     seen_params = {}
     seen_headers = {}
+    thing_params = {}
 
     def _callback(url_obj, **kwargs):
         seen_params.update(kwargs.get("params", {}))
@@ -415,10 +448,37 @@ async def test_search_boardgame_falls_back_to_html_search_on_api2_401(
             """,
         )
 
+    def _thing_callback(url_obj, **kwargs):
+        thing_params.update(kwargs.get("params", {}))
+        return CallbackResult(
+            status=200,
+            body="""
+            <items>
+              <item type='boardgame' id='1406'>
+                <name type='primary' value='Monopoly' />
+                <yearpublished value='1935' />
+                <minage value='8' />
+                <statistics>
+                  <ratings>
+                    <usersrated value='999' />
+                    <average value='4.1234' />
+                  </ratings>
+                </statistics>
+                <poll name='suggested_numplayers'>
+                  <results numplayers='4'>
+                    <result value='Best' numvotes='15' />
+                  </results>
+                </poll>
+              </item>
+            </items>
+            """,
+        )
+
     mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}search\?.*"), status=401)
     mock_http_session.mocked.get(
         re.compile(rf"^{re.escape(HTML_BASE_URL)}search/boardgame\?.*"), callback=_callback
     )
+    mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"), callback=_thing_callback)
     send = AsyncMock()
     monkeypatch.setattr("bot.cogs.BoardGames.send_for_context", send)
 
@@ -426,10 +486,80 @@ async def test_search_boardgame_falls_back_to_html_search_on_api2_401(
 
     assert seen_params == {"q": "Monopoly"}
     assert seen_headers == BGG_BROWSER_HEADERS
+    assert thing_params == {"id": "1406", "stats": 1}
+    embed = send.await_args.kwargs["embed"]
+    assert embed.title == "**Monopoly**"
+
+
+@pytest.mark.asyncio
+async def test_search_boardgame_preserves_results_when_top_detail_lookup_fails(
+    bot, monkeypatch
+):
+    from bot.cogs.BoardGames import BoardGames
+
+    cog = BoardGames(bot)
+    ctx = SimpleNamespace(interaction=None, send=AsyncMock())
+    bot.logger = logging.getLogger("test")
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+
+    monkeypatch.setattr(
+        "bot.cogs.BoardGames.bg_utils.search_bgg_games",
+        AsyncMock(
+            return_value=(
+                [
+                    {"bggid": "1406", "name": "Monopoly", "yearpublished": "1935"},
+                    {"bggid": "13", "name": "Catan", "yearpublished": "1995"},
+                ],
+                "html",
+                200,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "bot.cogs.BoardGames.bg_utils.fetch_bgg_thing",
+        AsyncMock(return_value=(None, 403)),
+    )
+    send = AsyncMock()
+    monkeypatch.setattr("bot.cogs.BoardGames.send_for_context", send)
+
+    await cog.search_boardgame.callback(cog, ctx, search_query="Monopoly")
+
     embed = send.await_args.kwargs["embed"]
     assert embed.title == "Top 5 search results for 'Monopoly'"
     assert embed.fields[0].name == "Monopoly (1935)"
-    assert embed.fields[0].value == "ID: 1406"
+    assert embed.footer.text == "Could not fetch details for the top result."
+
+
+@pytest.mark.asyncio
+async def test_search_bgg_games_returns_html_results_after_api2_401(mock_http_session):
+    html_params = {}
+
+    mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}search\?.*"), status=401)
+
+    def _html_callback(url_obj, **kwargs):
+        html_params.update(kwargs.get("params", {}))
+        return CallbackResult(
+            status=200,
+            body="""
+            <div id='results_objectname1'>
+              <a href=\"/boardgame/1406/monopoly\" class='primary'>Monopoly</a>
+              <span class='smallerfont dull'>(1935)</span>
+            </div>
+            """,
+        )
+
+    mock_http_session.mocked.get(
+        re.compile(rf"^{re.escape(HTML_BASE_URL)}search/boardgame\?.*"), callback=_html_callback
+    )
+
+    games, source, status = await search_bgg_games(
+        mock_http_session.session, "Monopoly", logging.getLogger("test")
+    )
+
+    assert status == 200
+    assert source == "html"
+    assert games[0]["bggid"] == "1406"
+    assert html_params == {"q": "Monopoly"}
 
 
 @pytest.mark.asyncio

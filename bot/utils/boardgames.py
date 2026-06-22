@@ -49,6 +49,38 @@ def build_bgg_lookup_headers(cookie_value: str | None = None) -> dict[str, str]:
     return headers
 
 
+async def search_bgg_games(
+    session: aiohttp.ClientSession,
+    search_query: str,
+    logger,
+) -> tuple[list[dict[str, str]], str | None, int | None]:
+    search_url = f"{API2_BASE_URL}search"
+    html_search_url = f"{HTML_BASE_URL}search/boardgame"
+
+    async with session.get(
+        search_url,
+        headers={"User-Agent": BGG_USER_AGENT},
+        params={"query": search_query},
+    ) as response:
+        if response.status == 200:
+            games = parse_bgg_search(await response.text())
+            return games, "xml", 200
+
+        logger.warning("BGG XML search failed, status: %s; trying HTML search", response.status)
+
+    async with session.get(
+        html_search_url,
+        headers=BGG_BROWSER_HEADERS,
+        params={"q": search_query},
+    ) as response:
+        if response.status == 200:
+            games = parse_bgg_search_html(await response.text())
+            return games, "html", 200
+
+        logger.error("BGG HTML search failed, status: %s", response.status)
+        return [], "html", response.status
+
+
 def parse_bgg_search(xml_data: str) -> list[dict[str, str]]:
     """Parse BGG XML API2 search results into normalized dictionaries."""
 
