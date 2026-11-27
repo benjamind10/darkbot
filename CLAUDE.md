@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DarkBot is a Discord bot built with discord.py 2.6.4. It uses a cog-based architecture for modular features. All commands are **hybrid commands** supporting both prefix (`!`) and slash (`/`) syntax. The bot runs in Docker alongside PostgreSQL, Redis, and Lavalink (music server).
+DarkBot is a Discord bot built with discord.py 2.6.4. It uses a cog-based architecture for modular features. All commands are **hybrid commands** supporting both prefix (`!`) and slash (`/`) syntax. The bot runs in Docker alongside PostgreSQL and Redis. Music needs an external Lavalink server: `docker-compose.yml` has no Lavalink service, and compose sets `MUSIC_ENABLED=false`.
 
 ## Running the Bot
 
 ```bash
 # Docker (production)
-docker-compose up -d
-docker-compose logs -f python-app
+docker compose up -d          # Compose v2; the legacy docker-compose v1 breaks on container recreate
+docker compose logs -f python-app
 
 # Local development
 pip install -e ".[dev]"
@@ -41,7 +41,7 @@ Reusable bot, DB pool, Redis, and aiohttp/aioresponses fixtures live in `tests/c
 ### Key Directories
 
 - `bot/core/` - Bot class (`bot.py`), event manager (`events.py`), custom exceptions (`exceptions.py`)
-- `bot/cogs/` - Feature modules loaded dynamically at startup (13 cogs)
+- `bot/cogs/` - Feature modules loaded dynamically at startup (12 cogs)
 - `bot/config/` - `config.py` (typed dataclass configs with env->file->default fallback)
 - `bot/utils/` - Shared utilities: `redis_manager.py`, `logger.py`, board game helpers, etc.
 - `docs/` - Documentation (deployment, music, modlog, events, testing, configuration)
@@ -74,7 +74,6 @@ See `bot/.env.example` for required environment variables, or `docs/configuratio
 ### Services (docker-compose.yml)
 
 - **python-app** - The bot (Python 3.12, mounts `./bot`)
-- **lavalink** - Music audio server (configured via `application.yml`)
 - **db** - PostgreSQL 16 (schemas: `darkbot.sql`, `events_schema.sql`, `modlog_schema.sql`)
 - **redis** - Redis 6 for caching/cooldowns (key prefix: `darkbot:`)
 
@@ -102,7 +101,9 @@ All commands use `@commands.hybrid_command` (or `@commands.hybrid_group` for sub
 
 - Database schemas must be applied manually (see above)
 - Redis is optional - controlled by `REDIS_ENABLED` env var, bot gracefully falls back if unavailable
-- Lavalink host defaults to `lavalink` (Docker service name) for containerized runs, override with `LAVALINK_SERVER`
+- Lavalink is not part of `docker-compose.yml`; point `LAVALINK_SERVER` at an external Lavalink host to enable music (`application.yml` is that server's config)
+- Runtime code in `bot/` must import `utils.*`, `core.*` and `config.*`, never `bot.*`: the bot runs from inside `bot/` (`main.py` adds it to `sys.path`). `tests/test_runtime_imports.py` enforces this
+- `./bot` is bind-mounted into the container, so code-only changes deploy with `git pull` + `docker compose restart python-app`. Rebuild (`docker compose up -d --build python-app`) when dependencies change. `.env` is loaded via `env_file`, so `.env` changes need `docker compose up -d python-app` (a restart does not reload it)
 - All new commands should use `@commands.hybrid_command` to support both prefix and slash syntax
 - ModLog event logging is in `bot/core/events.py`, config commands are in `bot/cogs/ModLog.py`
 

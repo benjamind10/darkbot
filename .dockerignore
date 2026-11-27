@@ -1,0 +1,11 @@
+# Keep secrets, logs and caches out of the image
+.env
+.env.*
+bot/.env
+bot/logs/
+**/__pycache__/
+**/*.pyc
+.git/
+.venv/
+thoughts/
+tests/

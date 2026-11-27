@@ -13,12 +13,18 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package metadata and source into the container
-COPY pyproject.toml README.md ./
-COPY bot ./bot
+# Install only the dependencies listed in pyproject.toml. Installing the
+# project itself (`pip install .`) would put a frozen copy of the code into
+# site-packages as the `bot` package, which goes stale as soon as ./bot is
+# bind-mounted with newer code (see PR #34).
+COPY pyproject.toml ./
+RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml', 'rb'))['project']['dependencies']))" > /tmp/requirements.txt \
+    && pip install --no-cache-dir -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt
 
-# Install the Python dependencies
-RUN pip install --no-cache-dir .
+# Copy the bot source into the working directory so the image also runs
+# without the docker-compose bind mount.
+COPY bot/ ./
 
-# At runtime, this will be the default command, but it's overridden by the docker-compose.yml command
-CMD ["python", "bot.py"]
+# docker-compose.yml overrides this with the same command
+CMD ["python", "main.py"]

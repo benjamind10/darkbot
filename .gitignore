@@ -173,3 +173,6 @@ bot/music/application.yml
 
 # Riptide artifacts (cloud-synced)
 .humanlayer/tasks/
+
+# QRSPI workflow artifacts (local-only)
+thoughts/
