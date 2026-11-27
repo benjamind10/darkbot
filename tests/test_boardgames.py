@@ -14,6 +14,7 @@ from bot.utils.boardgames import (
     BGG_BROWSER_HEADERS,
     BGG_USER_AGENT,
     HTML_BASE_URL,
+    BGGAuthError,
     SET_BGG_PRIVATE_SQL,
     build_bgg_lookup_headers,
     fetch_bgg_collection,
@@ -26,6 +27,8 @@ from bot.utils.boardgames import (
     process_bgg_users,
     set_bgg_private,
 )
+
+TEST_TOKEN = "test-token"
 
 
 @pytest.mark.asyncio
@@ -247,7 +250,7 @@ async def test_bgg_collection_command_uses_api2_collection_xml(bot, mock_http_se
     cog = BoardGames(bot)
     ctx = SimpleNamespace(interaction=None, send=AsyncMock())
     bot.logger = logging.getLogger("test")
-    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None, bgg_api_token=TEST_TOKEN))
 
     xml_data = """
     <items>
@@ -355,7 +358,7 @@ async def test_search_boardgame_uses_api2_search(bot, mock_http_session, monkeyp
     cog = BoardGames(bot)
     ctx = SimpleNamespace(interaction=None, send=AsyncMock())
     bot.logger = logging.getLogger("test")
-    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None, bgg_api_token=TEST_TOKEN))
 
     search_params = {}
     search_headers = {}
@@ -429,7 +432,7 @@ async def test_search_boardgame_falls_back_to_html_search_on_api2_401(
     cog = BoardGames(bot)
     ctx = SimpleNamespace(interaction=None, send=AsyncMock())
     bot.logger = logging.getLogger("test")
-    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None, bgg_api_token=TEST_TOKEN))
 
     seen_params = {}
     seen_headers = {}
@@ -500,7 +503,7 @@ async def test_search_boardgame_preserves_results_when_top_detail_lookup_fails(
     cog = BoardGames(bot)
     ctx = SimpleNamespace(interaction=None, send=AsyncMock())
     bot.logger = logging.getLogger("test")
-    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None, bgg_api_token=TEST_TOKEN))
 
     monkeypatch.setattr(
         "bot.cogs.BoardGames.bg_utils.search_bgg_games",
@@ -569,7 +572,7 @@ async def test_boardgame_info_uses_api2_thing(bot, mock_http_session, monkeypatc
     cog = BoardGames(bot)
     ctx = SimpleNamespace(interaction=None, send=AsyncMock())
     bot.logger = logging.getLogger("test")
-    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None, bgg_api_token=TEST_TOKEN))
 
     seen_params = {}
     seen_headers = {}
@@ -608,7 +611,7 @@ async def test_boardgame_info_uses_api2_thing(bot, mock_http_session, monkeypatc
     await cog.boardgame_info.callback(cog, ctx, "13")
 
     assert seen_params == {"id": "13", "stats": 1}
-    assert seen_headers == BGG_API_HEADERS
+    assert seen_headers == {**BGG_API_HEADERS, "Authorization": f"Bearer {TEST_TOKEN}"}
     embed = send.await_args.kwargs["embed"]
     assert embed.title == "**Catan**"
     assert "**Published:** 1995" in embed.description
@@ -622,7 +625,7 @@ async def test_boardgame_info_retries_with_cookie_on_401(bot, mock_http_session,
     cog = BoardGames(bot)
     ctx = SimpleNamespace(interaction=None, send=AsyncMock())
     bot.logger = logging.getLogger("test")
-    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie="bb=session-token"))
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie="bb=session-token", bgg_api_token=TEST_TOKEN))
 
     mock_http_session.mocked.get(
         re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"),
@@ -670,7 +673,7 @@ async def test_boardgame_info_reports_friendly_failure_when_lookup_unavailable(b
     cog = BoardGames(bot)
     ctx = SimpleNamespace(interaction=None, send=AsyncMock())
     bot.logger = logging.getLogger("test")
-    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None, bgg_api_token=TEST_TOKEN))
 
     monkeypatch.setattr(
         "bot.cogs.BoardGames.bg_utils.fetch_bgg_thing",
@@ -820,7 +823,7 @@ async def test_bgg_collection_command_private_message(bot, mock_http_session, mo
     cog = BoardGames(bot)
     ctx = SimpleNamespace(interaction=None, send=AsyncMock())
     bot.logger = logging.getLogger("test")
-    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None, bgg_api_token=TEST_TOKEN))
 
     monkeypatch.setattr(
         "bot.cogs.BoardGames.bg_utils.fetch_bgg_collection",
@@ -832,7 +835,7 @@ async def test_bgg_collection_command_private_message(bot, mock_http_session, mo
     await cog.bgg_collection.callback(cog, ctx, "PrivateUser")
 
     send.assert_awaited_once()
-    assert "appears private" in send.await_args.args[1]
+    assert "denied access" in send.await_args.args[1]
 
 
 @pytest.mark.asyncio
@@ -842,7 +845,7 @@ async def test_bgg_collection_command_queued_message(bot, monkeypatch):
     cog = BoardGames(bot)
     ctx = SimpleNamespace(interaction=None, send=AsyncMock())
     bot.logger = logging.getLogger("test")
-    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None, bgg_api_token=TEST_TOKEN))
 
     monkeypatch.setattr(
         "bot.cogs.BoardGames.bg_utils.fetch_bgg_collection",
@@ -864,7 +867,7 @@ async def test_bgg_collection_command_malformed_response_message(bot, monkeypatc
     cog = BoardGames(bot)
     ctx = SimpleNamespace(interaction=None, send=AsyncMock())
     bot.logger = logging.getLogger("test")
-    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None))
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None, bgg_api_token=TEST_TOKEN))
 
     monkeypatch.setattr(
         "bot.cogs.BoardGames.bg_utils.fetch_bgg_collection",
@@ -891,58 +894,146 @@ async def test_set_bgg_private_updates_user_flag(mock_db_pool):
     )
 
 
-@pytest.mark.asyncio
-async def test_process_bgg_users_marks_private_accounts_via_helper(mock_db_pool, mock_http_session, monkeypatch):
-    username = "PrivateUser"
-    url = re.compile(rf"^{re.escape(API2_BASE_URL)}collection\?.*username={username}.*")
+def _collection_url(username):
+    return re.compile(rf"^{re.escape(API2_BASE_URL)}collection\?.*username={username}(&.*)?$")
 
-    mock_http_session.mocked.get(url, status=401, body=b"Unauthorized")
-    connection_cursor = mock_db_pool.connection_obj.cursor.return_value.__aenter__.return_value
-    connection_cursor.fetchall.return_value = [(7, username)]
 
+def _capture_private_marks(monkeypatch):
     called = []
 
     async def _fake_set_bgg_private(db_pool, logger, user_id, is_private=True):
-        called.append((db_pool, user_id, is_private))
+        called.append((user_id, is_private))
 
     monkeypatch.setattr("bot.utils.boardgames.set_bgg_private", _fake_set_bgg_private)
+    return called
 
-    await process_bgg_users(mock_db_pool, mock_http_session.session, logging.getLogger("test"))
 
-    assert called == [(mock_db_pool, 7, True)]
-    connection_cursor.execute.assert_any_await("SELECT id, bgguser FROM get_all_bggusers();")
-    connection_cursor.fetchall.assert_awaited_once()
-    assert connection_cursor.execute.await_count == 1
+@pytest.mark.asyncio
+async def test_process_bgg_users_marks_only_individually_denied_users(
+    mock_db_pool, mock_http_session, monkeypatch
+):
+    mock_http_session.mocked.get(_collection_url("PrivateUser"), status=401, body=b"Unauthorized")
+    mock_http_session.mocked.get(_collection_url("PublicUser"), status=200, body="<items></items>")
+    cursor = mock_db_pool.connection_obj.cursor.return_value.__aenter__.return_value
+    cursor.fetchall.return_value = [(7, "PrivateUser"), (8, "PublicUser")]
+    called = _capture_private_marks(monkeypatch)
+
+    summary = await process_bgg_users(
+        mock_db_pool,
+        mock_http_session.session,
+        logging.getLogger("test"),
+        api_token=TEST_TOKEN,
+        request_delay=0,
+    )
+
+    assert called == [(7, True)]
+    assert summary["denied"] == 1 and summary["marked_private"] == 1
+    cursor.execute.assert_any_await("SELECT id, bgguser FROM get_all_bggusers();")
+
+
+@pytest.mark.asyncio
+async def test_process_bgg_users_aborts_without_token_and_touches_nothing(
+    mock_db_pool, mock_http_session, monkeypatch
+):
+    cursor = mock_db_pool.connection_obj.cursor.return_value.__aenter__.return_value
+    called = _capture_private_marks(monkeypatch)
+
+    with pytest.raises(BGGAuthError):
+        await process_bgg_users(mock_db_pool, mock_http_session.session, logging.getLogger("test"))
+
+    assert called == []
+    cursor.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_bgg_users_does_not_mark_anyone_when_all_requests_denied(
+    mock_db_pool, mock_http_session, monkeypatch
+):
+    mock_http_session.mocked.get(_collection_url("UserA"), status=401, body=b"Unauthorized")
+    mock_http_session.mocked.get(_collection_url("UserB"), status=403, body=b"Forbidden")
+    cursor = mock_db_pool.connection_obj.cursor.return_value.__aenter__.return_value
+    cursor.fetchall.return_value = [(1, "UserA"), (2, "UserB")]
+    called = _capture_private_marks(monkeypatch)
+
+    with pytest.raises(BGGAuthError):
+        await process_bgg_users(
+            mock_db_pool,
+            mock_http_session.session,
+            logging.getLogger("test"),
+            api_token="revoked-token",
+            request_delay=0,
+        )
+
+    assert called == []
 
 
 @pytest.mark.asyncio
 async def test_process_bgg_users_does_not_mark_private_when_cookie_is_configured(
     mock_db_pool, mock_http_session, monkeypatch
 ):
-    username = "PrivateUser"
-    url = re.compile(rf"^{re.escape(API2_BASE_URL)}collection\?.*username={username}.*")
+    mock_http_session.mocked.get(_collection_url("PrivateUser"), status=403, body=b"Forbidden")
+    mock_http_session.mocked.get(_collection_url("PublicUser"), status=200, body="<items></items>")
+    cursor = mock_db_pool.connection_obj.cursor.return_value.__aenter__.return_value
+    cursor.fetchall.return_value = [(7, "PrivateUser"), (8, "PublicUser")]
+    called = _capture_private_marks(monkeypatch)
 
-    mock_http_session.mocked.get(url, status=403, body=b"Forbidden")
-    connection_cursor = mock_db_pool.connection_obj.cursor.return_value.__aenter__.return_value
-    connection_cursor.fetchall.return_value = [(7, username)]
-
-    called = []
-
-    async def _fake_set_bgg_private(db_pool, logger, user_id, is_private=True):
-        called.append((db_pool, user_id, is_private))
-
-    monkeypatch.setattr("bot.utils.boardgames.set_bgg_private", _fake_set_bgg_private)
-
-    await process_bgg_users(
+    summary = await process_bgg_users(
         mock_db_pool,
         mock_http_session.session,
         logging.getLogger("test"),
         cookie_value="bb=session-token",
+        api_token=TEST_TOKEN,
+        request_delay=0,
     )
 
     assert called == []
-    connection_cursor.execute.assert_any_await("SELECT id, bgguser FROM get_all_bggusers();")
-    connection_cursor.fetchall.assert_awaited_once()
+    assert summary["marked_private"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("command", ["search_boardgame", "boardgame_info", "bgg_collection"])
+async def test_bgg_commands_refuse_without_token(bot, mock_http_session, monkeypatch, command):
+    from bot.cogs.BoardGames import BoardGames
+
+    cog = BoardGames(bot)
+    ctx = SimpleNamespace(interaction=None, command=command)
+    send = AsyncMock()
+    monkeypatch.setattr("bot.cogs.BoardGames.send_for_context", send)
+
+    callback = getattr(cog, command).callback
+    if command == "search_boardgame":
+        await callback(cog, ctx, search_query="Catan")
+    else:
+        await callback(cog, ctx, "Catan")
+
+    assert send.await_args.args[1] == BoardGames.MISSING_TOKEN_MESSAGE
+    assert mock_http_session.mocked.requests == {}
+
+
+@pytest.mark.asyncio
+async def test_manual_bgg_update_reports_abort_and_changes_nothing(bot, monkeypatch):
+    from bot.cogs.BoardGames import BoardGames
+
+    bot.config = SimpleNamespace(services=SimpleNamespace(bgg_cookie=None, bgg_api_token=TEST_TOKEN))
+    cog = BoardGames(bot)
+    ctx = SimpleNamespace(interaction=None, command="manualbggupdate")
+    send = AsyncMock()
+    monkeypatch.setattr("bot.cogs.BoardGames.send_for_context", send)
+    monkeypatch.setattr(
+        "bot.cogs.BoardGames.bg_utils.process_bgg_users",
+        AsyncMock(side_effect=BGGAuthError("BGG rejected every request; check BGG_API_TOKEN.")),
+    )
+
+    await cog.manual_bgg_update.callback(cog, ctx)
+
+    assert "aborted, no users were changed" in send.await_args.args[1]
+
+
+def test_manual_bgg_update_is_owner_only():
+    from bot.cogs.BoardGames import BoardGames
+
+    checks = BoardGames.manual_bgg_update.checks
+    assert any("is_owner" in getattr(check, "__qualname__", "") for check in checks)
 
 
 @pytest.mark.asyncio
@@ -974,3 +1065,53 @@ async def test_backfill_skips_marking_private_when_cookie_is_configured(
 
     assert result == (7, username, 401, False)
     assert called == []
+
+
+def test_build_bgg_lookup_headers_adds_bearer_token():
+    headers = build_bgg_lookup_headers(api_token=" tok-123 ")
+
+    assert headers["Authorization"] == "Bearer tok-123"
+    assert "Authorization" not in BGG_API_HEADERS
+
+
+def test_build_bgg_lookup_headers_ignores_blank_token():
+    assert build_bgg_lookup_headers(api_token="   ") == BGG_API_HEADERS
+
+
+@pytest.mark.asyncio
+async def test_search_and_thing_send_bearer_token(mock_http_session):
+    seen = []
+
+    def _callback(url_obj, **kwargs):
+        seen.append(kwargs.get("headers", {}))
+        return CallbackResult(status=200, body="<items><item id='13'><name type='primary' value='Catan'/></item></items>")
+
+    mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}search\?.*"), callback=_callback)
+    mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}thing\?.*"), callback=_callback)
+    logger = logging.getLogger("test")
+
+    games, source, status = await search_bgg_games(mock_http_session.session, "Catan", logger, api_token="tok")
+    game, thing_status = await fetch_bgg_thing(mock_http_session.session, "13", logger, api_token="tok")
+
+    assert (source, status, thing_status) == ("xml", 200, 200)
+    assert games[0]["name"] == "Catan" and game["name"] == "Catan"
+    assert [h.get("Authorization") for h in seen] == ["Bearer tok", "Bearer tok"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_bgg_collection_sends_bearer_token(mock_http_session):
+    seen_headers = {}
+
+    def _callback(url_obj, **kwargs):
+        seen_headers.update(kwargs.get("headers", {}))
+        return CallbackResult(status=200, body="<items></items>")
+
+    mock_http_session.mocked.get(re.compile(rf"^{re.escape(API2_BASE_URL)}collection\?.*"), callback=_callback)
+
+    body, status = await fetch_bgg_collection(
+        "someone", logging.getLogger("test"), mock_http_session.session, api_token="tok"
+    )
+
+    assert status == 200
+    assert seen_headers["Authorization"] == "Bearer tok"
+    assert "Cookie" not in seen_headers

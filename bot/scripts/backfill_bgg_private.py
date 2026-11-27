@@ -35,7 +35,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import aiohttp
 import psycopg
 from config.config import Config
-from utils.boardgames import fetch_bgg_collection, has_bgg_cookie, set_bgg_private
+from utils.boardgames import (
+    fetch_bgg_collection,
+    has_bgg_cookie,
+    has_bgg_token,
+    set_bgg_private,
+)
 
 LOG = logging.getLogger("backfill_bgg_private")
 
@@ -51,6 +56,7 @@ async def _check_user_and_mark(
     bgguser,
     cookie_value: str | None = None,
     dry_run: bool = True,
+    api_token: str | None = None,
 ):
     """Check single user; if 401/403 mark bggprivate
 
@@ -59,7 +65,7 @@ async def _check_user_and_mark(
     status = None
     try:
         body, status = await fetch_bgg_collection(
-            bgguser, LOG, session, cookie_value=cookie_value, max_attempts=1
+            bgguser, LOG, session, cookie_value=cookie_value, max_attempts=1, api_token=api_token
         )
     except Exception as e:
         LOG.exception("Unhandled error fetching for %s: %s", bgguser, e)
@@ -69,6 +75,15 @@ async def _check_user_and_mark(
         if has_bgg_cookie(cookie_value):
             LOG.info(
                 "User id=%s (%s) returned %s with a configured cookie; not marking private",
+                user_id,
+                bgguser,
+                status,
+            )
+            return (user_id, bgguser, status, False)
+
+        if not has_bgg_token(api_token):
+            LOG.warning(
+                "User id=%s (%s) returned %s but BGG_API_TOKEN is not set; not marking private",
                 user_id,
                 bgguser,
                 status,
@@ -101,6 +116,11 @@ async def main(dry_run: bool):
     LOG.info("Starting backfill (dry_run=%s)", dry_run)
 
     config = Config()
+    api_token = config.services.bgg_api_token
+    if not has_bgg_token(api_token):
+        LOG.error("BGG_API_TOKEN is not set; BGG rejects all unauthenticated requests. Aborting.")
+        return
+
     db_conn = _get_db_conn(config)
     cur = db_conn.cursor()
 
@@ -113,20 +133,41 @@ async def main(dry_run: bool):
         LOG.info("Found %d candidates", len(users))
 
         async with aiohttp.ClientSession() as session:
-            tasks = [
-                _check_user_and_mark(
-                    db_conn,
-                    session,
-                    uid,
-                    bgguser,
-                    cookie_value=config.services.bgg_cookie,
-                    dry_run=dry_run,
+            # Pass 1: check every user without touching the DB.
+            checks = await asyncio.gather(
+                *(
+                    _check_user_and_mark(
+                        db_conn,
+                        session,
+                        uid,
+                        bgguser,
+                        cookie_value=config.services.bgg_cookie,
+                        dry_run=True,
+                        api_token=api_token,
+                    )
+                    for uid, bgguser in users
                 )
-                for uid, bgguser in users
-            ]
-            results = await asyncio.gather(*tasks)
+            )
 
-        marked = [r for r in results if r[3]]
+        denied = [r for r in checks if r[2] in (401, 403)]
+        if users and len(denied) == len(users):
+            LOG.error(
+                "BGG rejected all %d requests; the API token is probably invalid. Not marking anyone.",
+                len(users),
+            )
+            return
+
+        marked = []
+        if not dry_run and not has_bgg_cookie(config.services.bgg_cookie):
+            # Pass 2: mark only the users BGG individually denied.
+            for uid, bgguser, status, _ in denied:
+                try:
+                    db_conn.rollback()
+                    await set_bgg_private(db_conn, LOG, uid)
+                    LOG.info("Marked user id=%s (%s) private (status=%s)", uid, bgguser, status)
+                    marked.append(uid)
+                except Exception as e:
+                    LOG.exception("Error marking user id=%s private: %s", uid, e)
         LOG.info("Backfill complete — total candidates=%d marked=%d", len(users), len(marked))
 
     finally:

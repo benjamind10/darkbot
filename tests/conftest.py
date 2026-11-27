@@ -54,7 +54,7 @@ async def mock_http_session():
 async def bot(mock_db_pool, mock_http_session, mock_redis):
     yield SimpleNamespace(
         config=SimpleNamespace(
-            services=SimpleNamespace(ip_info=None, ksoft_api=None, bgg_cookie=None)
+            services=SimpleNamespace(ip_info=None, ksoft_api=None, bgg_cookie=None, bgg_api_token=None)
         ),
         db_pool=mock_db_pool,
         embed_color=0x5865F2,

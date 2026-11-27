@@ -19,6 +19,27 @@ class BoardGames(commands.Cog):
         self.bot = bot
         self.redis = bot.redis_manager
 
+    MISSING_TOKEN_MESSAGE = (
+        "BoardGameGeek lookups are unavailable: the bot's BGG API token is not configured."
+    )
+
+    async def cog_load(self):
+        if not bg_utils.has_bgg_token(self._bgg_api_token()):
+            self.bot.logger.warning(
+                "BoardGames | BGG_API_TOKEN is not set; BGG commands will refuse to run. "
+                "Register an app at https://boardgamegeek.com/applications."
+            )
+
+    def _bgg_api_token(self):
+        return getattr(self.bot.config.services, "bgg_api_token", None)
+
+    async def _ensure_bgg_token(self, ctx) -> bool:
+        if bg_utils.has_bgg_token(self._bgg_api_token()):
+            return True
+        await send_for_context(ctx, self.MISSING_TOKEN_MESSAGE)
+        self.bot.logger.warning("BGG command %s refused: BGG_API_TOKEN not configured", ctx.command)
+        return False
+
     def _build_bgg_info_embed(self, game):
         return discord.Embed(
             color=self.bot.embed_color,
@@ -54,7 +75,7 @@ class BoardGames(commands.Cog):
         if status in (401, 403):
             await send_for_context(
                 ctx,
-                f"Failed to retrieve game info for {game_id}. BGG returned {status}; try again later or configure a valid BGG session cookie.",
+                f"Failed to retrieve game info for {game_id}. BGG rejected the request ({status}); the bot's BGG API token may be invalid or expired.",
             )
             self.bot.logger.warning("BGG info lookup for %s returned %s", game_id, status)
             return
@@ -122,11 +143,15 @@ class BoardGames(commands.Cog):
         if ctx.interaction and not ctx.interaction.response.is_done():
             await defer_if_interaction(ctx)
 
+        if not await self._ensure_bgg_token(ctx):
+            return
+
         self.bot.logger.info(f"BGG search query: {search_query}")
         games, source, status = await bg_utils.search_bgg_games(
             self.bot.http_session,
             search_query,
             self.bot.logger,
+            api_token=self._bgg_api_token(),
         )
         games = games[:5]
 
@@ -149,6 +174,7 @@ class BoardGames(commands.Cog):
             top_game["bggid"],
             self.bot.logger,
             cookie_value=self.bot.config.services.bgg_cookie,
+                api_token=self._bgg_api_token(),
         )
         if game is not None and game_status == 200:
             await send_for_context(ctx, embed=self._build_bgg_info_embed(game))
@@ -172,12 +198,16 @@ class BoardGames(commands.Cog):
         if ctx.interaction and not ctx.interaction.response.is_done():
             await defer_if_interaction(ctx)
 
+        if not await self._ensure_bgg_token(ctx):
+            return
+
         self.bot.logger.info(f"Fetching BGG info for ID: {game_id}")
         game, status = await bg_utils.fetch_bgg_thing(
             self.bot.http_session,
             game_id,
             self.bot.logger,
             cookie_value=self.bot.config.services.bgg_cookie,
+                api_token=self._bgg_api_token(),
         )
         if game is None and status == 200:
             await send_for_context(ctx, "Game not found.")
@@ -200,6 +230,9 @@ class BoardGames(commands.Cog):
         if ctx.interaction and not ctx.interaction.response.is_done():
             await defer_if_interaction(ctx)
 
+        if not await self._ensure_bgg_token(ctx):
+            return
+
         self.bot.logger.info(f"Fetching BGG collection for: {username}")
 
         try:
@@ -208,6 +241,7 @@ class BoardGames(commands.Cog):
                 self.bot.logger,
                 self.bot.http_session,
                 cookie_value=self.bot.config.services.bgg_cookie,
+                api_token=self._bgg_api_token(),
             )
 
             if status == 200 and xml_data:
@@ -233,7 +267,7 @@ class BoardGames(commands.Cog):
             elif status in (401, 403):
                 await send_for_context(
                     ctx,
-                    f"Collection for {username} appears private. Ask the user to make it public or provide a valid BGG session cookie.",
+                    f"BGG denied access to {username}'s collection ({status}). The collection may be private, or the bot's BGG API token may be invalid.",
                 )
                 self.bot.logger.warning(f"BGG collection private or unauthorized for {username}")
             else:
@@ -244,22 +278,34 @@ class BoardGames(commands.Cog):
             await send_for_context(ctx, "An error occurred during fetch.")
 
     @commands.hybrid_command(
-        name="manualbggupdate", help="Trigger manual BGG update for all users."
+        name="manualbggupdate", help="Trigger manual BGG update for all users (owner only)."
     )
+    @commands.is_owner()
     async def manual_bgg_update(self, ctx):
         """
         Manually triggers the process to update all users' BGG collections.
         """
+        if not await self._ensure_bgg_token(ctx):
+            return
+
         await send_for_context(ctx, "Starting manual update of BGG collections. Please wait...")
         try:
-            await bg_utils.process_bgg_users(
+            summary = await bg_utils.process_bgg_users(
                 self.bot.db_pool,
                 self.bot.http_session,
                 self.bot.logger,
                 cookie_value=self.bot.config.services.bgg_cookie,
+                api_token=self._bgg_api_token(),
             )
-            await send_for_context(ctx, "BGG collections updated successfully.")
-            self.bot.logger.info("Manual BGG update completed.")
+            await send_for_context(
+                ctx,
+                "BGG collections updated: {synced}/{users} synced, {marked_private} marked private, "
+                "{failed} failed.".format(**summary),
+            )
+            self.bot.logger.info("Manual BGG update completed: %s", summary)
+        except bg_utils.BGGAuthError as e:
+            await send_for_context(ctx, f"BGG update aborted, no users were changed: {e}")
+            self.bot.logger.error("Manual BGG update aborted: %s", e)
         except Exception as e:
             await send_for_context(ctx, f"Failed to update BGG collections: {str(e)}")
             self.bot.logger.error(f"Manual BGG update failed: {str(e)}")
