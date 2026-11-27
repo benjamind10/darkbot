@@ -195,6 +195,7 @@ class ServicesConfig:
     spotify_client_secret: str | None = None
     chatgpt_secret: str | None = None
     openai_api_key: str | None = None
+    openai_model: str | None = None
     api_coincap: str | None = None
     ip_info: str | None = None
     ksoft_api: str | None = None
@@ -548,6 +549,7 @@ class Config:
             chatgpt_secret=chatgpt_secret,
             openai_api_key=self._get_config("OPENAI_API_KEY", "services.openai_api_key")
             or chatgpt_secret,
+            openai_model=self._get_config("OPENAI_MODEL", "services.openai_model"),
             api_coincap=self._get_config("API_COINCAP", "services.api_coincap"),
             ip_info=self._get_config("IP_INFO", "services.ip_info"),
             ksoft_api=self._get_config("KSOFT_API", "services.ksoft_api"),

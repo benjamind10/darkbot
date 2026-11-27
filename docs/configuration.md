@@ -42,11 +42,12 @@ Copy `bot/.env.example` to `bot/.env` and fill in your values.
 
 | Variable | Feature |
 |----------|---------|
-| `CHATGPT_SECRET` | ChatGPT integration |
+| `OPENAI_API_KEY` | ChatGPT (`askgpt`) integration |
+| `OPENAI_MODEL` | Model used by `askgpt` (default `gpt-4o-mini`) |
+| `CHATGPT_SECRET` | Legacy alias for `OPENAI_API_KEY` |
 | `SPOTIFY_CLIENT_ID` | Spotify search/playback |
 | `SPOTIFY_CLIENT_SECRET` | Spotify search/playback |
-| `WEATHER_API_KEY` | Weather command |
-| `API_COINCAP` | Cryptocurrency commands |
+| `WEATHER_API_KEY` | OpenWeather key for the weather command (`KSOFT_API` is accepted as a legacy alias) |
 | `IP_INFO` | IP lookup command |
 | `BGG_API_TOKEN` | BoardGameGeek XML API2 access token (**required** for all `bg*` commands) |
 | `BGG_AUTH_COOKIE` | BoardGameGeek private collections (preferred) |
@@ -56,6 +57,12 @@ Copy `bot/.env.example` to `bot/.env` and fill in your values.
 Since Fall 2025 BoardGameGeek rejects anonymous XML API2 requests with `401 Unauthorized`. Register an application at https://boardgamegeek.com/applications, create a token, and set it as `BGG_API_TOKEN`; DarkBot sends it as `Authorization: Bearer <token>` on every XML API2 request.
 
 When either `BGG_AUTH_COOKIE` or `BGG_COOKIE` is set, DarkBot sends that session cookie with XML API2 collection requests so private collections can be fetched. `BGG_AUTH_COOKIE` is preferred for new setups; `BGG_COOKIE` is kept as a backward-compatible alias.
+
+### Keyless services
+
+Crypto prices (`bitcoin`, `litecoin`, `tobtc`) use CoinGecko with Coinbase as a fallback, and `currency` uses
+[Frankfurter](https://frankfurter.dev) (European Central Bank reference rates). None of these need a key; the old
+`API_COINCAP` setting is no longer used because CoinCap retired its v2 API.
 
 ### Development
 

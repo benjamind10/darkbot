@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -328,7 +328,6 @@ dependencies = [
     { name = "discord-py" },
     { name = "distro" },
     { name = "exceptiongroup" },
-    { name = "forex-python" },
     { name = "frozenlist" },
     { name = "h11" },
     { name = "h2" },
@@ -393,7 +392,6 @@ requires-dist = [
     { name = "discord-py", specifier = "==2.6.4" },
     { name = "distro", specifier = "==1.9.0" },
     { name = "exceptiongroup", specifier = "==1.1.3" },
-    { name = "forex-python", specifier = "==1.8" },
     { name = "frozenlist", specifier = "==1.4.1" },
     { name = "h11", specifier = "==0.12.0" },
     { name = "h2", specifier = "==4.1.0" },
@@ -482,19 +480,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e6/dc/be6cbe99670cd6e4ad387123647cb08e0c32975e223f82551e914c5568a6/filelock-3.29.4.tar.gz", hash = "sha256:10cdb3656fc44541cdf30652a93fb10ec6b05325620eb316bd26893e4201538a", size = 63028, upload-time = "2026-06-13T16:12:00.744Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/13/37/a065dc3bd6e49423a6532c642ca7378d3f467b1ef44c2800c937af7f9739/filelock-3.29.4-py3-none-any.whl", hash = "sha256:dac1648087d5115554850d113e7dd8c83ab2d38e3435dde2d4f163847e57b767", size = 42757, upload-time = "2026-06-13T16:11:59.582Z" },
-]
-
-[[package]]
-name = "forex-python"
-version = "1.8"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "requests" },
-    { name = "simplejson" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9e/8a/aaeef60c3a542b4c4d5f98cc8925fa5e3547c5bd4834fe1a65ccb5c223a2/forex-python-1.8.tar.gz", hash = "sha256:7d4a5c36b66e7ef9ee515f607a41249a1ae1a2499a9e011702b66f784325cc76", size = 8792, upload-time = "2021-12-03T09:26:59.975Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/73/1c/3beb86109639e4f0bae990b392c973ef4766c72f532c94a20e6019bea2cb/forex_python-1.8-py3-none-any.whl", hash = "sha256:8e6b375ad1f15b90a15d95ef8156651fae8487075dd007d2b7dd8efad8f44e41", size = 8241, upload-time = "2021-12-03T09:26:56.696Z" },
 ]
 
 [[package]]
