@@ -7,7 +7,7 @@ import pytest
 import aiohttp
 from aioresponses import CallbackResult
 
-from bot.utils.boardgames import (
+from utils.boardgames import (
     BASE_URL,
     API2_BASE_URL,
     BGG_API_HEADERS,
@@ -82,7 +82,7 @@ async def test_fetch_bgg_collection_202_returns_last_status(mock_http_session, m
 
     mock_http_session.mocked.get(url, status=202, body=b"Queued")
     sleep = AsyncMock()
-    monkeypatch.setattr("bot.utils.boardgames.asyncio.sleep", sleep)
+    monkeypatch.setattr("utils.boardgames.asyncio.sleep", sleep)
 
     res, status = await fetch_bgg_collection(
         username,
@@ -102,7 +102,7 @@ async def test_fetch_bgg_collection_429_respects_retry_after(mock_http_session, 
 
     mock_http_session.mocked.get(url, status=429, body=b"Too Many Requests", headers={"Retry-After": "7"})
     sleep = AsyncMock()
-    monkeypatch.setattr("bot.utils.boardgames.asyncio.sleep", sleep)
+    monkeypatch.setattr("utils.boardgames.asyncio.sleep", sleep)
 
     res, status = await fetch_bgg_collection(
         username,
@@ -122,7 +122,7 @@ async def test_fetch_bgg_collection_5xx_returns_last_status(mock_http_session, m
 
     mock_http_session.mocked.get(url, status=503, body=b"Unavailable")
     sleep = AsyncMock()
-    monkeypatch.setattr("bot.utils.boardgames.asyncio.sleep", sleep)
+    monkeypatch.setattr("utils.boardgames.asyncio.sleep", sleep)
 
     res, status = await fetch_bgg_collection(
         username,
@@ -142,7 +142,7 @@ async def test_fetch_bgg_collection_client_error_returns_last_status(mock_http_s
 
     mock_http_session.mocked.get(url, exception=aiohttp.ClientError("boom"))
     sleep = AsyncMock()
-    monkeypatch.setattr("bot.utils.boardgames.asyncio.sleep", sleep)
+    monkeypatch.setattr("utils.boardgames.asyncio.sleep", sleep)
 
     res, status = await fetch_bgg_collection(
         username,
@@ -904,7 +904,7 @@ def _capture_private_marks(monkeypatch):
     async def _fake_set_bgg_private(db_pool, logger, user_id, is_private=True):
         called.append((user_id, is_private))
 
-    monkeypatch.setattr("bot.utils.boardgames.set_bgg_private", _fake_set_bgg_private)
+    monkeypatch.setattr("utils.boardgames.set_bgg_private", _fake_set_bgg_private)
     return called
 
 

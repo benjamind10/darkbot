@@ -7,8 +7,8 @@ Handles board game related commands, including integration with BoardGameGeek (B
 
 import discord
 from discord.ext import commands
-from bot.utils.discord_context import defer_if_interaction, send_for_context
-from bot.utils import boardgames as bg_utils
+from utils.discord_context import defer_if_interaction, send_for_context
+from utils import boardgames as bg_utils
 
 
 class BoardGames(commands.Cog):
