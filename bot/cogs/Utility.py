@@ -29,13 +29,6 @@ except ImportError:
     TRANSLATOR_AVAILABLE = False
 
 try:
-    from forex_python.converter import CurrencyRates
-
-    FOREX_AVAILABLE = True
-except ImportError:
-    FOREX_AVAILABLE = False
-
-try:
     import ipinfo
 
     IPINFO_AVAILABLE = True
@@ -44,13 +37,15 @@ except ImportError:
 
 from utils.color_converting import rgb_to_cmyk, rgb_to_hsl, rgb_to_hsv
 from utils.bitcoin import (
+    LITECOIN,
     BitcoinProviderError,
     InvalidBitcoinCurrencyError,
     convert_currency_to_bitcoin,
     get_bitcoin_price,
+    get_crypto_price,
 )
+from utils.currency import CurrencyProviderError, InvalidCurrencyError, convert_currency
 from utils.discord_context import defer_if_interaction, has_origin_message, send_for_context
-from utils.decimal_formatting import truncate
 
 
 class Utility(commands.Cog):
@@ -69,7 +64,11 @@ class Utility(commands.Cog):
             self.t = aiogoogletrans.Translator
 
         self.ip_info_token = bot.config.services.ip_info
-        self.openweather_api_key = bot.config.services.ksoft_api
+        # WEATHER_API_KEY is the real setting; KSOFT_API is the legacy name that
+        # older deployments used for the OpenWeather key.
+        self.openweather_api_key = getattr(
+            bot.config.services, "weather_api_key", None
+        ) or getattr(bot.config.services, "ksoft_api", None)
 
     # ========== Cryptocurrency Commands ==========
 
@@ -120,16 +119,14 @@ class Utility(commands.Cog):
             await defer_if_interaction(ctx)
 
         try:
-            async with self.bot.http_session.get("https://api.coincap.io/v2/rates/litecoin") as r:
-                res = await r.json()
-                litecoin_price = res["data"]["rateUsd"]
-                embed = discord.Embed(
-                    color=self.bot.embed_color,
-                    title="→ Current Litecoin Price",
-                    description=f"• One Litecoin is: `{litecoin_price[:-14]}` USD",
-                )
-                await send_for_context(ctx, embed=embed)
-                self.logger.info(f"Utility | Sent Litecoin: {ctx.author}")
+            result = await get_crypto_price(LITECOIN, "USD", self.bot.http_session)
+            embed = discord.Embed(
+                color=self.bot.embed_color,
+                title="→ Current Litecoin Price",
+                description=f"• One Litecoin is: `{result.price:,.2f}` USD",
+            )
+            await send_for_context(ctx, embed=embed)
+            self.logger.info(f"Utility | Sent Litecoin: {ctx.author}")
         except Exception as e:
             await send_for_context(ctx, "❌ Failed to fetch Litecoin price.")
             self.logger.error(f"Utility | Litecoin error: {e}")
@@ -147,22 +144,19 @@ class Utility(commands.Cog):
         if ctx.interaction and not ctx.interaction.response.is_done():
             await defer_if_interaction(ctx)
 
-        if not FOREX_AVAILABLE:
-            await send_for_context(ctx, "❌ forex-python library not installed.")
-            return
-
         try:
-            c = CurrencyRates()
-            amount_float = float(amount)
-            converted = float(
-                await asyncio.to_thread(c.convert, currency1, currency2, amount_float)
-            )
+            result = await convert_currency(amount, currency1, currency2, self.bot.http_session)
 
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Currency Converting",
-                description=f"• {amount_float} {currency1} is about {truncate(converted, 2)} {currency2}!",
+                description=(
+                    f"• {result.amount:,.2f} {result.source} is about "
+                    f"{result.converted:,.2f} {result.target}!"
+                ),
             )
+            if result.date:
+                embed.set_footer(text=f"ECB reference rate for {result.date} (frankfurter.dev)")
             await send_for_context(ctx, embed=embed)
             self.logger.info(f"Utility | Sent Currency: {ctx.author}")
         except ValueError:
@@ -172,14 +166,16 @@ class Utility(commands.Cog):
                 description="• Not a valid amount of money!",
             )
             await send_for_context(ctx, embed=embed)
-        except Exception as e:
+        except InvalidCurrencyError:
             embed = discord.Embed(
                 color=self.bot.embed_color,
                 title="→ Currency Error!",
                 description="• Not a valid currency type!\n• Example: `!currency 10 USD CAD`",
             )
             await send_for_context(ctx, embed=embed)
-            self.logger.error(f"Utility | Currency conversion error: {e}")
+        except CurrencyProviderError as e:
+            await send_for_context(ctx, "❌ Currency rates are unavailable right now. Try again later.")
+            self.logger.error(f"Utility | Currency provider error: {e}")
 
     @currency.error
     async def currency_error(self, ctx, error):
@@ -613,7 +609,7 @@ class Utility(commands.Cog):
             await defer_if_interaction(ctx)
 
         if not self.openweather_api_key:
-            await send_for_context(ctx, "❌ OpenWeather API key not configured (KSOFT_API).")
+            await send_for_context(ctx, "❌ OpenWeather API key not configured (set WEATHER_API_KEY).")
             return
 
         try:
