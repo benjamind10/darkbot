@@ -36,28 +36,28 @@ After the database container is running:
 
 ```bash
 # Start just the database first
-docker-compose up -d db
+docker compose up -d db
 
 # Apply schemas
-docker-compose exec db psql -U postgres -d darkbot < darkbot.sql
-docker-compose exec db psql -U postgres -d darkbot < events_schema.sql
-docker-compose exec db psql -U postgres -d darkbot < modlog_schema.sql
+docker compose exec db psql -U postgres -d darkbot < darkbot.sql
+docker compose exec db psql -U postgres -d darkbot < events_schema.sql
+docker compose exec db psql -U postgres -d darkbot < modlog_schema.sql
 ```
 
 ### 3. Start All Services
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 4. Verify
 
 ```bash
 # Check all containers are running
-docker-compose ps
+docker compose ps
 
 # Watch bot logs
-docker-compose logs -f python-app
+docker compose logs -f python-app
 ```
 
 Look for:
@@ -76,24 +76,33 @@ INFO | Synced XX slash command(s) to Discord
 
 ## Updating
 
+> Use Docker Compose v2 (`docker compose`). The legacy `docker-compose` v1 tool fails with
+> `KeyError: 'ContainerConfig'` when recreating containers on current Docker, and can leave the bot stopped.
+
 ```bash
 git pull origin main
-docker-compose build python-app
-docker-compose up -d python-app
+
+# Code-only changes: ./bot is bind-mounted, so a restart picks them up
+docker compose restart python-app
+
+# Dependency (pyproject.toml) or Dockerfile changes: rebuild the image
+docker compose up -d --build python-app
+
+# .env changes: recreate the container (env_file is only read on create)
+docker compose up -d python-app
 ```
 
 ## Monitoring
 
 ```bash
 # Live logs
-docker-compose logs -f python-app
-docker-compose logs -f lavalink
+docker compose logs -f python-app
 
 # Resource usage
 docker stats
 
 # Restart a service
-docker-compose restart python-app
+docker compose restart python-app
 ```
 
 ## Resource Limits
@@ -130,7 +139,7 @@ Only expose these ports if needed:
 
 | Issue | Check |
 |-------|-------|
-| Bot not responding | `docker-compose ps` and `docker-compose logs python-app` |
+| Bot not responding | `docker compose ps` and `docker compose logs python-app` |
 | Music commands unavailable | Expected in the default Docker stack; re-enable `MUSIC_ENABLED` and connect an external Lavalink service if you need playback |
 | Database errors | Verify `.env` credentials, check schemas are applied |
 | Slash commands not appearing | Wait up to 1 hour for global sync, check `applications.commands` OAuth2 scope |
