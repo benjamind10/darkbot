@@ -48,9 +48,12 @@ Copy `bot/.env.example` to `bot/.env` and fill in your values.
 | `WEATHER_API_KEY` | Weather command |
 | `API_COINCAP` | Cryptocurrency commands |
 | `IP_INFO` | IP lookup command |
+| `BGG_API_TOKEN` | BoardGameGeek XML API2 access token (**required** for all `bg*` commands) |
 | `BGG_AUTH_COOKIE` | BoardGameGeek private collections (preferred) |
 | `BGG_COOKIE` | BoardGameGeek private collections (legacy alias) |
 | `YOUTUBE_API_KEY` | YouTube API |
+
+Since Fall 2025 BoardGameGeek rejects anonymous XML API2 requests with `401 Unauthorized`. Register an application at https://boardgamegeek.com/applications, create a token, and set it as `BGG_API_TOKEN`; DarkBot sends it as `Authorization: Bearer <token>` on every XML API2 request.
 
 When either `BGG_AUTH_COOKIE` or `BGG_COOKIE` is set, DarkBot sends that session cookie with XML API2 collection requests so private collections can be fetched. `BGG_AUTH_COOKIE` is preferred for new setups; `BGG_COOKIE` is kept as a backward-compatible alias.
 

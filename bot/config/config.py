@@ -199,6 +199,7 @@ class ServicesConfig:
     ip_info: str | None = None
     ksoft_api: str | None = None
     bgg_cookie: str | None = None
+    bgg_api_token: str | None = None
 
 
 class Config:
@@ -552,6 +553,7 @@ class Config:
             ksoft_api=self._get_config("KSOFT_API", "services.ksoft_api"),
             bgg_cookie=self._get_config("BGG_AUTH_COOKIE", "services.bgg_cookie")
             or self._get_config("BGG_COOKIE", "services.bgg_cookie"),
+            bgg_api_token=self._get_config("BGG_API_TOKEN", "services.bgg_api_token"),
         )
 
     def _get_config(self, env_key: str, file_key: str, default: Any = None) -> Any:

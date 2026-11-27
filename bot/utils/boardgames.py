@@ -31,8 +31,16 @@ WHERE id = %s::integer;
 """
 
 
+class BGGAuthError(Exception):
+    """Raised when BGG requests fail because our own credentials are missing or rejected."""
+
+
 def has_bgg_cookie(cookie_value: str | None) -> bool:
     return bool(cookie_value and cookie_value.strip())
+
+
+def has_bgg_token(api_token: str | None) -> bool:
+    return bool(api_token and api_token.strip())
 
 
 def safe_convert(value, default=0, data_type=int):
@@ -42,24 +50,34 @@ def safe_convert(value, default=0, data_type=int):
         return default
 
 
-def build_bgg_lookup_headers(cookie_value: str | None = None) -> dict[str, str]:
+def add_bgg_auth_header(headers: dict[str, str], api_token: str | None) -> dict[str, str]:
+    """Attach the BGG XML API bearer token (required since BGG's Fall 2025 change)."""
+    if api_token and has_bgg_token(api_token):
+        headers["Authorization"] = f"Bearer {api_token.strip()}"
+    return headers
+
+
+def build_bgg_lookup_headers(
+    cookie_value: str | None = None, api_token: str | None = None
+) -> dict[str, str]:
     headers = {**BGG_API_HEADERS}
     if has_bgg_cookie(cookie_value):
         headers["Cookie"] = cookie_value
-    return headers
+    return add_bgg_auth_header(headers, api_token)
 
 
 async def search_bgg_games(
     session: aiohttp.ClientSession,
     search_query: str,
     logger,
+    api_token: str | None = None,
 ) -> tuple[list[dict[str, str]], str | None, int | None]:
     search_url = f"{API2_BASE_URL}search"
     html_search_url = f"{HTML_BASE_URL}search/boardgame"
 
     async with session.get(
         search_url,
-        headers={"User-Agent": BGG_USER_AGENT},
+        headers=add_bgg_auth_header({"User-Agent": BGG_USER_AGENT}, api_token),
         params={"query": search_query},
     ) as response:
         if response.status == 200:
@@ -200,6 +218,7 @@ async def fetch_bgg_thing(
     game_id: str,
     logger,
     cookie_value: str | None = None,
+    api_token: str | None = None,
 ):
     url = f"{API2_BASE_URL}thing"
     params = {"id": game_id, "stats": 1}
@@ -212,11 +231,11 @@ async def fetch_bgg_thing(
                 return game, 200
             return None, status
 
-    headers = build_bgg_lookup_headers(None)
+    headers = build_bgg_lookup_headers(None, api_token)
     game, status = await _request(headers)
     if status in (401, 403) and has_bgg_cookie(cookie_value):
         logger.warning("BGG thing lookup for %s was blocked with %s; retrying with configured cookie", game_id, status)
-        game, status = await _request(build_bgg_lookup_headers(cookie_value))
+        game, status = await _request(build_bgg_lookup_headers(cookie_value, api_token))
     return game, status
 
 
@@ -273,6 +292,7 @@ async def fetch_bgg_collection(
     cookie_value: str | None = None,
     max_attempts: int = 3,
     backoff: float = 2.0,
+    api_token: str | None = None,
 ):
     """Fetch a user's BGG collection with retries for transient errors and
     improved logging for diagnostics.
@@ -293,7 +313,7 @@ async def fetch_bgg_collection(
 
     for attempt in range(1, max_attempts + 1):
         try:
-            headers = {"User-Agent": BGG_USER_AGENT}
+            headers = add_bgg_auth_header({"User-Agent": BGG_USER_AGENT}, api_token)
 
             params = {"username": username, "stats": 1, "subtype": "boardgame"}
 
@@ -494,81 +514,102 @@ async def set_bgg_private(db_pool, logger, user_id: int, is_private: bool = True
 
 
 async def process_bgg_users(
-    db_pool, session: aiohttp.ClientSession, logger, cookie_value: str | None = None
-):
-    try:
-        async with db_pool.connection() as conn:
-            async with conn.cursor() as cursor:
-                logger.debug("Fetching users.")
-                await cursor.execute("SELECT id, bgguser FROM get_all_bggusers();")
-                users = await cursor.fetchall()
-                logger.debug(f"Fetched {len(users)} users.")
+    db_pool,
+    session: aiohttp.ClientSession,
+    logger,
+    cookie_value: str | None = None,
+    api_token: str | None = None,
+    request_delay: float = 1.0,
+) -> dict[str, int]:
+    """Sync every non-private user's BGG collection into the database.
 
-        logger.info(f"Processing {len(users)} users' BGG collections.")
-        for user_id, bgguser in users:
-            try:
-                xml_data, status = await fetch_bgg_collection(
-                    bgguser, logger, session, cookie_value=cookie_value
-                )
+    Users are only marked private when BGG rejects *some* (not all) of the
+    requests while a valid-looking token is configured. A missing token, or
+    every user failing with 401/403, means our own credentials are the problem,
+    so the run is aborted with BGGAuthError and no user is flagged.
+    """
+    if not has_bgg_token(api_token):
+        logger.error("BGG sync aborted: BGG_API_TOKEN is not configured; no users were modified.")
+        raise BGGAuthError("BGG API token is not configured (set BGG_API_TOKEN).")
 
-                if status in (401, 403):
-                    if has_bgg_cookie(cookie_value):
-                        logger.info(
-                            "User %s (%s) returned %s from BGG with a configured cookie; not marking private.",
-                            user_id,
-                            bgguser,
-                            status,
-                        )
-                    else:
-                        try:
-                            logger.info("Marking user id=%s as having a private BGG account", user_id)
-                            await set_bgg_private(db_pool, logger, user_id)
-                        except Exception as mark_exc:
-                            logger.warning(
-                                "Could not mark user %s as private via helper (maybe migration missing): %s",
-                                user_id,
-                                mark_exc,
-                            )
-                        logger.warning(
-                            "User %s (%s) returned %s from BGG without a cookie — marking as private.",
-                            user_id,
-                            bgguser,
-                            status,
-                        )
-                    continue
+    async with db_pool.connection() as conn:
+        async with conn.cursor() as cursor:
+            logger.debug("Fetching users.")
+            await cursor.execute("SELECT id, bgguser FROM get_all_bggusers();")
+            users = await cursor.fetchall()
 
-                if not xml_data:
-                    logger.warning("No data returned for user %s — skipping", bgguser)
-                    continue
+    logger.info("Processing %d users' BGG collections.", len(users))
+    summary = {"users": len(users), "synced": 0, "denied": 0, "marked_private": 0, "failed": 0}
+    denied: list[tuple[int, str, int]] = []
 
-                games = parse_bgg_collection(xml_data)
-                if not games:
-                    logger.warning(
-                        "No parsable collection items for user %s; first 500 chars: %s",
-                        bgguser,
-                        (xml_data or "")[:500],
-                    )
-                    continue
+    for index, (user_id, bgguser) in enumerate(users):
+        if index and request_delay > 0:
+            await asyncio.sleep(request_delay)
+        try:
+            xml_data, status = await fetch_bgg_collection(
+                bgguser, logger, session, cookie_value=cookie_value, api_token=api_token
+            )
 
-                for parsed_item in games:
-                    game_data = {"userid": user_id, **parsed_item}
-
-                    try:
-                        await upsert_boardgame(db_pool, logger, game_data)
-                    except Exception:
-                        logger.warning(
-                            "Upsert failed for user %s game %s — continuing",
-                            bgguser,
-                            game_data.get("name"),
-                        )
-
-            except Exception as e:
-                logger.exception(
-                    "Critical error processing user %s (id=%s): %s",
-                    bgguser,
-                    user_id,
-                    e,
-                )
+            if status in (401, 403):
+                denied.append((user_id, bgguser, status))
                 continue
-    except Exception as e:
-        logger.exception(f"Critical error processing users: {e}")
+
+            if not xml_data:
+                logger.warning("No data returned for user %s (status %s) - skipping", bgguser, status)
+                summary["failed"] += 1
+                continue
+
+            games = parse_bgg_collection(xml_data)
+            if not games:
+                logger.warning(
+                    "No parsable collection items for user %s; first 500 chars: %s",
+                    bgguser,
+                    (xml_data or "")[:500],
+                )
+                summary["failed"] += 1
+                continue
+
+            for parsed_item in games:
+                game_data = {"userid": user_id, **parsed_item}
+                try:
+                    await upsert_boardgame(db_pool, logger, game_data)
+                except Exception:
+                    logger.warning(
+                        "Upsert failed for user %s game %s - continuing",
+                        bgguser,
+                        game_data.get("name"),
+                    )
+            summary["synced"] += 1
+
+        except Exception as e:
+            logger.exception("Error processing user %s (id=%s): %s", bgguser, user_id, e)
+            summary["failed"] += 1
+
+    summary["denied"] = len(denied)
+    if denied and len(denied) == len(users):
+        logger.error(
+            "BGG rejected all %d collection requests (statuses: %s); the API token is probably "
+            "invalid or revoked. No users were marked private.",
+            len(denied),
+            sorted({status for _, _, status in denied}),
+        )
+        raise BGGAuthError("BGG rejected every request; check BGG_API_TOKEN.")
+
+    for user_id, bgguser, status in denied:
+        if has_bgg_cookie(cookie_value):
+            logger.info(
+                "User %s (%s) returned %s from BGG with a configured cookie; not marking private.",
+                user_id,
+                bgguser,
+                status,
+            )
+            continue
+        try:
+            await set_bgg_private(db_pool, logger, user_id)
+            summary["marked_private"] += 1
+            logger.warning("User %s (%s) returned %s from BGG - marked private.", user_id, bgguser, status)
+        except Exception as mark_exc:
+            logger.warning("Could not mark user %s as private: %s", user_id, mark_exc)
+
+    logger.info("BGG sync finished: %s", summary)
+    return summary
