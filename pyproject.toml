@@ -127,4 +127,4 @@ reportGeneralTypeIssues = "none"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "bot"]
